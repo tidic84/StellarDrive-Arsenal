@@ -41,6 +41,63 @@ namespace Arsenal
                     }
                     break;
                 }
+                case "giveall":
+                    foreach (TrackedPlayerServer pl in Svc.PlayersServer.ActivePlayers)
+                        for (int i = 1; i < a.Length; i++)
+                        {
+                            string[] parts = a[i].Split('x');
+                            pl.AddItemToInventory(new ItemDrop { ItemId = uint.Parse(parts[0]), Quantity = parts.Length > 1 ? byte.Parse(parts[1]) : (byte)1 });
+                        }
+                    break;
+                case "lookship":
+                    LookAtShip(uint.Parse(a[1]), new Vector3(float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture), float.Parse(a[4], CultureInfo.InvariantCulture)));
+                    break;
+                case "net":
+                    LoggerInstance.Msg($"[DEV] server={Net.ArsenalNet.IsServer} client={Net.ArsenalNet.IsClient} me={Weapons.Explosives.LocalClientId} players={Svc.PlayersClient?.TotalPlayers} ships={string.Join(",", Svc.ShipsClient.Ships.Select(s => s.Id))}");
+                    foreach (var o in Svc.PlayersClient.OtherPlayers)
+                        LoggerInstance.Msg($"[DEV] other player {o.Id} {o.PlayerName} at {o.Position} physics {o.IsPhysicsLoaded}");
+                    break;
+                case "research":
+                    for (int i = 1; i < a.Length; i++)
+                        Svc.Get<Managers.Interface.Services.IResearchNetworkService>().ResearchTech(ushort.Parse(a[i]));
+                    break;
+                case "save":
+                    Svc.Get<Saving.Services.GameSaver>().SaveGame(new Saving.Interface.Model.SaveGameParams { IsAutomatic = false });
+                    break;
+                case "sit":
+                    Svc.Get<Managers.Interface.Services.IShipInteractionNetworkService>().StartInteractWithPart(
+                        new Managers.Interface.Model.PartInteractNetworkRequest { ShipId = _gunshipId, PartId = 1 });
+                    break;
+                case "click":
+                    MelonLoader.MelonCoroutines.Start(Click(a[1], float.Parse(a[2], CultureInfo.InvariantCulture)));
+                    break;
+                case "tab":
+                {
+                    var bm = Object.FindObjectsByType<UI.BuildMenu.BuildMenu>(FindObjectsSortMode.None).FirstOrDefault(b => b.isActiveAndEnabled);
+                    for (int i = 0; i < int.Parse(a[1]); i++) bm?.OnSwitchTabDirection(1f);
+                    break;
+                }
+                case "rstat":
+                {
+                    var rp = Svc.Get<Research.Interface.Services.IResearchProvider>();
+                    foreach (ushort rid in new ushort[] { 1, 2, 12, 90, 91 })
+                        LoggerInstance.Msg($"[DEV] research {rid}: {rp?.IsResearched(rid)}");
+                    break;
+                }
+                case "hurtother":
+                    foreach (var o in Svc.PlayersClient.OtherPlayers)
+                        Weapons.PlayerDamage.Report(o.Id, float.Parse(a[1], CultureInfo.InvariantCulture));
+                    break;
+                case "hp":
+                    LoggerInstance.Msg($"[DEV] health {Svc.Get<Players.Services.LocalPlayerHealthProxy>()?.CurrentHealth}");
+                    break;
+                case "move":
+                {
+                    // nudge the local player sideways (cheat-free: teleport the client rigidbody prediction isn't possible, so use the server)
+                    TrackedPlayerServer me = Svc.PlayersServer?.GetTrackedPlayerFromConnectionId(Weapons.Explosives.LocalClientId);
+                    if (me != null) me.ServerRigidbody.position += me.ServerRigidbody.rotation * new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), 0, float.Parse(a[2], CultureInfo.InvariantCulture));
+                    break;
+                }
                 case "select":
                     Object.FindObjectsByType<ToolBelt>(FindObjectsSortMode.None).First().SelectTool(int.Parse(a[1]));
                     break;
@@ -110,6 +167,20 @@ namespace Arsenal
                         LoggerInstance.Msg($"[DEV] {kv.Key} hp={kv.Value.Health:F0} holes={kv.Value.Holes.Count}");
                     break;
             }
+        }
+
+        /// <summary>Holds a mouse button through the input system, as if the player pressed it.</summary>
+        private System.Collections.IEnumerator Click(string button, float secs)
+        {
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            var b = button == "right" ? UnityEngine.InputSystem.LowLevel.MouseButton.Right : button == "middle" ? UnityEngine.InputSystem.LowLevel.MouseButton.Middle : UnityEngine.InputSystem.LowLevel.MouseButton.Left;
+            float end = Time.realtimeSinceStartup + secs;
+            while (Time.realtimeSinceStartup < end)
+            {
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState().WithButton(b, true));
+                yield return null;
+            }
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState());
         }
 
         private System.Collections.IEnumerator ReleaseAfter(Tools.Interface.Model.IInteractableTool tool, float secs)

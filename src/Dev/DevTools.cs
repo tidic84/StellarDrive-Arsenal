@@ -18,9 +18,35 @@ namespace Arsenal
         private float _nextPoll;
         private bool _launched;
 
+        private static string _role = "";
+
+        /// <summary>Dev multiplayer on one PC: "host" serves over IP (Tugboat, port 7770), "client" joins localhost.</summary>
+        private static bool DevNetStartPrefix(Managers.Common.MainGameSceneInitializer __instance)
+        {
+            var t = HarmonyLib.Traverse.Create(__instance);
+            if (_role == "host")
+            {
+                MainGameSceneLoadData.Mode = MainGameSceneLoadData.GameMode.HostGameIp;
+                MainGameSceneLoadData.FakeLocalSteamUserId = 1001;
+                t.Method("StartHostIp").GetValue();
+            }
+            else
+            {
+                MainGameSceneLoadData.Mode = MainGameSceneLoadData.GameMode.JoinGameIp;
+                MainGameSceneLoadData.FakeLocalSteamUserId = 1002;
+                t.Method("StartClientIp").GetValue();
+            }
+            Log.Msg($"[DEV] network role {_role}");
+            return false;
+        }
+
         private void DevInit()
         {
-            _cmdFile = Path.Combine(MelonEnvironment.UserDataDirectory, "arsenal_cmd.txt");
+            _role = Environment.GetEnvironmentVariable("ARSENAL_NET") ?? "";
+            _cmdFile = Path.Combine(MelonEnvironment.UserDataDirectory, _role.Length > 0 ? "arsenal_cmd_" + _role + ".txt" : "arsenal_cmd.txt");
+            if (_role.Length > 0)
+                HarmonyInstance.Patch(HarmonyLib.AccessTools.Method(typeof(Managers.Common.MainGameSceneInitializer), "Start"),
+                    prefix: new HarmonyLib.HarmonyMethod(typeof(ArsenalMod), nameof(DevNetStartPrefix)));
             if (File.Exists(_cmdFile)) File.Delete(_cmdFile);
         }
 
@@ -100,7 +126,7 @@ namespace Arsenal
                     Dev.Probe.Dump("cmd");
                     break;
                 case "shot":
-                    string path = Path.Combine(MelonEnvironment.UserDataDirectory, "shot_" + (a.Length > 1 ? a[1] : "x") + ".png");
+                    string path = Path.Combine(MelonEnvironment.UserDataDirectory, "shot_" + _role + (a.Length > 1 ? a[1] : "x") + ".png");
                     ScreenCapture.CaptureScreenshot(path);
                     LoggerInstance.Msg($"[DEV] screenshot {path}");
                     break;

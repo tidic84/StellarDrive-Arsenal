@@ -187,10 +187,6 @@ namespace Arsenal.Vehicles
             _impacts.Clear();
             Vector3 end = Ballistics.Fire(origin, dir, GunBullet, _impacts, RootBody(ship));
             Vector3 from = VisualPoint(m, b, origin);
-#if DEV
-            if (Time.frameCount % 20 == 0)
-                ArsenalMod.Log.Msg($"[DEV] gun origin {origin} visual {from} end {end} fwd {fwd} rb {ship.ShipRigidBody.transform.position} part {part.LocalPosition}");
-#endif
             Fx.MuzzleFlash(from, fwd, 0.45f, m.Points != null && b < m.Points.Length ? m.Points[b] : null);
             Fx.BulletTracer(from, end, 0.05f, 450f);
             Ballistics.PlayImpacts(_impacts, 1.3f);
