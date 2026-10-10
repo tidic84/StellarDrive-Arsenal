@@ -114,12 +114,16 @@ namespace Arsenal.Weapons
                     return hit.point;
                 }
 
-                bool ground = col.gameObject.layer == LayerMask.NameToLayer("Planet");
+                bool ground = IsGround(col);
                 impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ground ? ImpactKind.Ground : ImpactKind.Metal, Tint = new Color(0.6f, 0.6f, 0.6f) });
                 return hit.point;
             }
             return pos;
         }
+
+        /// <summary>Planet terrain colliders (on the Default layer) or anything on the Planet layer.</summary>
+        public static bool IsGround(Collider col) =>
+            col.gameObject.layer == LayerMask.NameToLayer("Planet") || col.name.StartsWith("PlanetMeshCollider");
 
         public static ImpactKind Kind(HullMaterialType m) => m switch
         {

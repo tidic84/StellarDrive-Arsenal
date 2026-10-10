@@ -121,6 +121,64 @@ namespace Arsenal.Visual
             return m;
         }
 
+        /// <summary>Hand grenade: faceted body, yellow band, spoon and ring. Pivot at its centre.</summary>
+        public static Mesh GrenadeMesh()
+        {
+            var k = new MeshKit();
+            k.At(Vector3.zero, new Vector3(-90f, 0, 0));
+            k.Cylinder(new Vector3(0, 0, 0), 0.032f, 0.06f, 8, Shade.Dark, Shade.HatchDark);
+            k.Frustum(new Vector3(0, 0, 0.03f), 0.032f, 0.018f, 0.018f, 8, Shade.Dark);
+            k.Cylinder(new Vector3(0, 0, 0.0f), 0.0335f, 0.012f, 8, Shade.Yellow, Shade.Yellow);
+            k.Cylinder(new Vector3(0, 0, 0.055f), 0.011f, 0.016f, 6, Shade.Grey, Shade.Grey);
+            k.At(Vector3.zero, new Vector3(90f, 0, 0));
+            k.Frustum(new Vector3(0, 0, 0.03f), 0.032f, 0.02f, 0.016f, 8, Shade.Dark);
+            k.At(Vector3.zero);
+            // spoon down the side, pin ring
+            k.Box(new Vector3(0.03f, 0.03f, 0f), new Vector3(0.006f, 0.05f, 0.014f), Shade.Light);
+            k.Box(new Vector3(-0.016f, 0.062f, 0f), new Vector3(0.016f, 0.003f, 0.003f), Shade.Grey);
+            k.Box(new Vector3(-0.026f, 0.062f, 0f), new Vector3(0.003f, 0.014f, 0.014f), Shade.Grey);
+            return k.Build("Arsenal.Grenade");
+        }
+
+        /// <summary>Breaching charge: a block with a strap, wires and a little armed light. Pivot on its back face (sticks to walls).</summary>
+        public static Mesh ChargeMesh()
+        {
+            var k = new MeshKit();
+            k.Bevel(new Vector3(0, 0, 0.025f), new Vector3(0.2f, 0.12f, 0.05f), 0.01f, Shade.HatchLight, Shade.Light);
+            k.Box(new Vector3(0, 0, 0.026f), new Vector3(0.03f, 0.124f, 0.054f), Shade.Orange);
+            k.Box(new Vector3(0.045f, 0.0f, 0.053f), new Vector3(0.05f, 0.04f, 0.008f), Shade.Dark);
+            k.Box(new Vector3(0.045f, 0.0f, 0.0575f), new Vector3(0.036f, 0.024f, 0.002f), Shade.Black);
+            k.Box(new Vector3(-0.05f, 0.02f, 0.052f), new Vector3(0.006f, 0.006f, 0.006f), Shade.Red);
+            k.Box(new Vector3(-0.035f, -0.03f, 0.052f), new Vector3(0.05f, 0.004f, 0.004f), Shade.Blue);
+            k.Box(new Vector3(-0.03f, -0.022f, 0.052f), new Vector3(0.04f, 0.004f, 0.004f), Shade.Yellow);
+            return k.Build("Arsenal.Charge");
+        }
+
+        public static Model Grenade()
+        {
+            var m = new Model { Root = new GameObject("GrenadeModel") };
+            GameObject body = MeshChild(m.Root.transform, "Body", GrenadeMesh(), Assets.ToolAtlas);
+            body.transform.localPosition = new Vector3(0, 0.02f, 0.03f);
+            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.02f, 0.06f), Vector3.zero);
+            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.02f, -0.01f, 0.0f), new Vector3(8.5f, 29.4f, 284.5f));
+            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.15f, -0.12f, -0.05f), new Vector3(356.7f, 15.4f, 347f));
+            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.15f, -0.12f, -0.05f), new Vector3(8.6f, 24.3f, 10.2f));
+            return m;
+        }
+
+        public static Model Charge()
+        {
+            var m = new Model { Root = new GameObject("ChargeModel") };
+            GameObject body = MeshChild(m.Root.transform, "Body", ChargeMesh(), Assets.ToolAtlas);
+            body.transform.localPosition = new Vector3(0, 0.03f, 0.04f);
+            body.transform.localEulerAngles = new Vector3(-70f, 0, 0);
+            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.1f), Vector3.zero);
+            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.05f, -0.01f, 0.0f), new Vector3(8.5f, 29.4f, 284.5f));
+            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.07f, -0.01f, 0.03f), new Vector3(356.7f, 15.4f, 347f));
+            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.07f, -0.01f, 0.03f), new Vector3(8.6f, 24.3f, 10.2f));
+            return m;
+        }
+
         public static Model Marksman()
         {
             var k = new MeshKit();

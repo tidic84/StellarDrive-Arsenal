@@ -31,6 +31,8 @@ namespace Arsenal.Net
         DetonateCharges = 9,
         LaunchMissile = 10,
         MissileExplode = 11,
+        ConsumeItem = 12,
+        GrenadeThrown = 13,
 
         // server -> client
         PanelState = 64,
@@ -39,6 +41,7 @@ namespace Arsenal.Net
         ChargeState = 67,
         MissileSpawn = 68,
         MissileGone = 69,
+        GrenadeRemote = 70,
     }
 
     /// <summary>Registers the broadcast with whichever NetworkManager is running and routes packets by opcode.</summary>

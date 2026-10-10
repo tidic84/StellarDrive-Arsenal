@@ -218,7 +218,7 @@ namespace Arsenal.Weapons
         {
             float spread = Mathf.Lerp(_def.SpreadDegrees, _def.AimSpreadDegrees, _aimBlend);
             Vector3 dir = Quaternion.AngleAxis(Random.Range(0f, 360f), cam.Direction) *
-                          Quaternion.AngleAxis(Random.Range(0f, spread), Vector3.Cross(cam.Direction, Vector3.up).normalized) * cam.Direction;
+                          Quaternion.AngleAxis(Random.Range(0f, spread), Vector3.Cross(cam.Direction, Fx.Up).normalized) * cam.Direction;
             _impacts.Clear();
             Vector3 end = Ballistics.Fire(cam.CameraPos, dir.normalized, _def.Bullet, _impacts);
 

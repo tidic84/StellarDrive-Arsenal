@@ -96,8 +96,24 @@ namespace Arsenal.Visual
             }
         }
 
+        /// <summary>Local "up" (planets are round: Unity's Y axis is not up). Refreshed every frame.</summary>
+        public static Vector3 Up { get; private set; } = Vector3.up;
+
         private void Update()
         {
+            try
+            {
+                var upProvider = Arsenal.Core.Svc.Get<Players.Services.PlayerUpProvider>();
+                if (upProvider != null)
+                {
+                    Vector3 u = upProvider.WorldPlayerUp;
+                    if (u.sqrMagnitude > 0.01f) Up = u.normalized;
+                }
+            }
+            catch
+            {
+                // no local player yet
+            }
             float dt = Time.deltaTime;
             for (int i = _items.Count - 1; i >= 0; i--)
             {
@@ -332,7 +348,7 @@ namespace Arsenal.Visual
                 Instance._items.Add(new Body
                 {
                     T = go.transform,
-                    Velocity = drift + Random.insideUnitSphere * radius * 0.8f + Vector3.up * radius * 0.4f,
+                    Velocity = drift + Random.insideUnitSphere * radius * 0.8f + Up * radius * 0.4f,
                     Spin = Random.insideUnitSphere * 40f,
                     Drag = 1.5f,
                     Life = life * Random.Range(0.8f, 1.25f),
@@ -352,16 +368,16 @@ namespace Arsenal.Visual
             l.range = radius * 6f;
             l.intensity = 8f;
             l.shadows = LightShadows.None;
-            Instance._items.Add(new Body { T = fire.transform, Life = 0.35f, BaseScale = Vector3.one * radius * 1.4f, Puff = true, Spin = Random.insideUnitSphere * 90f, Light = l, LightIntensity = 8f });
+            Instance._items.Add(new Body { T = fire.transform, Life = 0.35f, BaseScale = Vector3.one * radius * 0.8f, Puff = true, Spin = Random.insideUnitSphere * 90f, Light = l, LightIntensity = 8f });
             for (int i = 0; i < 6; i++)
             {
                 GameObject core = MeshObject("Arsenal.Fire", IcoMesh, FireMat, pos + Random.insideUnitSphere * radius * 0.3f, Random.rotation, Vector3.one * 0.01f);
-                Instance._items.Add(new Body { T = core.transform, Life = Random.Range(0.25f, 0.5f), BaseScale = Vector3.one * radius * Random.Range(0.5f, 0.9f), Puff = true, Velocity = Random.insideUnitSphere * radius * 2f, Drag = 3f });
+                Instance._items.Add(new Body { T = core.transform, Life = Random.Range(0.25f, 0.5f), BaseScale = Vector3.one * radius * Random.Range(0.25f, 0.45f), Puff = true, Velocity = Random.insideUnitSphere * radius * 2f, Drag = 3f });
             }
-            Puff(pos, radius * 0.45f, new Color(0.32f, 0.3f, 0.29f), 2.2f, 9, Vector3.up * 0.6f);
-            Puff(pos, radius * 0.3f, new Color(0.62f, 0.6f, 0.57f), 2.8f, 6, Vector3.up * 1.2f);
-            EmitSparks(pos, Vector3.up, 60);
-            Debris(pos, Vector3.up, new Color(0.25f, 0.24f, 0.23f), 12, 0.06f * Mathf.Max(1f, radius * 0.3f), radius * 4f);
+            Puff(pos, radius * 0.2f, new Color(0.5f, 0.48f, 0.46f), 1.6f, 8, Up * 0.8f);
+            Puff(pos, radius * 0.14f, new Color(0.72f, 0.7f, 0.67f), 2.2f, 6, Up * 1.4f);
+            EmitSparks(pos, Up, 60);
+            Debris(pos, Up, new Color(0.25f, 0.24f, 0.23f), 12, 0.06f * Mathf.Max(1f, radius * 0.3f), radius * 4f);
         }
 
         /// <summary>A continuous beam segment that lives one frame (the laser cannon redraws it every frame).</summary>

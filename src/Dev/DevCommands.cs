@@ -106,14 +106,14 @@ namespace Arsenal
             for (int x = -4; x <= 4; x++)
             {
                 HullPartSettings s = x < -1 ? wood : x > 1 ? glass : iron;
-                if (x == -4 || x == 4) { for (int z = -3; z <= 4; z++) parts.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward))); continue; }
+                if (x == -4 || x == 4) { for (int z = 0; z <= 5; z++) parts.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward))); continue; }
                 for (int y = 0; y < 3; y++)
                     parts.Add(new HullPart(s, new HullPartPlacement(new Vector3Int(x, y, 0), VoxelPartType.ForwardWall, PartOrientation.Forward, PartOrientation.Up)));
                 // a second iron wall behind the middle, to see penetration
                 if (x >= -1 && x <= 1)
                     for (int y = 0; y < 3; y++)
                         parts.Add(new HullPart(iron, new HullPartPlacement(new Vector3Int(x, y, 2), VoxelPartType.ForwardWall, PartOrientation.Forward, PartOrientation.Up)));
-                for (int z = -3; z <= 4; z++)
+                for (int z = 0; z <= 5; z++)
                     parts.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
             }
             var phys = p.PhysicsState;

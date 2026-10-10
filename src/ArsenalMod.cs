@@ -34,6 +34,7 @@ namespace Arsenal
             HullDamage.Init();
             PlayerDamage.Init();
             FxNet.Init();
+            Explosives.Init();
 #if DEV
             DevInit();
 #endif
@@ -47,6 +48,7 @@ namespace Arsenal
             Fx.ClearAll();
             Assets.ClearSceneRefs();
             Sounds.Reset();
+            Explosives.Reset();
             if (sceneName == MainGameScene)
                 ArsenalContent.RegisterItems();
 #if DEV
