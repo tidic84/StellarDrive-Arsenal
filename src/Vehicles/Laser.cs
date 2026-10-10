@@ -64,7 +64,7 @@ namespace Arsenal.Vehicles
                 }
                 if (burn)
                 {
-                    if (Ballistics.TryGetOtherPlayer(hit, out uint player)) PlayerDamage.Report(player, PlayerDamagePerTick);
+                    if (Ballistics.TryGetOtherPlayer(hit, out uint player)) PlayerDamage.Report(player, PlayerDamagePerTick, Arsenal.Weapons.WeaponKind.ShipLaser);
                     IMinableObject minable = col.GetComponentInParent<IMinableObject>();
                     if (minable != null)
                         try { minable.ReduceHealth(0.6f); } catch { }

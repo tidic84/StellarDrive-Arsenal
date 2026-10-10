@@ -136,6 +136,7 @@ namespace Arsenal.Visual
                 try { it.Kill(); } catch { }
             _instance._items.Clear();
             Tints.Clear();
+            GlowMats.Clear();
             _tracerMat = _flashMat = _fireMat = null;
             _sparks = null;
         }
@@ -378,6 +379,149 @@ namespace Arsenal.Visual
             Puff(pos, radius * 0.14f, new Color(0.72f, 0.7f, 0.67f), 2.2f, 6, Up * 1.4f);
             EmitSparks(pos, Up, 60);
             Debris(pos, Up, new Color(0.25f, 0.24f, 0.23f), 12, 0.06f * Mathf.Max(1f, radius * 0.3f), radius * 4f);
+        }
+
+        private static readonly Dictionary<Color, Material> GlowMats = new Dictionary<Color, Material>();
+
+        public static Material GlowMat(Color c, float intensity = 6f)
+        {
+            Color key = new Color(c.r, c.g, c.b, intensity / 100f);
+            if (!GlowMats.TryGetValue(key, out Material m) || m == null)
+                GlowMats[key] = m = Assets.Glow(c, intensity);
+            return m;
+        }
+
+        /// <summary>A tracer of a given colour (laser bolts, plasma, ion, rail trails).</summary>
+        public static void ColoredTracer(Vector3 from, Vector3 to, float width, Color color, float speed, float length, float intensity = 6f)
+        {
+            if ((to - from).sqrMagnitude < 0.04f) return;
+            var go = new GameObject("Arsenal.Bolt");
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = GlowMat(color, intensity);
+            lr.positionCount = 2;
+            lr.useWorldSpace = true;
+            lr.startWidth = width;
+            lr.endWidth = width;
+            lr.numCapVertices = 3;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lr.SetPosition(0, from);
+            lr.SetPosition(1, from);
+            Instance._items.Add(new Tracer { Line = lr, From = from, To = to, Speed = speed, Length = length, Life = 3f });
+        }
+
+        /// <summary>Straight line that fades out in place (rail shots).</summary>
+        public static void Streak(Vector3 from, Vector3 to, float width, Color color, float life)
+        {
+            var go = new GameObject("Arsenal.Streak");
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = GlowMat(color, 8f);
+            lr.positionCount = 2;
+            lr.useWorldSpace = true;
+            lr.startWidth = width;
+            lr.endWidth = width;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lr.SetPosition(0, from);
+            lr.SetPosition(1, to);
+            Instance._items.Add(new Fade { Line = lr, Life = life, Width = width });
+        }
+
+        private sealed class Fade : Item
+        {
+            public LineRenderer Line;
+            public float Width;
+
+            public override bool Step(float dt)
+            {
+                Age += dt;
+                float k = 1f - Age / Life;
+                Line.startWidth = Line.endWidth = Width * k;
+                return Age < Life;
+            }
+
+            public override void Kill() => Destroy(Line.gameObject);
+        }
+
+        /// <summary>A jagged electric arc between two points, re-jagged every frame while it lives.</summary>
+        public static void ElectricArc(Vector3 from, Vector3 to, Color color, float life, float width = 0.03f)
+        {
+            var go = new GameObject("Arsenal.Arc");
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = GlowMat(color, 9f);
+            lr.positionCount = 10;
+            lr.useWorldSpace = true;
+            lr.startWidth = width;
+            lr.endWidth = width * 0.6f;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var arc = new Arc { Line = lr, From = from, To = to, Life = life, Width = width };
+            arc.Jag();
+            Light l = go.AddComponent<Light>();
+            l.type = LightType.Point;
+            l.color = color;
+            l.range = 3f;
+            l.intensity = 2f;
+            l.shadows = LightShadows.None;
+            go.transform.position = (from + to) * 0.5f;
+            Instance._items.Add(arc);
+        }
+
+        private sealed class Arc : Item
+        {
+            public LineRenderer Line;
+            public Vector3 From, To;
+            public float Width;
+
+            public void Jag()
+            {
+                float len = (To - From).magnitude;
+                int n = Line.positionCount;
+                for (int i = 0; i < n; i++)
+                {
+                    float k = i / (float)(n - 1);
+                    Vector3 p = Vector3.Lerp(From, To, k);
+                    if (i > 0 && i < n - 1) p += Random.insideUnitSphere * len * 0.08f;
+                    Line.SetPosition(i, p);
+                }
+            }
+
+            public override bool Step(float dt)
+            {
+                Age += dt;
+                Jag();
+                Line.startWidth = Width * (1f - Age / Life);
+                return Age < Life;
+            }
+
+            public override void Kill() => Destroy(Line.gameObject);
+        }
+
+        /// <summary>A licking flame: a glowing blob that swells, rises and fades.</summary>
+        public static void Flame(Vector3 pos, Vector3 drift, float size)
+        {
+            Material m = GlowMat(Random.value < 0.5f ? new Color(1f, 0.45f, 0.1f) : new Color(1f, 0.7f, 0.25f), 9f);
+            GameObject go = MeshObject("Arsenal.Flame", IcoMesh, m, pos, Random.rotation, Vector3.one * 0.01f);
+            Instance._items.Add(new Body
+            {
+                T = go.transform,
+                Velocity = drift + Up * size * 2f + Random.insideUnitSphere * size,
+                Spin = Random.insideUnitSphere * 200f,
+                Drag = 2f,
+                Life = Random.Range(0.25f, 0.45f),
+                BaseScale = Vector3.one * size * Random.Range(0.8f, 1.4f),
+                Puff = true,
+            });
+        }
+
+        /// <summary>A glowing ball that follows a transform-less path (plasma, ion bolts) — the projectile code moves it.</summary>
+        public static GameObject Orb(Color color, float radius)
+        {
+            GameObject go = MeshObject("Arsenal.Orb", IcoMesh, GlowMat(color, 10f), Vector3.zero, Quaternion.identity, Vector3.one * radius * 2f);
+            Light l = go.AddComponent<Light>();
+            l.type = LightType.Point;
+            l.color = color;
+            l.range = radius * 20f;
+            l.intensity = 3f;
+            l.shadows = LightShadows.None;
+            return go;
         }
 
         /// <summary>A continuous beam segment that lives one frame (the laser cannon redraws it every frame).</summary>

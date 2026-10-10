@@ -25,14 +25,71 @@ namespace Arsenal.Visual
 
         public static void Shot(WeaponKind w, Vector3 pos)
         {
+            HandWeaponDef def = WeaponDefs.ByKind(w);
+            if (def != null)
+            {
+                Shot(def.Sound, pos);
+                return;
+            }
             switch (w)
             {
-                case WeaponKind.Pistol: Play("pistol", () => Gunshot(0.22f, 2400f, 120f, 0.8f), pos, 1f, Jitter(0.06f), 3f, 250f); break;
-                case WeaponKind.Rifle: Play("rifle", () => Gunshot(0.26f, 1900f, 95f, 1f), pos, 1f, Jitter(0.05f), 3f, 320f); break;
-                case WeaponKind.Marksman: Play("marksman", () => Gunshot(0.75f, 1300f, 60f, 1.6f), pos, 1.15f, Jitter(0.03f), 5f, 700f); break;
-                case WeaponKind.ShipGun: Play("shipgun", () => Gunshot(0.32f, 1500f, 70f, 1.3f), pos, 1f, Jitter(0.05f), 5f, 600f); break;
+                case WeaponKind.ShipGun: case WeaponKind.Pdc: Shot(SoundStyle.ShipGun, pos); break;
+                case WeaponKind.PulseTurret: Shot(SoundStyle.Laser, pos); break;
+                case WeaponKind.PlasmaCannon: Shot(SoundStyle.Plasma, pos); break;
+                case WeaponKind.ShipRailgun: Shot(SoundStyle.Rail, pos); break;
+                case WeaponKind.IonCannon: Shot(SoundStyle.Emp, pos); break;
+                default: Shot(SoundStyle.Rifle, pos); break;
             }
         }
+
+        public static void Shot(SoundStyle s, Vector3 pos)
+        {
+            switch (s)
+            {
+                case SoundStyle.Pistol: Play("pistol", () => Gunshot(0.22f, 2400f, 120f, 0.8f), pos, 1f, Jitter(0.06f), 3f, 250f); break;
+                case SoundStyle.Rifle: Play("rifle", () => Gunshot(0.26f, 1900f, 95f, 1f), pos, 1f, Jitter(0.05f), 3f, 320f); break;
+                case SoundStyle.Smg: Play("smg", () => Gunshot(0.16f, 2800f, 140f, 0.6f), pos, 0.8f, Jitter(0.07f), 3f, 220f); break;
+                case SoundStyle.Heavy: Play("marksman", () => Gunshot(0.75f, 1300f, 60f, 1.6f), pos, 1.15f, Jitter(0.03f), 5f, 700f); break;
+                case SoundStyle.ShipGun: Play("shipgun", () => Gunshot(0.32f, 1500f, 70f, 1.3f), pos, 1f, Jitter(0.05f), 5f, 600f); break;
+                case SoundStyle.Laser: Play("pew", () => Zap(0.16f, 2200f, 380f, 0.15f), pos, 0.7f, Jitter(0.08f), 3f, 250f); break;
+                case SoundStyle.Gauss: Play("gauss", Gauss, pos, 1f, Jitter(0.04f), 4f, 400f); break;
+                case SoundStyle.Plasma: Play("plasma", () => Zap(0.35f, 700f, 90f, 0.6f), pos, 1f, Jitter(0.06f), 4f, 350f); break;
+                case SoundStyle.Rail: Play("rail", Rail, pos, 1.2f, Jitter(0.03f), 6f, 900f); break;
+                case SoundStyle.Emp: Play("emp", () => Zap(0.5f, 900f, 60f, 0.9f), pos, 1f, Jitter(0.05f), 4f, 300f); break;
+                case SoundStyle.Arc: Play("arc", Crackle, pos, 0.9f, Jitter(0.1f), 4f, 250f); break;
+                case SoundStyle.Launcher: Play("launcher", () => Gunshot(0.35f, 600f, 55f, 1.2f), pos, 0.9f, Jitter(0.05f), 4f, 300f); break;
+            }
+        }
+
+        public static FMOD.Channel Loop(SoundStyle s, Vector3 pos) => s switch
+        {
+            SoundStyle.Flame => Play("flameloop", FlameRoar, pos, 0.8f, 1f, 3f, 120f, loop: true),
+            SoundStyle.Beam => Play("beamloop", LaserHum, pos, 0.7f, 0.6f, 3f, 200f, loop: true),
+            SoundStyle.Charge => Play("chargeloop", ChargeWhine, pos, 0.6f, 1f, 2f, 80f, loop: true),
+            _ => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true),
+        };
+
+        public static void SetPitch(FMOD.Channel ch, float pitch)
+        {
+            if (ch.hasHandle()) ch.setPitch(pitch);
+        }
+
+        /// <summary>Hit confirmation, played flat (2D) for the shooter.</summary>
+        public static void HitTick(bool kill, bool headshot)
+        {
+            Vector3 pos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
+            if (kill) Play("killtick", () => Tone2(0.22f, 1500f, 2100f), pos, 0.55f, 1f, 50f, 60f);
+            else Play("hittick", () => Click(0.03f, headshot ? 3600f : 2600f), pos, 0.45f, headshot ? 1.2f : 1f, 50f, 60f);
+        }
+
+        public static void Hurt()
+        {
+            Vector3 pos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
+            Play("hurt", () => Gunshot(0.18f, 500f, 70f, 0.6f), pos, 0.5f, Jitter(0.1f), 50f, 60f);
+        }
+
+        public static void Zapped(Vector3 pos) => Play("arc", Crackle, pos, 0.7f, Jitter(0.15f), 3f, 120f);
+
 
         public static void Explosion(Vector3 pos, float radius) =>
             Play("explosion", Boom, pos, Mathf.Clamp(radius / 5f, 0.6f, 1.4f), Jitter(0.08f) - Mathf.Clamp01(radius / 20f) * 0.2f, 8f, 1500f);
@@ -284,6 +341,117 @@ namespace Arsenal.Visual
             return Normalise(s, rocket ? 0.95f : 0.5f);
         }
 
+        /// <summary>Energy shot: a pitch sweep from f0 to f1 with some noise.</summary>
+        private static float[] Zap(float length, float f0, float f1, float noise)
+        {
+            int n = (int)(length * Rate);
+            var s = new float[n];
+            float phase = 0f, lp = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, k = t / length;
+                float f = Mathf.Lerp(f0, f1, Mathf.Pow(k, 0.5f));
+                phase += 2f * Mathf.PI * f / Rate;
+                lp += 0.2f * (Noise() - lp);
+                float env = Mathf.Clamp01(i / 40f) * Mathf.Pow(1f - k, 2f);
+                s[i] = (Mathf.Sin(phase) * 0.7f + Mathf.Sign(Mathf.Sin(phase * 0.5f)) * 0.15f + lp * noise) * env;
+            }
+            return Normalise(s, 0.85f);
+        }
+
+        private static float[] Gauss()
+        {
+            int n = (int)(0.55f * Rate);
+            var s = new float[n];
+            float phase = 0f, ring = 0f;
+            float[] crack = Gunshot(0.25f, 3000f, 160f, 0.7f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                phase += 2f * Mathf.PI * (80f + 200f * Mathf.Exp(-t * 30f)) / Rate;
+                ring += 2f * Mathf.PI * 3100f / Rate;
+                s[i] = Mathf.Sin(phase) * Mathf.Exp(-t * 9f) * 0.7f + Mathf.Sin(ring) * Mathf.Exp(-t * 12f) * 0.25f + (i < crack.Length ? crack[i] * 0.7f : 0f);
+            }
+            return Normalise(s);
+        }
+
+        private static float[] Rail()
+        {
+            int n = (int)(1.2f * Rate);
+            var s = new float[n];
+            float[] boom = Gunshot(1.0f, 4000f, 45f, 1.8f);
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                phase += 2f * Mathf.PI * (5200f * Mathf.Exp(-t * 6f) + 300f) / Rate;
+                s[i] = (i < boom.Length ? boom[i] : 0f) + Mathf.Sin(phase) * Mathf.Exp(-t * 4f) * 0.25f;
+            }
+            return Normalise(s);
+        }
+
+        private static float[] Crackle()
+        {
+            int n = (int)(0.4f * Rate);
+            var s = new float[n];
+            float amp = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if (Rng.NextDouble() < 0.004) amp = 1f;
+                amp *= 0.9985f;
+                float t = (float)i / Rate;
+                s[i] = Noise() * amp * Mathf.Exp(-t * 4f) + Mathf.Sin(2f * Mathf.PI * 120f * t) * 0.15f * Mathf.Exp(-t * 6f);
+            }
+            return Normalise(s, 0.8f);
+        }
+
+        private static float[] FlameRoar()
+        {
+            int n = Rate; // 1 s loop
+            var s = new float[n];
+            float lp = 0f, lp2 = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                lp += 0.05f * (Noise() - lp);
+                lp2 += 0.3f * (Noise() - lp2);
+                float wobble = 0.8f + 0.2f * Mathf.Sin(2f * Mathf.PI * 7f * i / Rate);
+                s[i] = (lp * 2.2f + lp2 * 0.25f) * wobble;
+            }
+            // cross-fade the ends so the loop does not click
+            for (int i = 0; i < 2000; i++)
+            {
+                float k = i / 2000f;
+                s[i] = s[i] * k + s[n - 2000 + i] * (1f - k);
+            }
+            return Normalise(s, 0.7f);
+        }
+
+        private static float[] ChargeWhine()
+        {
+            int n = Rate / 2;
+            var s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                s[i] = Mathf.Sin(2f * Mathf.PI * 880f * t) * 0.5f + Mathf.Sin(2f * Mathf.PI * 1760f * t) * 0.2f + Mathf.Sin(2f * Mathf.PI * 6f * t) * 0.05f;
+            }
+            return Normalise(s, 0.5f);
+        }
+
+        private static float[] Tone2(float length, float f0, float f1)
+        {
+            int n = (int)(length * Rate);
+            var s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float f = t < length / 2 ? f0 : f1;
+                float local = t < length / 2 ? t : t - length / 2;
+                s[i] = Mathf.Sin(2f * Mathf.PI * f * t) * Mathf.Exp(-local * 30f);
+            }
+            return Normalise(s, 0.6f);
+        }
+
         private static float[] LaserHum()
         {
             // exactly 0.5 s so the loop is seamless at 220 Hz harmonics
@@ -298,5 +466,13 @@ namespace Arsenal.Visual
             }
             return Normalise(s, 0.7f);
         }
+    }
+}
+
+namespace Arsenal.Visual
+{
+    internal enum SoundStyle : byte
+    {
+        Pistol, Rifle, Smg, Heavy, ShipGun, Laser, Gauss, Plasma, Rail, Emp, Arc, Launcher, Flame, Beam, Charge,
     }
 }

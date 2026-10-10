@@ -53,12 +53,7 @@ namespace Arsenal.Content
 
         private static ItemSettings BuildGunItem(HandWeaponDef def)
         {
-            Model model = def.Kind switch
-            {
-                WeaponKind.Pistol => WeaponModels.Pistol(),
-                WeaponKind.Rifle => WeaponModels.Rifle(),
-                _ => WeaponModels.Marksman(),
-            };
+            Model model = def.Model();
             GameObject prefab = BuildToolPrefab("Arsenal." + def.Kind, model, out ToolVisuals visuals);
             model.Root.transform.localPosition = def.HoldPosition;
             model.Root.transform.localEulerAngles = def.HoldEuler;
@@ -77,7 +72,7 @@ namespace Arsenal.Content
             item.mass = def.Mass;
             item.maxStackSize = 1;
             item.toolSettings = tool;
-            item.icon = IconRenderer.Render(model.Root, new Vector3(0, -90f, 0));
+            IconRenderer.RenderLater(item, model.Root, new Vector3(0, -72f, -24f));
             return item;
         }
 

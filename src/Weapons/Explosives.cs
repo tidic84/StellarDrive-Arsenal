@@ -78,7 +78,7 @@ namespace Arsenal.Weapons
                 item.mass = def.Mass;
                 item.maxStackSize = def.Stack;
                 item.toolSettings = tool;
-                item.icon = IconRenderer.Render(model.Root, new Vector3(0, -120f, 0));
+                IconRenderer.RenderLater(item, model.Root, new Vector3(0, -120f, 0));
                 yield return item;
             }
         }
@@ -125,16 +125,33 @@ namespace Arsenal.Weapons
             if (p.HasItemsInInventory(cost)) p.RemoveItemsFromInventory(cost);
         }
 
-        public static void RequestExplosion(Vector3 pos, ExplosiveDef def)
+        public static void RequestExplosion(Vector3 pos, ExplosiveDef def) => RequestExplosion(pos, def.Kind);
+
+        public static void RequestExplosion(Vector3 pos, WeaponKind kind)
         {
             uint space = ClientOrigin.LocalPhysicsSpaceId;
-            DamageObjectsAround(pos, def.Radius);
+            (float radius, _, _) = BlastFor(kind);
+            DamageObjectsAround(pos, radius);
             ArsenalNet.SendToServer(Op.ExplosionRequest, w =>
             {
                 w.Write(space);
                 w.Write(pos);
-                w.Write((byte)def.Kind);
+                w.Write((byte)kind);
             });
+        }
+
+        /// <summary>Radius, hull power and player damage of each kind of blast (shared by clients and server).</summary>
+        public static (float radius, float power, float playerDamage) BlastFor(WeaponKind kind)
+        {
+            switch (kind)
+            {
+                case WeaponKind.Charge: return (Charge.Radius, Charge.Power, Charge.PlayerDamage);
+                case WeaponKind.ShipMissile: return (Arsenal.Vehicles.Missiles.Warhead.Radius, Arsenal.Vehicles.Missiles.Warhead.Power, Arsenal.Vehicles.Missiles.Warhead.PlayerDamage);
+                case WeaponKind.Grenade: return (Grenade.Radius, Grenade.Power, Grenade.PlayerDamage);
+            }
+            foreach (ProjectileSpec s in Projectiles.Specs.Values)
+                if (s.Blast == kind && s.BlastRadius > 0f) return (s.BlastRadius, s.BlastPower, s.BlastPlayerDamage);
+            return (Grenade.Radius, Grenade.Power, Grenade.PlayerDamage);
         }
 
         private static void ServerOnExplosionRequest(NetworkConnection conn, BinaryReader r)
@@ -142,8 +159,8 @@ namespace Arsenal.Weapons
             uint space = r.ReadUInt32();
             Vector3 pos = r.ReadVector3();
             var kind = (WeaponKind)r.ReadByte();
-            ExplosiveDef def = kind == WeaponKind.Charge ? Charge : kind == WeaponKind.ShipMissile ? Arsenal.Vehicles.Missiles.Warhead : Grenade;
-            ServerExplode(space, pos, def.Radius, def.Power, def.PlayerDamage);
+            (float radius, float power, float player) = BlastFor(kind);
+            ServerExplode(space, pos, radius, power, player, conn, kind);
         }
 
         /// <summary>Trees and rocks near a client-side blast (they are only reachable from the client physics scene).</summary>
@@ -166,7 +183,7 @@ namespace Arsenal.Weapons
         /// Damages every hull panel within the radius of every loaded ship (holes scale with proximity), hurts
         /// players, and tells everyone to show the blast.
         /// </summary>
-        public static void ServerExplode(uint space, Vector3 pos, float radius, float power, float playerDamage)
+        public static void ServerExplode(uint space, Vector3 pos, float radius, float power, float playerDamage, NetworkConnection attacker = null, WeaponKind weapon = WeaponKind.Grenade)
         {
             IWorldTransposeServer transpose = Svc.Get<IWorldTransposeServer>();
             var rng = new System.Random();
@@ -233,7 +250,7 @@ namespace Arsenal.Weapons
                     catch { continue; }
                     float d = Vector3.Distance(pp, pos);
                     if (d < reach)
-                        PlayerDamage.ApplyServer(pl.Id, playerDamage * Mathf.Pow(1f - d / reach, 2f));
+                        PlayerDamage.ApplyServer(pl.Id, playerDamage * Mathf.Pow(1f - d / reach, 2f), attacker, weapon, space, pos);
                 }
             }
             FxNet.SendExplosionToAll(space, pos, radius);
@@ -365,7 +382,7 @@ namespace Arsenal.Weapons
                     pos = sp + sr * (c.Pos + c.Normal * 0.06f);
                     space = root.SpaceId;
                 }
-                ServerExplode(space, pos, Charge.Radius, Charge.Power, Charge.PlayerDamage);
+                ServerExplode(space, pos, Charge.Radius, Charge.Power, Charge.PlayerDamage, conn, WeaponKind.Charge);
             }
         }
 

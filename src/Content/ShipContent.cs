@@ -32,13 +32,15 @@ namespace Arsenal.Content
     internal static class ShipContent
     {
         public const ushort GunnerSeatId = 9201, MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
-        public const ushort ResearchLightId = 90, ResearchHeavyId = 91;
+        public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217;
+        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId };
+        public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
         public static readonly byte[] FireSockets = { 6, 7, 8 };
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
 
-        public static bool IsWeapon(ushort settingsId) => settingsId == MachineGunId || settingsId == MissilePodId || settingsId == LaserCannonId;
+        public static bool IsWeapon(ushort settingsId) => settingsId >= MachineGunId && settingsId <= TorpedoId;
 
         public static void Patch(HarmonyLib.Harmony h)
         {
@@ -74,9 +76,7 @@ namespace Arsenal.Content
                 ItemSettings[] items = ItemList();
                 Parts.Clear();
                 Parts[GunnerSeatId] = BuildGunnerSeat(seat, items);
-                Parts[MachineGunId] = BuildWeapon(display, MachineGunId, items);
-                Parts[MissilePodId] = BuildWeapon(display, MissilePodId, items);
-                Parts[LaserCannonId] = BuildWeapon(display, LaserCannonId, items);
+                foreach (ushort w in WeaponIds) Parts[w] = BuildWeapon(display, w, items);
                 Parts[ArmoryId] = BuildArmory(chest, items);
                 ArsenalMod.Log.Msg($"Registered {Parts.Count} ship parts.");
             }
@@ -176,6 +176,51 @@ namespace Arsenal.Content
                     boundsCenter = new Vector3(0, 0.27f, 0.08f);
                     boundsSize = new Vector3(0.6f, 0.55f, 0.76f);
                     break;
+                case PdcId:
+                    p = Clone(display, id, "Défense rapprochée « Guardian »", "\"Guardian\" point defence",
+                        "Tourelle gatling automatique : tant que son signal est actif, elle vise et abat les missiles, roquettes, torpilles et projectiles ennemis qui approchent (300 m).",
+                        "Automatic gatling turret: while its signal is on it tracks and shoots down incoming missiles, rockets, torpedoes and projectiles (300 m).",
+                        70f, items, (101, 16), (112, 8), (110, 2));
+                    model = PartModels.Pdc();
+                    boundsCenter = new Vector3(0, 0.22f, 0.12f);
+                    boundsSize = new Vector3(0.5f, 0.44f, 0.8f);
+                    break;
+                case PlasmaCannonId:
+                    p = Clone(display, id, "Canon à plasma P-400", "P-400 plasma cannon",
+                        "Projette une boule de plasma lente qui explose à l'impact. Tire en continu tant que le signal est actif.",
+                        "Throws a slow plasma ball that explodes on impact. Keeps firing while the signal is on.",
+                        85f, items, (101, 18), (112, 10), (103, 2));
+                    model = PartModels.PlasmaCannon();
+                    boundsCenter = new Vector3(0, 0.22f, 0.1f);
+                    boundsSize = new Vector3(0.6f, 0.46f, 0.9f);
+                    break;
+                case IonCannonId:
+                    p = Clone(display, id, "Canon ionique « Disruptor »", "\"Disruptor\" ion cannon",
+                        "Tire un éclair ionique qui coupe les commandes du vaisseau touché pendant 8 secondes. Peu de dégâts.",
+                        "Fires an ion bolt that knocks out the controls of the ship it hits for 8 seconds. Little damage.",
+                        75f, items, (101, 14), (112, 14), (102, 4));
+                    model = PartModels.IonCannon();
+                    boundsCenter = new Vector3(0, 0.2f, 0.08f);
+                    boundsSize = new Vector3(0.5f, 0.42f, 0.85f);
+                    break;
+                case RailgunId:
+                    p = Clone(display, id, "Railgun naval « Longinus »", "\"Longinus\" ship railgun",
+                        "Se charge une seconde quand le signal s'active puis tire un projectile qui traverse plusieurs vaisseaux. Long rechargement.",
+                        "Charges for a second when the signal turns on, then fires a slug that goes through several ships. Long reload.",
+                        120f, items, (101, 30), (112, 20), (102, 8), (103, 3));
+                    model = PartModels.Railgun();
+                    boundsCenter = new Vector3(0, 0.2f, 0.27f);
+                    boundsSize = new Vector3(0.5f, 0.42f, 1.15f);
+                    break;
+                case TorpedoId:
+                    p = Clone(display, id, "Tube lance-torpilles « Leviathan »", "\"Leviathan\" torpedo tube",
+                        "Verrouille un vaisseau et lance une torpille lente à tête lourde qui le poursuit. Énorme explosion. Une torpille, rechargement en 15 s.",
+                        "Locks a ship and launches a slow heavy torpedo that chases it. Huge blast. One torpedo, reloads in 15 s.",
+                        140f, items, (101, 30), (112, 12), (103, 4), (100, 4));
+                    model = PartModels.TorpedoTube();
+                    boundsCenter = new Vector3(0, 0.3f, 0.05f);
+                    boundsSize = new Vector3(0.6f, 0.6f, 1.0f);
+                    break;
                 default:
                     p = Clone(display, id, "Canon laser", "Laser cannon",
                         "Rayon continu tant que le signal est actif. Fait fondre la coque et perce des trous. Surchauffe après quelques secondes.",
@@ -223,33 +268,14 @@ namespace Arsenal.Content
         private static PartSettings BuildArmory(PartSettings chest, ItemSettings[] items)
         {
             PartSettings p = Clone(chest, ArmoryId, "Armurerie", "Armory",
-                "Coffre livré avec un pistolet, un fusil d'assaut, un fusil anti-matériel, des grenades et des charges de brèche.",
-                "Chest delivered with a sidearm, an assault rifle, an anti-materiel rifle, grenades and breaching charges.",
+                "Terminal de fabrication d'armes : transforme vos matériaux en armes de poing, fusils, armes lourdes, armes à énergie et explosifs. Sert aussi de coffre.",
+                "Weapon fabrication terminal: turns your materials into sidearms, rifles, heavy weapons, energy weapons and explosives. Also works as a chest.",
                 40f, items, (101, 30), (112, 10), (110, 6));
             GameObject prefab = ClonePrefab(chest.part, "Armory");
             Transform visuals = prefab.transform.Find("Visual") ?? prefab.transform;
             PartModels.ArmoryRack().transform.SetParent(visuals, false);
             p.part = prefab;
             return p;
-        }
-
-        /// <summary>Server: a newly built armory gets stocked.</summary>
-        public static void OnServerPartAdded(uint shipId, StatefulPart part)
-        {
-            if (part.Settings == null || part.Settings.id != ArmoryId) return;
-            if (!(part.State is StorageState storage)) return;
-            for (byte i = 0; i < storage.SlotCount; i++)
-                if (storage.GetSlot(i).HasItem) return; // already stocked (loaded from a save)
-            IStoragePart s = storage;
-            (uint id, byte qty)[] stock =
-            {
-                (WeaponDefs.PistolId, 1), (WeaponDefs.RifleId, 1), (WeaponDefs.MarksmanId, 1),
-                (WeaponDefs.GrenadeId, 10), (WeaponDefs.ChargeId, 5),
-            };
-            for (byte i = 0; i < stock.Length; i++)
-                s = s.WithUpdatedSlot(i, new InventorySlot { HasItem = true, ItemId = stock[i].id, Quantity = stock[i].qty });
-            if (Svc.ShipsServer.TryGetTrackedShip(shipId, out TrackedShipServer ship))
-                ship.UpdatePartState(part.Id, (IStatefulPartState)s);
         }
 
         // ------------------------------------------------------------------ build menu + research
@@ -266,7 +292,8 @@ namespace Arsenal.Content
                 rows = new[]
                 {
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[GunnerSeatId], Parts[ArmoryId] } },
-                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
                 },
             };
             Traverse.Create(__instance).Field("tabsConfig").SetValue(tabs.Concat(new[] { tab }).ToArray());
@@ -284,11 +311,23 @@ namespace Arsenal.Content
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
                     new[] { Parts[GunnerSeatId], Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
-                    new[] { Parts[MissilePodId], Parts[LaserCannonId] }, items, (101, 30), (112, 15), (103, 2));
+                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] }, items, (101, 30), (112, 15), (103, 2));
+                ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },
+                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
                 list.list.Add(light);
                 list.list.Add(heavy);
-                ArsenalMod.Log.Msg("Research added: Weaponry, Heavy weaponry.");
+                list.list.Add(advanced);
+                ArsenalMod.Log.Msg($"Research added: Weaponry, Heavy weaponry, Advanced weaponry at {advanced.positionInTechTree}.");
             }
+        }
+
+        /// <summary>First free cell of the tech tree next to (preferably below) the given one.</summary>
+        private static Vector2Int FreeSpot(ResearchSettingsList list, Vector2Int near)
+        {
+            var used = new HashSet<Vector2Int>(list.list.Where(r => r != null).Select(r => r.positionInTechTree)) { new Vector2Int(4, 3), near };
+            foreach (Vector2Int d in new[] { Vector2Int.up, Vector2Int.right, Vector2Int.left, new Vector2Int(1, 1), new Vector2Int(-1, 1), Vector2Int.down })
+                if (!used.Contains(near + d)) return near + d;
+            return near + new Vector2Int(0, 2);
         }
 
         private static ResearchSettings MakeResearch(ushort id, string name, Vector2Int pos, ResearchSettings[] req, PartSettings[] parts, ItemSettings[] items, params (uint item, int qty)[] cost)

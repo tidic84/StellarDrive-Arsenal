@@ -19,36 +19,73 @@ Slopes, corners and doors take damage and break, but only flat panels get holes.
 
 ## Hand weapons
 
-Use them like the game's tools (toolbar). Left click fires, **R** reloads, right click aims.
+Use them like the game's tools (toolbar). Left click fires, **R** reloads, right click aims. The HUD at the bottom right shows the weapon, its rarity and its ammo, heat or charge.
 
-| Weapon | Fire | Goes through |
+| Weapon | Category | Fire |
 | --- | --- | --- |
-| Sidearm | semi-auto, 12 rounds | glass, wood |
-| Assault rifle | full auto, 30 rounds, red-dot sight | one iron plate |
-| Anti-materiel rifle | bolt action, 5 rounds, scope | several iron plates, big holes |
-| Grenade | left click throws (3 s fuse, bounces) | blast |
-| Breaching charge | left click sticks it to a surface, right click detonates all yours | big blast |
+| Sidearm | sidearm | semi-auto, 12 rounds, goes through glass and wood |
+| "Marshal" gauss revolver | sidearm | 6 heavy magnetic slugs, pierces iron |
+| "Viper" SMG | sidearm | very fast full auto, 40 rounds |
+| AR-47 assault rifle | rifle | full auto, 30 rounds, red-dot sight |
+| "Vulcan" plasma shotgun | rifle | 8 burning plasma pellets |
+| Anti-materiel rifle | rifle | bolt action, 5 rounds, scope, several iron plates |
+| M-90 railgun | rifle | hold to charge, the slug goes through everything in line |
+| "Cyclone" laser minigun | heavy | spins up, overheats |
+| "Inferno" flamethrower | heavy | short cone of fire, sets players alight |
+| PX-9 laser pistol | energy | rapid laser bolts, runs on heat (no reload) |
+| "Blackout" EMP carbine | energy | ion bolts that jam weapons and knock ships out |
+| "Tesla" arc | energy | electric arc jumping from target to target |
+| "Néant" disintegrator | energy | continuous beam that ramps up and burns through walls |
+| "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
+| "Titan" rocket launcher | explosive | accelerating rocket, big blast |
+| Grenade | explosive | left click throws (3 s fuse, bounces) |
+| Breaching charge | explosive | left click sticks it to a surface, right click detonates all yours |
 
 ![Breaching charge through an iron wall](docs/breaching_charge.jpg)
 ![Scope](docs/scope.jpg)
+![Laser minigun](docs/minigun.jpg)
+![Flamethrower](docs/flamethrower.jpg)
+![Tesla arc](docs/tesla.jpg)
+![Disintegrator](docs/disintegrator.jpg)
+
+## Armory
+
+Place an **Armory** (build menu, *Arsenal* tab) and open it like a chest: a fabrication terminal opens next to your inventory, built from the game's own menu pieces. Pick a category (sidearms, rifles, heavy, energy, explosives), see the weapon's rarity, description and stats, and **Fabricate** it from your materials (iron, copper, fuel…). The host checks the cost, takes the materials and puts the weapon in your inventory. The armory still works as a storage chest.
+
+![Armory](docs/armory.jpg)
+
+## PvP
+
+Weapons hurt other players (headshots × 1.6). You get the feedback you expect from a shooter: hit markers (white, red for a headshot, with a tick sound), a red arc showing where damage comes from, a kill confirmation, a kill feed with the weapon used, and burn / jam overlays when you are on fire or hit by an EMP.
+
+![Kill feed](docs/pvp_killfeed.jpg)
+![Damage direction](docs/pvp_hurt.jpg)
 
 ## Ship weapons
 
-New tab **Arsenal** in the build menu, unlocked by two new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*) and **Heavy weaponry**.
+New tab **Arsenal** in the build menu, unlocked by three new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*), **Heavy weaponry** and **Advanced weaponry**.
 
 - **Gunner seat**: an advanced pilot seat with three more signal outputs that follow the pilot's buttons: *Fire 1* (left click), *Fire 2* (right click), *Fire 3* (middle click). Wire them with signal cables to the weapons — or to any logic, as with the game's other signals.
 - **Heavy machine gun**: twin barrels, fires while its input signal is on, armour-piercing rounds.
 - **Air-to-air missile pod**: locks the nearest ship in front of it, fires a homing missile on each signal pulse, 4 missiles that reload by themselves, proximity fuse.
 - **Laser cannon**: a continuous beam that melts holes through hulls, overheats after a few seconds.
-- **Armory**: a chest delivered stocked with the hand weapons, grenades and charges.
+- **"Guardian" point defence**: a gatling turret that turns by itself and shoots down incoming missiles, rockets, torpedoes and plasma while its signal is on.
+- **P-400 plasma cannon**: slow glowing plasma balls that explode on impact.
+- **"Disruptor" ion cannon**: ion bolts that knock out the controls of the ship they hit for 8 seconds.
+- **"Longinus" ship railgun**: charges for a second, then fires a slug that goes through several ships.
+- **"Leviathan" torpedo tube**: locks a ship and launches a slow, homing, very heavy torpedo (15 s reload).
+- **Armory**: the weapon fabrication terminal (see above).
 
-While you pilot, the HUD shows where each weapon points, the missile lock and the laser heat.
+While you pilot, the HUD shows where each weapon points, the missile and torpedo lock, the laser heat, the railgun charge and what the point defence is tracking. A ship hit by an ion bolt or an EMP can't fly or shoot until it recovers.
 
 ![Gunship](docs/gunship.jpg)
 ![Gunner seat HUD with a missile lock](docs/gunner_seat_hud.jpg)
 ![Missile hit](docs/missile_hit.jpg)
 ![Laser cannon](docs/laser.jpg)
 ![Build menu](docs/build_menu.jpg)
+![Plasma, railgun, torpedo and ion cannon](docs/heavy_ship.jpg)
+![Ship railgun](docs/ship_railgun.jpg)
+![Point defence shooting a torpedo](docs/point_defence.jpg)
 
 ## Multiplayer
 
@@ -88,7 +125,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.0.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.1.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

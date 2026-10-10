@@ -55,7 +55,26 @@ namespace Arsenal.Vehicles
                         Ring(c, 10f, ink);
                         Bar(new Rect(c.x + 16f, c.y - 10f, 5f, 20f), m.Heat, m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f));
                         break;
+                    case ShipContent.PlasmaCannonId:
+                    case ShipContent.IonCannonId:
+                        Cross(c, 12f, 6f, m.Kind == ShipContent.PlasmaCannonId ? new Color(1f, 0.7f, 0.4f, 0.9f) : new Color(0.6f, 0.8f, 1f, 0.9f));
+                        break;
+                    case ShipContent.RailgunId:
+                        Cross(c, 16f, 10f, ink);
+                        Ring(c, 5f, ink);
+                        Bar(new Rect(c.x + 22f, c.y - 12f, 5f, 24f), Time.time < m.NextShot ? 1f - (m.NextShot - Time.time) / 4f : m.Charge,
+                            Time.time < m.NextShot ? new Color(0.5f, 0.55f, 0.6f) : new Color(0.5f, 0.85f, 1f));
+                        break;
+                    case ShipContent.PdcId:
+                        // point defence aims by itself: show what it is tracking
+                        if (m.Tracking != null && !(m.Tracking is Object o && o == null))
+                        {
+                            Vector3 tp = cam.WorldToScreenPoint(m.Tracking.Position);
+                            if (tp.z > 0) Brackets(new Vector2(tp.x, Screen.height - tp.y), 14f, new Color(1f, 0.85f, 0.3f, 0.95f));
+                        }
+                        continue;
                     case ShipContent.MissilePodId:
+                    case ShipContent.TorpedoId:
                         Diamond(c, 8f, ink);
                         GUI.color = ink;
                         GUI.Label(new Rect(c.x + 14f, c.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);

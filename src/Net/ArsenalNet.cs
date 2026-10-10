@@ -33,6 +33,11 @@ namespace Arsenal.Net
         MissileExplode = 11,
         ConsumeItem = 12,
         GrenadeThrown = 13,
+        EmpRequest = 14,
+        LaunchProjectile = 15,
+        ProjectileDone = 16,
+        InterceptRequest = 17,
+        Fabricate = 18,
 
         // server -> client
         PanelState = 64,
@@ -42,6 +47,14 @@ namespace Arsenal.Net
         MissileSpawn = 68,
         MissileGone = 69,
         GrenadeRemote = 70,
+        Hurt = 71,
+        KillConfirm = 72,
+        KillFeed = 73,
+        EffectState = 74,
+        ProjectileSpawn = 75,
+        ProjectileGone = 76,
+        Intercept = 77,
+        FabricateResult = 78,
     }
 
     /// <summary>Registers the broadcast with whichever NetworkManager is running and routes packets by opcode.</summary>

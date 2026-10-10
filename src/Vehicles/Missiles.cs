@@ -108,6 +108,11 @@ namespace Arsenal.Vehicles
             Launch(from, vel, target, shooter, false, id, owner);
         }
 
+        public static void InterceptLocal(int owner, uint id)
+        {
+            if (Flying.TryGetValue(Key(owner, id), out MissileSim sim) && sim != null) sim.Boom();
+        }
+
         public static void Detonated(MissileSim sim)
         {
             Flying.Remove(Key(sim.OwnerClient, sim.Id));
@@ -121,7 +126,7 @@ namespace Arsenal.Vehicles
         }
     }
 
-    internal sealed class MissileSim : MonoBehaviour
+    internal sealed class MissileSim : MonoBehaviour, IThreat
     {
         public Vector3 Velocity;
         public uint Target;
@@ -183,7 +188,7 @@ namespace Arsenal.Vehicles
             float dist = step.magnitude;
             if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, 0.12f, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
             {
-                bool own = _age < 0.6f && hit.rigidbody != null && IsShooter(hit.rigidbody);
+                bool own = _age < 0.6f && ShipWeapons.IsOwnShip(hit, ShooterRoot);
                 if (!own)
                 {
                     transform.position = hit.point - step / dist * 0.1f;
@@ -209,16 +214,25 @@ namespace Arsenal.Vehicles
             if (_flame != null) _flame.intensity = 3f + Random.value * 2f;
         }
 
-        private bool IsShooter(Rigidbody rb)
+        Vector3 IThreat.Position => transform.position;
+        Vector3 IThreat.Velocity => Velocity;
+        uint IThreat.ShooterRoot => ShooterRoot;
+
+        private void OnEnable() => Projectiles.Threats.Add(this);
+        private void OnDisable() => Projectiles.Threats.Remove(this);
+
+        public void ShootDown()
         {
-            foreach (TrackedShipClient s in Svc.ShipsClient.Ships)
-                if (s.IsRigidbodyLoaded && ShipWeapons.RootOf(s.Id) == ShooterRoot && s.ShipRigidBody == rb.gameObject)
-                    return true;
-            return false;
+            if (Owner) Boom();
+            else Projectiles.RequestIntercept(true, OwnerClient, Id);
         }
 
-        private void Boom()
+        private bool _boomed;
+
+        public void Boom()
         {
+            if (_boomed) return;
+            _boomed = true;
             Missiles.Detonated(this);
             Destroy(gameObject);
         }

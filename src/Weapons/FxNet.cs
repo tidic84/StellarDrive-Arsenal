@@ -14,6 +14,8 @@ namespace Arsenal.Weapons
         Shot = 1,
         Explosion = 2,
         Beam = 3,
+        Flame = 4,
+        Arc = 5,
     }
 
     /// <summary>Cosmetic effects shown to the other players. Positions travel in the sender's physics space.</summary>
@@ -45,6 +47,43 @@ namespace Arsenal.Weapons
             });
         }
 
+        public static void RelayBeam(Vector3 from, Vector3 to, byte style)
+        {
+            uint space = ClientOrigin.LocalPhysicsSpaceId;
+            ArsenalNet.SendToServer(Op.FxRelay, w =>
+            {
+                w.Write((byte)FxType.Beam);
+                w.Write(space);
+                w.Write(from);
+                w.Write(to);
+                w.Write(style);
+            }, FishNet.Transporting.Channel.Unreliable);
+        }
+
+        public static void RelayFlame(Vector3 from, Vector3 dir)
+        {
+            uint space = ClientOrigin.LocalPhysicsSpaceId;
+            ArsenalNet.SendToServer(Op.FxRelay, w =>
+            {
+                w.Write((byte)FxType.Flame);
+                w.Write(space);
+                w.Write(from);
+                w.Write(dir);
+            }, FishNet.Transporting.Channel.Unreliable);
+        }
+
+        public static void RelayArc(System.Collections.Generic.List<Vector3> points)
+        {
+            uint space = ClientOrigin.LocalPhysicsSpaceId;
+            ArsenalNet.SendToServer(Op.FxRelay, w =>
+            {
+                w.Write((byte)FxType.Arc);
+                w.Write(space);
+                w.Write((byte)Mathf.Min(points.Count, 8));
+                for (int i = 0; i < points.Count && i < 8; i++) w.Write(points[i]);
+            }, FishNet.Transporting.Channel.Unreliable);
+        }
+
         public static void RelayExplosion(Vector3 pos, float radius)
         {
             uint space = ClientOrigin.LocalPhysicsSpaceId;
@@ -69,9 +108,7 @@ namespace Arsenal.Weapons
                     Vector3 from = ToLocal(space, r.ReadVector3());
                     Vector3 to = ToLocal(space, r.ReadVector3());
                     int n = r.ReadByte();
-                    Fx.BulletTracer(from, to, weapon == WeaponKind.Marksman ? 0.04f : 0.025f);
-                    Fx.MuzzleFlash(from, (to - from).normalized, weapon == WeaponKind.Marksman ? 0.35f : 0.18f);
-                    Sounds.Shot(weapon, from);
+                    WeaponFx.Shot(weapon, from, to);
                     for (int i = 0; i < n; i++)
                     {
                         Vector3 p = ToLocal(space, r.ReadVector3());
@@ -94,7 +131,29 @@ namespace Arsenal.Weapons
                 {
                     Vector3 from = ToLocal(space, r.ReadVector3());
                     Vector3 to = ToLocal(space, r.ReadVector3());
-                    LaserFx.RemoteBeam(from, to);
+                    byte style = r.ReadByte();
+                    LaserFx.RemoteBeam(from, to, style);
+                    break;
+                }
+                case FxType.Flame:
+                {
+                    Vector3 from = ToLocal(space, r.ReadVector3());
+                    Vector3 dir = ToLocalDir(space, r.ReadVector3());
+                    for (int i = 0; i < 6; i++)
+                        Fx.Flame(from + dir * UnityEngine.Random.Range(0.1f, 0.5f), (dir + UnityEngine.Random.insideUnitSphere * 0.15f) * UnityEngine.Random.Range(9f, 14f), UnityEngine.Random.Range(0.06f, 0.12f));
+                    break;
+                }
+                case FxType.Arc:
+                {
+                    int n = r.ReadByte();
+                    Vector3 prev = ToLocal(space, r.ReadVector3());
+                    if (n > 0) Sounds.Shot(WeaponKind.Tesla, prev);
+                    for (int i = 1; i < n; i++)
+                    {
+                        Vector3 p = ToLocal(space, r.ReadVector3());
+                        Fx.ElectricArc(prev, p, new Color(0.55f, 0.8f, 1f), 0.18f, 0.04f);
+                        prev = p;
+                    }
                     break;
                 }
             }

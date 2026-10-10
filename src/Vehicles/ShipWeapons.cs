@@ -48,6 +48,11 @@ namespace Arsenal.Vehicles
             public Renderer Lens;
             public int SeenFrame;
             public uint LockedTarget;
+            public float Charge;          // railgun charge 0..1
+            public FMOD.Channel ChargeLoop;
+            public Transform Head, Pitch, Barrels, Tube;
+            public float Spin;            // gatling barrel speed
+            public IThreat Tracking;      // point-defence target
         }
 
         // muzzle offsets in part space (must match PartModels)
@@ -56,6 +61,15 @@ namespace Arsenal.Vehicles
         private static readonly Vector3 LaserMuzzle = new Vector3(0, 0.27f, 0.67f);
 
         public static readonly BulletSpec GunBullet = new BulletSpec { PlayerDamage = 28, PanelDamage = 16, Penetration = 50, HoleRadius = 0.045f, Range = 700f, ObjectDamage = 1f };
+
+#if DEV
+        public static readonly HashSet<ushort> DevForceOn = new HashSet<ushort>();
+        public static bool DevPdcSelf;
+        private static bool DevForced(ushort partId) => DevForceOn.Contains(partId);
+#else
+        private const bool DevPdcSelf = false;
+        private static bool DevForced(ushort partId) => false;
+#endif
 
         private static ShipWeapons _instance;
         private readonly Dictionary<PartContext, Mount> _mounts = new Dictionary<PartContext, Mount>();
@@ -78,6 +92,7 @@ namespace Arsenal.Vehicles
             if (_instance == null) return;
             foreach (Mount m in _instance._mounts.Values) StopBeam(m);
             _instance._mounts.Clear();
+            Claimed.Clear();
             _beamMat = null;
         }
 
@@ -98,7 +113,7 @@ namespace Arsenal.Vehicles
                         _mounts[ctx] = m = new Mount { Ctx = ctx, Kind = part.Settings.id };
                     m.SeenFrame = frame;
                     double signal = part.State is SignalDisplayState s ? s.SignalValue : 0.0;
-                    bool on = signal > 0.5;
+                    bool on = (signal > 0.5 || DevForced(part.Id)) && !Effects.IsShipEmp(ship.Id);
                     owner ??= IsOwner(ship);
                     ResolveVisual(m);
                     try
@@ -108,6 +123,11 @@ namespace Arsenal.Vehicles
                             case ShipContent.MachineGunId: UpdateGun(ship, part, m, on, owner.Value); break;
                             case ShipContent.MissilePodId: UpdatePod(ship, part, m, on, owner.Value); break;
                             case ShipContent.LaserCannonId: UpdateLaser(ship, part, m, on, owner.Value); break;
+                            case ShipContent.PdcId: UpdatePdc(ship, part, m, on, owner.Value); break;
+                            case ShipContent.PlasmaCannonId: UpdateBolt(ship, part, m, on, owner.Value, ProjectileKind.Plasma, 0.75f, WeaponKind.PlasmaCannon); break;
+                            case ShipContent.IonCannonId: UpdateBolt(ship, part, m, on, owner.Value, ProjectileKind.Ion, 2.2f, WeaponKind.IonCannon); break;
+                            case ShipContent.RailgunId: UpdateRailgun(ship, part, m, on, owner.Value); break;
+                            case ShipContent.TorpedoId: UpdateTorpedo(ship, part, m, on, owner.Value); break;
                         }
                     }
                     catch (System.Exception ex)
@@ -149,6 +169,18 @@ namespace Arsenal.Vehicles
         public static Vector3 PartForward(TrackedShipClient ship, StatefulPart part) =>
             ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * Vector3.forward);
 
+        /// <summary>Did this hit land on the shooter's own ship? (some part colliders have no rigidbody: go through the part)</summary>
+        public static bool IsOwnShip(RaycastHit hit, uint shooterRoot)
+        {
+            if (shooterRoot == 0) return false;
+            if (hit.rigidbody != null)
+                foreach (TrackedShipClient s in Svc.ShipsClient.Ships)
+                    if (s.IsRigidbodyLoaded && s.ShipRigidBody == hit.rigidbody.gameObject)
+                        return RootOf(s.Id) == shooterRoot;
+            IShipPartHelper helper = hit.collider.GetComponentInParent<IShipPartHelper>();
+            return helper != null && RootOf(helper.ShipId) == shooterRoot;
+        }
+
         public static Rigidbody RootBody(TrackedShipClient ship)
         {
             uint root = RootOf(ship.Id);
@@ -165,6 +197,11 @@ namespace Arsenal.Vehicles
             string pointName = m.Kind == ShipContent.MissilePodId ? "Tube" : "Muzzle";
             m.Points = c.GetComponentsInChildren<Transform>(true).Where(t => t.name == pointName).ToArray();
             m.Lens = c.GetComponentsInChildren<Renderer>(true).FirstOrDefault(r => r.name == "Lens");
+            Transform[] all = c.GetComponentsInChildren<Transform>(true);
+            m.Head = all.FirstOrDefault(t => t.name == "Head" && t.GetComponent<Renderer>() == null);
+            m.Pitch = all.FirstOrDefault(t => t.name == "Pitch");
+            m.Barrels = all.FirstOrDefault(t => t.name == "Barrels" && t.GetComponent<Renderer>() == null);
+            if (m.Kind == ShipContent.TorpedoId) m.Tube = all.FirstOrDefault(t => t.name == "Tube");
         }
 
         private static Vector3 VisualPoint(Mount m, int index, Vector3 fallback)
@@ -257,6 +294,190 @@ namespace Arsenal.Vehicles
             return rb != null ? rb.worldCenterOfMass : s.ShipRigidBody.transform.position;
         }
 
+        // ------------------------------------------------------------------ point defence
+
+        private const float PdcRange = 300f;
+        public static readonly BulletSpec RailSlug = new BulletSpec { PlayerDamage = 200, PanelDamage = 300, Penetration = 900, HoleRadius = 0.12f, Range = 1500f, ObjectDamage = 12f, ThroughPlayers = true };
+        private static readonly Dictionary<IThreat, float> Claimed = new Dictionary<IThreat, float>(); // threats already shot down, waiting for their owner
+
+        private void UpdatePdc(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            float dt = Time.deltaTime;
+            uint root = RootOf(ship.Id);
+            Vector3 basePos = PartPoint(ship, part, new Vector3(0, 0.3f, 0));
+            Vector3 up = ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * Vector3.up);
+
+            // keep the current target while it is valid, otherwise take the closest one
+            if (!on || !ValidThreat(m.Tracking, root, basePos, up)) m.Tracking = null;
+            if (on && m.Tracking == null)
+            {
+                float best = float.MaxValue;
+                foreach (IThreat t in Projectiles.Threats)
+                {
+                    if (!ValidThreat(t, root, basePos, up)) continue;
+                    float d = (t.Position - basePos).sqrMagnitude;
+                    if (d < best)
+                    {
+                        best = d;
+                        m.Tracking = t;
+                    }
+                }
+            }
+
+            Vector3 aimDir = PartForward(ship, part);
+            Vector3 aimPoint = Vector3.zero;
+            if (m.Tracking != null)
+            {
+                float dist = (m.Tracking.Position - basePos).magnitude;
+                aimPoint = m.Tracking.Position + m.Tracking.Velocity * (dist / 900f);
+                aimDir = (aimPoint - basePos).normalized;
+            }
+            bool aligned = AimHead(m, aimDir, dt);
+            bool firing = on && m.Tracking != null && aligned;
+            m.Spin = Mathf.MoveTowards(m.Spin, firing ? 1f : 0f, dt * 2.5f);
+            if (m.Barrels != null) m.Barrels.Rotate(0f, 0f, m.Spin * 1800f * dt, Space.Self);
+            if (!firing || !owner || Time.time < m.NextShot) return;
+
+            m.NextShot = Mathf.Max(m.NextShot + 0.045f, Time.time - 0.05f);
+            Vector3 from = VisualPoint(m, 0, basePos + aimDir * 0.5f);
+            float range = (aimPoint - from).magnitude;
+            Vector3 end = aimPoint + Random.insideUnitSphere * Mathf.Clamp(range * 0.01f, 0.3f, 3f);
+            _impacts.Clear();
+            WeaponFx.Shot(WeaponKind.Pdc, from, end, m.Points != null && m.Points.Length > 0 ? m.Points[0] : null);
+            Ballistics.RelayShot(WeaponKind.Pdc, from, end, _impacts);
+            float chance = 0.1f * Mathf.Clamp(150f / Mathf.Max(1f, range), 0.35f, 1.6f);
+            if (Random.value < chance)
+            {
+                IThreat t = m.Tracking;
+                Claimed[t] = Time.time + 2f;
+                m.Tracking = null;
+#if DEV
+                ArsenalMod.Log.Msg($"[DEV] PDC shot down a threat at {range:0} m");
+#endif
+                t.ShootDown();
+            }
+        }
+
+        private static bool ValidThreat(IThreat t, uint myRoot, Vector3 basePos, Vector3 up)
+        {
+            if (t == null || (t is Object o && o == null)) return false;
+            if (t.ShooterRoot == myRoot && !DevPdcSelf) return false;
+            if (Claimed.TryGetValue(t, out float until))
+            {
+                if (Time.time < until) return false;
+                Claimed.Remove(t);
+            }
+            Vector3 to = t.Position - basePos;
+            float d = to.magnitude;
+            return d > (DevPdcSelf ? 25f : 2f) && d < PdcRange && Vector3.Dot(to / d, up) > -0.2f; // the hull is in the way below the mount
+        }
+
+        /// <summary>Turns the turret head and gun towards a world direction. True once the gun points there.</summary>
+        private static bool AimHead(Mount m, Vector3 dir, float dt)
+        {
+            if (m.Head == null || m.Pitch == null) return true;
+            Vector3 local = m.Head.parent.InverseTransformDirection(dir);
+            float yaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+            float pitch = -Mathf.Atan2(local.y, new Vector2(local.x, local.z).magnitude) * Mathf.Rad2Deg;
+            pitch = Mathf.Clamp(pitch, -85f, 12f);
+            m.Head.localRotation = Quaternion.RotateTowards(m.Head.localRotation, Quaternion.Euler(0f, yaw, 0f), 400f * dt);
+            m.Pitch.localRotation = Quaternion.RotateTowards(m.Pitch.localRotation, Quaternion.Euler(pitch, 0f, 0f), 300f * dt);
+            return Vector3.Angle(m.Pitch.forward, dir) < 8f;
+        }
+
+        // ------------------------------------------------------------------ plasma / ion
+
+        private static readonly Dictionary<ProjectileKind, Vector3> BoltMuzzles = new Dictionary<ProjectileKind, Vector3>
+        {
+            [ProjectileKind.Plasma] = new Vector3(0, 0.29f, 0.65f),
+            [ProjectileKind.Ion] = new Vector3(0, 0.27f, 0.52f),
+        };
+
+        private void UpdateBolt(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner, ProjectileKind kind, float interval, WeaponKind weapon)
+        {
+            float ready = Mathf.Clamp01(1f - (m.NextShot - Time.time) / interval);
+            if (m.Lens != null)
+            {
+                Color c = kind == ProjectileKind.Plasma ? new Color(1f, 0.5f, 0.15f) : new Color(0.4f, 0.65f, 1f);
+                m.Lens.material.SetColor("_EmissionColor", c * (owner ? 1f + ready * 5f : 3f));
+            }
+            if (!owner || !on || Time.time < m.NextShot) return;
+            m.NextShot = Time.time + interval;
+            Vector3 origin = PartPoint(ship, part, BoltMuzzles[kind]);
+            Vector3 fwd = PartForward(ship, part);
+            Rigidbody body = RootBody(ship);
+            ProjectileSpec spec = Projectiles.Specs[kind];
+            Projectiles.Launch(kind, origin, (body != null ? body.velocity : Vector3.zero) + fwd * spec.Speed, 0, RootOf(ship.Id));
+            Vector3 from = VisualPoint(m, 0, origin);
+            Fx.MuzzleFlash(from, fwd, 0.5f, m.Points != null && m.Points.Length > 0 ? m.Points[0] : null);
+            Sounds.Shot(weapon, from);
+        }
+
+        // ------------------------------------------------------------------ railgun
+
+        private void UpdateRailgun(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            float dt = Time.deltaTime;
+            bool charging = owner && on && Time.time >= m.NextShot;
+            m.Charge = charging ? m.Charge + dt / 1.2f : Mathf.Max(0f, m.Charge - dt);
+            if (m.Lens != null)
+            {
+                float reload = Time.time < m.NextShot ? 0.15f : 1f;
+                m.Lens.material.SetColor("_EmissionColor", new Color(0.5f, 0.85f, 1f) * (1f + m.Charge * 10f) * reload);
+            }
+            Vector3 origin = PartPoint(ship, part, new Vector3(0, 0.27f, 0.8f));
+            if (charging && !m.ChargeLoop.hasHandle()) m.ChargeLoop = Sounds.Loop(SoundStyle.Charge, origin);
+            if (m.ChargeLoop.hasHandle())
+            {
+                if (!charging) Sounds.Stop(ref m.ChargeLoop);
+                else
+                {
+                    Sounds.Move(m.ChargeLoop, origin);
+                    Sounds.SetPitch(m.ChargeLoop, 0.6f + m.Charge);
+                }
+            }
+            if (m.Charge < 1f) return;
+
+            m.Charge = 0f;
+            m.NextShot = Time.time + 4f;
+            Sounds.Stop(ref m.ChargeLoop);
+            Vector3 fwd = PartForward(ship, part);
+            _impacts.Clear();
+            Vector3 end = Ballistics.Fire(origin, fwd, RailSlug, _impacts, RootBody(ship), WeaponKind.ShipRailgun);
+            Vector3 from = VisualPoint(m, 0, origin);
+            WeaponFx.Shot(WeaponKind.ShipRailgun, from, end, m.Points != null && m.Points.Length > 0 ? m.Points[0] : null);
+            Ballistics.PlayImpacts(_impacts, 2.2f);
+            Ballistics.RelayShot(WeaponKind.ShipRailgun, from, end, _impacts);
+        }
+
+        // ------------------------------------------------------------------ torpedo
+
+        private void UpdateTorpedo(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            if (m.Missiles > 1) m.Missiles = 1;
+            if (m.Missiles < 1)
+            {
+                if (m.ReloadAt <= 0f) m.ReloadAt = Time.time + 15f;
+                else if (Time.time >= m.ReloadAt)
+                {
+                    m.Missiles = 1;
+                    m.ReloadAt = 0f;
+                }
+            }
+            if (m.Tube != null) m.Tube.gameObject.SetActive(!owner || m.Missiles > 0);
+
+            Vector3 fwd = PartForward(ship, part);
+            Vector3 from = PartPoint(ship, part, new Vector3(0, 0.38f, 0.9f));
+            m.LockedTarget = owner ? FindTarget(ship, from, fwd) : 0;
+            if (!owner || !on || m.LastSignal || m.Missiles <= 0) return;
+            m.Missiles = 0;
+            Rigidbody body = RootBody(ship);
+            Vector3 vel = (body != null ? body.velocity : Vector3.zero) + fwd * Projectiles.Specs[ProjectileKind.Torpedo].Speed;
+            Projectiles.Launch(ProjectileKind.Torpedo, from, vel, m.LockedTarget, RootOf(ship.Id));
+            Sounds.MissileLaunch(from);
+            Fx.Puff(from, 0.5f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 4, fwd * 2f);
+        }
+
         // ------------------------------------------------------------------ laser
 
         private void UpdateLaser(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
@@ -295,14 +516,7 @@ namespace Arsenal.Vehicles
             if (Time.time >= m.NextRelay)
             {
                 m.NextRelay = Time.time + 0.1f;
-                uint space = ClientOrigin.LocalPhysicsSpaceId;
-                ArsenalNet.SendToServer(Op.FxRelay, w =>
-                {
-                    w.Write((byte)FxType.Beam);
-                    w.Write(space);
-                    w.Write(from);
-                    w.Write(end);
-                }, FishNet.Transporting.Channel.Unreliable);
+                FxNet.RelayBeam(from, end, 0);
             }
         }
 
@@ -349,6 +563,7 @@ namespace Arsenal.Vehicles
             m.Beam = null;
             m.BeamLight = null;
             Sounds.Stop(ref m.Loop);
+            Sounds.Stop(ref m.ChargeLoop);
         }
     }
 }

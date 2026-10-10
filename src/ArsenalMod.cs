@@ -1,22 +1,18 @@
-using System;
-using System.Collections;
 using Arsenal.Content;
 using Arsenal.Core;
 using Arsenal.Damage;
 using Arsenal.Net;
+using Arsenal.Ui;
 using Arsenal.Vehicles;
 using Arsenal.Visual;
 using Arsenal.Weapons;
 using HarmonyLib;
 using MelonLoader;
 using Ships.Interface.Model;
-using Ships.Interface.Model.Parts;
 using Ships.Interface.Model.Placement;
-using Ships.Services;
-using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.0.0", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.1.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -24,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 1;
+        internal const int ProtocolVersion = 2;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -50,6 +46,10 @@ namespace Arsenal
             FxNet.Init();
             Explosives.Init();
             Missiles.Init();
+            Projectiles.Init();
+            Effects.Init(HarmonyInstance);
+            CombatHud.Init();
+            Armory.Armory.Init();
             GunnerSeat.Init(prefs);
             DamageSaves.Init(HarmonyInstance);
 #if DEV
@@ -64,19 +64,26 @@ namespace Arsenal
             HoleVisuals.ClearCaches();
             Fx.ClearAll();
             Assets.ClearSceneRefs();
+            UiKit.ClearCache();
             Sounds.Reset();
             Sounds.Volume = _volume.Value;
             Explosives.Reset();
             Missiles.Reset();
+            Projectiles.Reset();
+            Effects.Reset();
             GunnerSeat.Reset();
             ShipWeapons.ResetAll();
+            CombatHud.Reset();
+            WeaponHud.Reset();
+            Armory.ArmoryUi.ResetAll();
             if (sceneName == MainGameScene)
             {
                 ArsenalContent.RegisterItems();
                 ShipContent.EnsureParts();
                 ShipContent.RegisterResearch();
                 ShipWeapons.Ensure();
-                MelonCoroutines.Start(HookServer());
+                CombatHud.Ensure();
+                Armory.ArmoryUi.Ensure();
             }
 #if DEV
             DevSceneLoaded(buildIndex, sceneName);
@@ -89,30 +96,14 @@ namespace Arsenal
             if (sceneName == MainGameScene) HullDamage.ResetAll();
         }
 
-        /// <summary>Server-side hooks once the scene's services are up (only does something on the host).</summary>
-        private IEnumerator HookServer()
-        {
-            for (int i = 0; i < 300 && Svc.ShipsServer == null; i++) yield return null;
-            ShipsServerTracker ships = Svc.ShipsServer;
-            if (ships == null) yield break;
-            ships.ShipStatefulPartAdded = (Action<uint, StatefulPart>)Delegate.Combine(ships.ShipStatefulPartAdded, new Action<uint, StatefulPart>(OnServerPartAdded));
-        }
-
-        private static void OnServerPartAdded(uint shipId, StatefulPart part)
-        {
-            try
-            {
-                ShipContent.OnServerPartAdded(shipId, part);
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Part added hook failed: {ex}");
-            }
-        }
-
         public override void OnUpdate()
         {
             ArsenalNet.Tick();
+            if (InGame)
+            {
+                Effects.ServerUpdate();
+                Effects.ClientUpdate();
+            }
 #if DEV
             DevUpdate();
 #endif

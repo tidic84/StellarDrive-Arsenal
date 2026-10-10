@@ -138,6 +138,142 @@ namespace Arsenal.Visual
             return root;
         }
 
+        private static Renderer Lens(Transform parent, Vector3 pos, float radius, Color color)
+        {
+            var lk = new MeshKit();
+            lk.Cylinder(Vector3.zero, radius, 0.01f, 10, Shade.White, Shade.White);
+            GameObject go = WeaponModels.MeshChild(parent, "Lens", lk.Build("Arsenal.Lens" + radius), Assets.Glow(color, 3f));
+            go.transform.localPosition = pos;
+            return go.GetComponent<Renderer>();
+        }
+
+        /// <summary>"Guardian" point-defence gatling: a turning head on a fixed base. Head yaws, Pitch tilts the gun.</summary>
+        public static GameObject Pdc()
+        {
+            var root = new GameObject("PdcModel");
+            var k = new MeshKit();
+            Mount(k, 0.5f, 0.5f);
+            k.At(Vector3.zero, new Vector3(-90f, 0, 0));
+            k.Cylinder(new Vector3(0, 0, 0.1f), 0.13f, 0.08f, 10, Shade.Dark, Shade.HatchDark);
+            k.At(Vector3.zero);
+            WeaponModels.MeshChild(root.transform, "Base", k.Build("Arsenal.PdcBase"), Assets.ToolAtlas);
+
+            Transform head = Point(root.transform, "Head", new Vector3(0, 0.12f, 0));
+            var h = new MeshKit();
+            h.Bevel(new Vector3(0, 0.08f, -0.02f), new Vector3(0.36f, 0.16f, 0.3f), 0.04f, Shade.HatchLight, Shade.Light);
+            h.Box(new Vector3(0.181f, 0.08f, -0.02f), new Vector3(0.006f, 0.05f, 0.2f), Shade.Yellow);
+            h.Box(new Vector3(-0.181f, 0.08f, -0.02f), new Vector3(0.006f, 0.05f, 0.2f), Shade.Yellow);
+            h.Box(new Vector3(0, 0.17f, -0.1f), new Vector3(0.08f, 0.04f, 0.08f), Shade.Dark); // sensor
+            WeaponModels.MeshChild(head, "Head", h.Build("Arsenal.PdcHead"), Assets.ToolAtlas);
+            Lens(head, new Vector3(0, 0.17f, -0.055f), 0.025f, new Color(1f, 0.3f, 0.2f));
+
+            Transform pitch = Point(head, "Pitch", new Vector3(0, 0.1f, 0.08f));
+            var g = new MeshKit();
+            g.Cylinder(new Vector3(0, 0, 0.05f), 0.07f, 0.14f, 10, Shade.Dark, Shade.HatchDark);
+            g.Cylinder(new Vector3(0, 0, 0.13f), 0.075f, 0.02f, 10, Shade.Grey, Shade.Grey);
+            WeaponModels.MeshChild(pitch, "Gun", g.Build("Arsenal.PdcGun"), Assets.ToolAtlas);
+            Transform spin = Point(pitch, "Barrels", Vector3.zero);
+            var b = new MeshKit();
+            for (int i = 0; i < 6; i++)
+            {
+                float a = i * Mathf.PI / 3f;
+                b.Cylinder(new Vector3(Mathf.Cos(a) * 0.038f, Mathf.Sin(a) * 0.038f, 0.3f), 0.013f, 0.36f, 6, Shade.Black, Shade.Dark);
+            }
+            b.Cylinder(new Vector3(0, 0, 0.42f), 0.058f, 0.03f, 10, Shade.Dark, Shade.Grey);
+            WeaponModels.MeshChild(spin, "Barrels", b.Build("Arsenal.PdcBarrels"), Assets.ToolAtlas);
+            Point(pitch, "Muzzle", new Vector3(0, 0, 0.5f));
+            return root;
+        }
+
+        /// <summary>"P-400" plasma cannon: fat containment chamber with orange coils.</summary>
+        public static GameObject PlasmaCannon()
+        {
+            var root = new GameObject("PlasmaCannonModel");
+            var k = new MeshKit();
+            Mount(k, 0.56f, 0.56f);
+            k.Bevel(new Vector3(0, 0.25f, -0.12f), new Vector3(0.34f, 0.22f, 0.3f), 0.05f, Shade.HatchDark, Shade.Dark);
+            k.Cylinder(new Vector3(0, 0.29f, 0.12f), 0.15f, 0.36f, 12, Shade.Light, Shade.HatchLight);
+            for (int i = 0; i < 3; i++)
+                k.Cylinder(new Vector3(0, 0.29f, 0.0f + i * 0.12f), 0.165f, 0.04f, 12, Shade.Orange, Shade.Dark);
+            k.Frustum(new Vector3(0, 0.29f, 0.3f), 0.12f, 0.08f, 0.2f, 12, Shade.Dark);
+            k.Cylinder(new Vector3(0, 0.29f, 0.52f), 0.09f, 0.04f, 12, Shade.Black, Shade.HatchDark);
+            k.Box(new Vector3(0.18f, 0.2f, -0.12f), new Vector3(0.03f, 0.1f, 0.2f), Shade.Yellow);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.PlasmaCannon"), Assets.ToolAtlas);
+            Lens(root.transform, new Vector3(0, 0.29f, 0.542f), 0.07f, new Color(1f, 0.5f, 0.15f));
+            Point(root.transform, "Muzzle", new Vector3(0, 0.29f, 0.6f));
+            return root;
+        }
+
+        /// <summary>"Disruptor" ion cannon: three blue emitter prongs around a core.</summary>
+        public static GameObject IonCannon()
+        {
+            var root = new GameObject("IonCannonModel");
+            var k = new MeshKit();
+            Mount(k, 0.5f, 0.5f);
+            k.Bevel(new Vector3(0, 0.25f, -0.08f), new Vector3(0.3f, 0.2f, 0.36f), 0.04f, Shade.HatchLight, Shade.Light);
+            k.Cylinder(new Vector3(0, 0.27f, 0.2f), 0.06f, 0.4f, 10, Shade.Dark, Shade.Dark);
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * Mathf.PI * 2f / 3f + Mathf.PI / 2f;
+                var off = new Vector3(Mathf.Cos(a) * 0.11f, 0.27f + Mathf.Sin(a) * 0.11f, 0.24f);
+                k.Box(off, new Vector3(0.04f, 0.04f, 0.42f), Shade.Blue, Shade.Dark);
+            }
+            for (int i = 0; i < 2; i++)
+                k.Cylinder(new Vector3(0, 0.27f, 0.12f + i * 0.16f), 0.15f, 0.025f, 12, Shade.Grey, Shade.Grey);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.IonCannon"), Assets.ToolAtlas);
+            Lens(root.transform, new Vector3(0, 0.27f, 0.405f), 0.05f, new Color(0.4f, 0.65f, 1f));
+            Point(root.transform, "Muzzle", new Vector3(0, 0.27f, 0.48f));
+            return root;
+        }
+
+        /// <summary>"Longinus" ship railgun: long twin rails with capacitor banks.</summary>
+        public static GameObject Railgun()
+        {
+            var root = new GameObject("RailgunModel");
+            var k = new MeshKit();
+            Mount(k, 0.5f, 0.5f);
+            k.Bevel(new Vector3(0, 0.25f, -0.12f), new Vector3(0.32f, 0.22f, 0.3f), 0.04f, Shade.HatchDark, Shade.Dark);
+            // capacitor banks
+            for (int i = 0; i < 3; i++)
+            {
+                k.Cylinder(new Vector3(0.2f, 0.22f, -0.2f + i * 0.08f), 0.03f, 0.06f, 8, Shade.Blue, Shade.Light);
+                k.Cylinder(new Vector3(-0.2f, 0.22f, -0.2f + i * 0.08f), 0.03f, 0.06f, 8, Shade.Blue, Shade.Light);
+            }
+            // rails
+            foreach (float y in new[] { 0.21f, 0.33f })
+                k.Box(new Vector3(0, y, 0.33f), new Vector3(0.14f, 0.035f, 0.92f), Shade.Light, Shade.HatchLight);
+            k.Box(new Vector3(0, 0.27f, 0.33f), new Vector3(0.03f, 0.085f, 0.9f), Shade.Black);
+            for (int i = 0; i < 4; i++)
+                k.Box(new Vector3(0, 0.27f, 0.0f + i * 0.22f), new Vector3(0.17f, 0.17f, 0.03f), Shade.Dark);
+            k.Box(new Vector3(0.072f, 0.33f, 0.33f), new Vector3(0.004f, 0.02f, 0.7f), Shade.Yellow);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.Railgun"), Assets.ToolAtlas);
+            Lens(root.transform, new Vector3(0, 0.362f, -0.12f), 0.06f, new Color(0.5f, 0.85f, 1f)).transform.localEulerAngles = new Vector3(-90f, 0, 0); // charge light on top of the breech
+            Point(root.transform, "Muzzle", new Vector3(0, 0.27f, 0.8f));
+            return root;
+        }
+
+        /// <summary>"Leviathan" torpedo tube: one big tube with a visible warhead.</summary>
+        public static GameObject TorpedoTube()
+        {
+            var root = new GameObject("TorpedoTubeModel");
+            var k = new MeshKit();
+            Mount(k, 0.6f, 0.7f);
+            k.Bevel(new Vector3(0, 0.2f, -0.05f), new Vector3(0.44f, 0.14f, 0.6f), 0.04f, Shade.HatchDark, Shade.Dark);
+            k.Cylinder(new Vector3(0, 0.38f, 0.05f), 0.2f, 0.9f, 12, Shade.Dark, Shade.HatchLight);
+            for (int i = 0; i < 3; i++)
+                k.Cylinder(new Vector3(0, 0.38f, -0.25f + i * 0.3f), 0.215f, 0.04f, 12, Shade.Grey, Shade.Grey);
+            k.Cylinder(new Vector3(0, 0.38f, 0.505f), 0.16f, 0.012f, 12, Shade.Black, Shade.Black);
+            k.Box(new Vector3(0.205f, 0.38f, 0.05f), new Vector3(0.012f, 0.06f, 0.5f), Shade.Red);
+            k.Box(new Vector3(-0.205f, 0.38f, 0.05f), new Vector3(0.012f, 0.06f, 0.5f), Shade.Red);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.TorpedoTube"), Assets.ToolAtlas);
+            Transform tube = Point(root.transform, "Tube", new Vector3(0, 0.38f, 0.45f));
+            var n = new MeshKit();
+            n.Frustum(Vector3.zero, 0.13f, 0.03f, 0.14f, 10, Shade.Red);
+            WeaponModels.MeshChild(tube, "Nose", n.Build("Arsenal.TorpedoNose"), Assets.ToolAtlas);
+            Point(root.transform, "Muzzle", new Vector3(0, 0.38f, 0.75f));
+            return root;
+        }
+
         /// <summary>Fire-control console bolted to the right of the advanced pilot seat, with three coloured triggers.</summary>
         public static GameObject GunnerConsole()
         {

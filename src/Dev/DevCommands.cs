@@ -41,6 +41,9 @@ namespace Arsenal
                     }
                     break;
                 }
+                case "armfab":
+                    Armory.Armory.RequestFabricate(uint.Parse(a[1]));
+                    break;
                 case "giveall":
                     foreach (TrackedPlayerServer pl in Svc.PlayersServer.ActivePlayers)
                         for (int i = 1; i < a.Length; i++)
@@ -80,12 +83,41 @@ namespace Arsenal
                     }
                     break;
                 }
+                case "fonts":
+                    foreach (var f in Resources.FindObjectsOfTypeAll<TMPro.TMP_FontAsset>())
+                        LoggerInstance.Msg($"[DEV] font {f.name} mode={f.atlasPopulationMode} glyphs={f.glyphTable?.Count} chars={f.characterTable?.Count} fallback={f.fallbackFontAssetTable?.Count}");
+                    foreach (var it in Resources.FindObjectsOfTypeAll<ItemSettings>())
+                        if (it.id > 9000) LoggerInstance.Msg($"[DEV] item {it.id} icon={(it.icon ? it.icon.name + " " + it.icon.width : "null")}");
+                    break;
+                case "glyphs":
+                    foreach (var f in Resources.FindObjectsOfTypeAll<TMPro.TMP_FontAsset>().Where(x => x.name.Contains("Mulish") || x.name.Contains("Anta")))
+                    {
+                        foreach (char ch in "l-bea")
+                        {
+                            bool has = f.characterLookupTable.TryGetValue(ch, out var tc);
+                            LoggerInstance.Msg($"[DEV] {f.name} '{ch}' has={has} glyph={(has ? tc.glyph?.glyphRect.ToString() + " atlas " + tc.glyph?.atlasIndex : "-")} atlases={f.atlasTextures?.Length} multi={f.isMultiAtlasTexturesEnabled}");
+                        }
+                    }
+                    break;
+                case "saveicon":
+                {
+                    var it = Resources.FindObjectsOfTypeAll<ItemSettings>().First(x => x.id == uint.Parse(a[1]));
+                    var tex = it.icon;
+                    var rt = RenderTexture.GetTemporary(tex.width, tex.height);
+                    Graphics.Blit(tex, rt);
+                    var prev = RenderTexture.active; RenderTexture.active = rt;
+                    var copy = new Texture2D(tex.width, tex.height, TextureFormat.RGBA32, false);
+                    copy.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0); copy.Apply();
+                    RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "icon_" + a[1] + ".png"), copy.EncodeToPNG());
+                    break;
+                }
                 case "save":
                     Svc.Get<Saving.Services.GameSaver>().SaveGame(new Saving.Interface.Model.SaveGameParams { IsAutomatic = false });
                     break;
                 case "sit":
                     Svc.Get<Managers.Interface.Services.IShipInteractionNetworkService>().StartInteractWithPart(
-                        new Managers.Interface.Model.PartInteractNetworkRequest { ShipId = _gunshipId, PartId = 1 });
+                        new Managers.Interface.Model.PartInteractNetworkRequest { ShipId = _gunshipId, PartId = a.Length > 1 ? ushort.Parse(a[1]) : (ushort)1 });
                     break;
                 case "click":
                     MelonLoader.MelonCoroutines.Start(Click(a[1], float.Parse(a[2], CultureInfo.InvariantCulture)));
@@ -105,7 +137,7 @@ namespace Arsenal
                 }
                 case "hurtother":
                     foreach (var o in Svc.PlayersClient.OtherPlayers)
-                        Weapons.PlayerDamage.Report(o.Id, float.Parse(a[1], CultureInfo.InvariantCulture));
+                        Weapons.PlayerDamage.Report(o.Id, float.Parse(a[1], CultureInfo.InvariantCulture), Weapons.WeaponKind.Rifle, a.Length > 2);
                     break;
                 case "hp":
                     LoggerInstance.Msg($"[DEV] health {Svc.Get<Players.Services.LocalPlayerHealthProxy>()?.CurrentHealth}");
@@ -123,6 +155,31 @@ namespace Arsenal
                 case "wall":
                     SpawnTestWall(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 6f);
                     break;
+                case "particon":
+                {
+                    // render a part prefab with the game's thumbnail renderer: particon <partId> [yaw] [pitch]
+                    var ps = new PartSettingsProvider().GetPartSettingById(ushort.Parse(a[1]));
+                    var tex = new Texture2D(512, 512, UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm, UnityEngine.Experimental.Rendering.TextureCreationFlags.None);
+                    GameObject copy = Object.Instantiate(ps.part);
+                    copy.transform.position = new Vector3(0, -20000f, 0);
+                    foreach (Collider c in copy.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+                    float yaw = a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 150f, pitch = a.Length > 3 ? float.Parse(a[3], CultureInfo.InvariantCulture) : 25f;
+                    Svc.Get<Rendering.Services.ObjectThumbnailRenderer>().Render(copy, Quaternion.Euler(pitch, 0, 0) * Quaternion.Euler(0, yaw, 0), tex);
+                    var rt = RenderTexture.GetTemporary(512, 512);
+                    Graphics.Blit(tex, rt);
+                    var prev = RenderTexture.active; RenderTexture.active = rt;
+                    var png = new Texture2D(512, 512, TextureFormat.RGBA32, false);
+                    png.ReadPixels(new Rect(0, 0, 512, 512), 0, 0); png.Apply();
+                    RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "part_" + a[1] + ".png"), png.EncodeToPNG());
+                    break;
+                }
+                case "turn":
+                {
+                    var lc = Object.FindObjectsByType<PlayerLookControls>(FindObjectsSortMode.None).First();
+                    lc.Rotation = Quaternion.AngleAxis(float.Parse(a[1], CultureInfo.InvariantCulture), lc.Rotation * Vector3.up) * lc.Rotation;
+                    break;
+                }
                 case "lookat":
                     LookAtShip(_testShipId, new Vector3(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 0f, a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 1f, 0.5f));
                     break;
@@ -159,6 +216,17 @@ namespace Arsenal
                     LoggerInstance.Msg($"[DEV] model {model.name} at {model.localPosition} {model.localEulerAngles}; visuals fp={tool.Visuals.firstPersonPosition} rot={tool.Visuals.firstPersonRotation.eulerAngles}");
                     break;
                 }
+                case "heavyship":
+                    SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f, true);
+                    break;
+                case "force":
+                    // force a weapon part on (by part id), or "force off"
+                    if (a[1] == "off") Vehicles.ShipWeapons.DevForceOn.Clear();
+                    else Vehicles.ShipWeapons.DevForceOn.Add(ushort.Parse(a[1]));
+                    break;
+                case "pdcself":
+                    Vehicles.ShipWeapons.DevPdcSelf = !Vehicles.ShipWeapons.DevPdcSelf;
+                    break;
                 case "gunship":
                     SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
                     break;
@@ -261,7 +329,7 @@ namespace Arsenal
 
         private uint _gunshipId;
 
-        private void SpawnGunship(float side)
+        private void SpawnGunship(float side, bool heavy = false)
         {
             TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
             var settings = new PartSettingsProvider();
@@ -270,7 +338,16 @@ namespace Arsenal
             for (int x = -2; x <= 2; x++)
                 for (int z = -2; z <= 4; z++)
                     hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
-            var parts = new[]
+            var parts = heavy ? new[]
+            {
+                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
+                new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.PlasmaCannonId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
+                new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.RailgunId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 3.2f), PartOrientation.Forward)),
+                new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.TorpedoId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
+                new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ArmoryId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+                new StatefulPart(6, settings.GetPartSettingById(Content.ShipContent.IonCannonId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
+                new StatefulPart(7, settings.GetPartSettingById(Content.ShipContent.PdcId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+            } : new[]
             {
                 new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
                 new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.MachineGunId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, 2.5f), PartOrientation.Forward)),

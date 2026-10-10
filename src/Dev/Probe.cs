@@ -171,6 +171,50 @@ namespace Arsenal.Dev
             Melon<ArsenalMod>.Logger.Msg("Materials probe written");
         }
 
+        public static void DumpUi(string filter)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"===== UI {filter} {DateTime.Now:T}");
+            foreach (var c in Resources.FindObjectsOfTypeAll<Canvas>().Where(c => c.isRootCanvas && c.gameObject.scene.IsValid()))
+            {
+                if (!string.IsNullOrEmpty(filter) && c.name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                sb.AppendLine($"CANVAS {c.name} mode={c.renderMode} sort={c.sortingOrder} active={c.gameObject.activeInHierarchy}");
+                DumpUiNode(sb, c.transform, 1);
+            }
+            File.AppendAllText(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "ArsenalUi.txt"), sb.ToString());
+            Melon<ArsenalMod>.Logger.Msg("UI dump written");
+        }
+
+        private static void DumpUiNode(StringBuilder sb, Transform t, int depth)
+        {
+            if (depth > 9) return;
+            var rt = t as RectTransform;
+            string info = rt != null ? $"size={rt.rect.size} anchor={rt.anchorMin}-{rt.anchorMax} piv={rt.pivot} pos={rt.anchoredPosition}" : "";
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var comp in t.GetComponents<Component>())
+            {
+                switch (comp)
+                {
+                    case UnityEngine.UI.Image img:
+                        parts.Add($"Image(sprite={(img.sprite ? img.sprite.name + " " + img.sprite.rect.size + " border=" + img.sprite.border : "-")} type={img.type} color={img.color} ppu={img.pixelsPerUnitMultiplier} mat={(img.material ? img.material.name : "-")})");
+                        break;
+                    case UnityEngine.UI.RawImage raw:
+                        parts.Add($"RawImage({(raw.texture ? raw.texture.name : "-")} color={raw.color})");
+                        break;
+                    case TMPro.TMP_Text txt:
+                        parts.Add($"TMP('{(txt.text ?? "").Replace("\n", " ").Substring(0, Math.Min(30, (txt.text ?? "").Length))}' font={(txt.font ? txt.font.name : "-")} size={txt.fontSize} color={txt.color} style={txt.fontStyle} mat={(txt.fontSharedMaterial ? txt.fontSharedMaterial.name : "-")})");
+                        break;
+                    case Transform _:
+                        break;
+                    default:
+                        parts.Add(comp.GetType().Name);
+                        break;
+                }
+            }
+            sb.AppendLine($"{new string(' ', depth * 2)}{t.name} [{(t.gameObject.activeSelf ? "on" : "off")}] {info} :: {string.Join("; ", parts)}");
+            for (int i = 0; i < t.childCount; i++) DumpUiNode(sb, t.GetChild(i), depth + 1);
+        }
+
         private static void DumpHierarchy(StringBuilder sb, Transform t, string indent, int depth = 0)
         {
             if (depth > 7) return;

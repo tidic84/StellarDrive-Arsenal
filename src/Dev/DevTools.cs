@@ -122,6 +122,9 @@ namespace Arsenal
         {
             switch (a[0])
             {
+                case "uidump":
+                    Dev.Probe.DumpUi(a.Length > 1 ? a[1] : "");
+                    break;
                 case "probe":
                     Dev.Probe.Dump("cmd");
                     break;

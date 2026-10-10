@@ -45,7 +45,7 @@ namespace Arsenal.Weapons
         public static readonly System.Random Rng = new System.Random();
 
         /// <summary>Fires one bullet in the client physics scene. Returns where it ended for the tracer.</summary>
-        public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts, Rigidbody ignore = null)
+        public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts, Rigidbody ignore = null, WeaponKind weapon = WeaponKind.Rifle)
         {
             PhysicsScene scene = ClientScene.PhysicsScene;
             float penetration = spec.Penetration;
@@ -69,6 +69,18 @@ namespace Arsenal.Weapons
                     continue;
                 }
                 Collider col = hit.collider;
+                if (spec.EmpSeconds > 0f)
+                {
+                    // EMP rounds: knock the ship out instead of piercing it
+                    IShipPartHelper ship = col.GetComponentInParent<IShipPartHelper>();
+                    if (ship != null)
+                    {
+                        Effects.RequestShipEmp(ship.ShipId, spec.EmpSeconds);
+                        Fx.ElectricArc(hit.point, hit.point + hit.normal * 0.8f + Random.insideUnitSphere * 0.5f, new Color(0.4f, 0.65f, 1f), 0.3f, 0.04f);
+                        impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ImpactKind.Metal, Tint = new Color(0.5f, 0.7f, 1f) });
+                        return hit.point;
+                    }
+                }
 
                 if (ShipPartsTagDetection.ColliderIsHull(col) && TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local))
                 {
@@ -108,8 +120,16 @@ namespace Arsenal.Weapons
 
                 if (TryGetOtherPlayer(hit, out uint playerId))
                 {
+                    bool head = IsHeadshot(hit);
                     impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ImpactKind.Flesh });
-                    PlayerDamage.Report(playerId, playerDamage);
+                    PlayerDamage.Report(playerId, playerDamage * (head ? 1.6f : 1f), weapon, head, spec.BurnSeconds, spec.EmpSeconds);
+                    if (spec.ThroughPlayers)
+                    {
+                        pos = hit.point + dir * 0.8f;
+                        travelled += 0.8f;
+                        playerDamage *= 0.8f;
+                        continue;
+                    }
                     return hit.point;
                 }
 
@@ -160,6 +180,14 @@ namespace Arsenal.Weapons
             Vector3 q = Quaternion.Inverse(placement.Rotation) * (partHit.Pos - placement.LocalPosition);
             local = new Vector2(q.x, q.y);
             return true;
+        }
+
+        /// <summary>Top of another player's body (along the local up).</summary>
+        public static bool IsHeadshot(RaycastHit hit)
+        {
+            if (hit.rigidbody == null) return false;
+            float h = Vector3.Dot(hit.point - hit.rigidbody.worldCenterOfMass, Fx.Up);
+            return h > 0.5f;
         }
 
         public static bool TryGetOtherPlayer(RaycastHit hit, out uint playerId)
