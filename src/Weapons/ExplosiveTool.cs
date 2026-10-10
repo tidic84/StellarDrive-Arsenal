@@ -62,6 +62,7 @@ namespace Arsenal.Weapons
 
         private void Update()
         {
+            if (_def == null) return;
             _swing = Mathf.MoveTowards(_swing, 0f, Time.deltaTime * 2.2f);
             if (_model != null && _def.Kind == WeaponKind.Grenade)
                 _model.gameObject.SetActive(_swing < 0.45f);

@@ -8,9 +8,13 @@ namespace Arsenal.Visual
     {
         private static Material _toolAtlas, _flatMetal, _spark, _glow;
         private static ParticleSystem _sparks;
-        private static GameObject _root;
+        private static GameObject _root, _inactiveRoot;
 
-        /// <summary>Hidden holder for templates (prefabs built at runtime).</summary>
+        /// <summary>
+        /// Holder for the prefabs built at runtime. It must stay active: the game reads part prefabs with
+        /// GetComponentsInChildren (sockets, interactions, tool visuals), which skips inactive objects.
+        /// It sits far below the world, and our own scripts do nothing while they are under it.
+        /// </summary>
         public static Transform TemplateRoot
         {
             get
@@ -18,12 +22,29 @@ namespace Arsenal.Visual
                 if (_root == null)
                 {
                     _root = new GameObject("Arsenal.Templates");
-                    _root.SetActive(false);
+                    _root.transform.position = new Vector3(0f, -100000f, 0f);
                     Object.DontDestroyOnLoad(_root);
                 }
                 return _root.transform;
             }
         }
+
+        /// <summary>Holder for things that must not run at all (effect templates).</summary>
+        public static Transform InactiveRoot
+        {
+            get
+            {
+                if (_inactiveRoot == null)
+                {
+                    _inactiveRoot = new GameObject("Arsenal.Inactive");
+                    _inactiveRoot.SetActive(false);
+                    Object.DontDestroyOnLoad(_inactiveRoot);
+                }
+                return _inactiveRoot.transform;
+            }
+        }
+
+        public static bool IsTemplate(Component c) => _root != null && c.transform.IsChildOf(_root.transform);
 
         private static Material Find(string name) =>
             Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == name);
@@ -61,7 +82,7 @@ namespace Arsenal.Visual
                 if (_sparks != null) return _sparks;
                 ParticleSystem src = Resources.FindObjectsOfTypeAll<ParticleSystem>().FirstOrDefault(p => p != null && p.name == "Sparks" && p.transform.parent != null && p.transform.parent.name == "LaserSparkEffect");
                 if (src == null) return null;
-                _sparks = Object.Instantiate(src, TemplateRoot);
+                _sparks = Object.Instantiate(src, InactiveRoot);
                 _sparks.name = "Arsenal.Sparks";
                 return _sparks;
             }

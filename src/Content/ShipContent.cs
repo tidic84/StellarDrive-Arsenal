@@ -138,8 +138,8 @@ namespace Arsenal.Content
             {
                 Transform s = Object.Instantiate(template.gameObject, prefab.transform).transform;
                 s.name = "FireSocket" + (i + 1);
-                s.localPosition = new Vector3(0.5f, 0.07f, zs[i]);
-                s.localEulerAngles = new Vector3(0, -90f, 0);
+                s.localPosition = new Vector3(-0.5f, 0.45f, zs[i]);
+                s.localEulerAngles = new Vector3(0, 90f, 0);
                 Traverse.Create(s.GetComponent<SocketObject>()).Field("id").SetValue(FireSockets[i]);
             }
             Transform visuals = prefab.transform.Find("Visuals") ?? prefab.transform;
@@ -164,8 +164,8 @@ namespace Arsenal.Content
                         "Fires while its signal input is on (> 0.5). Armour-piercing rounds: go through one or two iron plates.",
                         60f, items, (101, 14), (112, 4));
                     model = PartModels.MachineGun(out _);
-                    boundsCenter = new Vector3(0, 0.2f, 0.18f);
-                    boundsSize = new Vector3(0.6f, 0.4f, 1.2f);
+                    boundsCenter = new Vector3(0, 0.2f, 0.22f);
+                    boundsSize = new Vector3(0.6f, 0.4f, 1.1f);
                     break;
                 case MissilePodId:
                     p = Clone(display, id, "Lance-missiles air-air", "Air-to-air missile pod",
@@ -173,8 +173,8 @@ namespace Arsenal.Content
                         "Locks the nearest ship in front of it and fires a homing missile on each signal pulse. 4 missiles, reloads by itself.",
                         90f, items, (101, 20), (112, 8), (103, 1));
                     model = PartModels.MissilePod(out _);
-                    boundsCenter = new Vector3(0, 0.27f, 0.05f);
-                    boundsSize = new Vector3(0.6f, 0.55f, 0.8f);
+                    boundsCenter = new Vector3(0, 0.27f, 0.08f);
+                    boundsSize = new Vector3(0.6f, 0.55f, 0.76f);
                     break;
                 default:
                     p = Clone(display, id, "Canon laser", "Laser cannon",
@@ -182,8 +182,8 @@ namespace Arsenal.Content
                         "Continuous beam while the signal is on. Melts through hulls. Overheats after a few seconds.",
                         80f, items, (101, 12), (112, 10), (102, 6), (103, 2));
                     model = PartModels.LaserCannon(out _, out _);
-                    boundsCenter = new Vector3(0, 0.2f, 0.12f);
-                    boundsSize = new Vector3(0.6f, 0.45f, 1.05f);
+                    boundsCenter = new Vector3(0, 0.2f, 0.18f);
+                    boundsSize = new Vector3(0.6f, 0.45f, 0.98f);
                     break;
             }
             p.size = Vector3.one;
@@ -211,7 +211,7 @@ namespace Arsenal.Content
             Transform socket = prefab.GetComponentsInChildren<SocketObject>(true).FirstOrDefault()?.transform;
             if (socket != null)
             {
-                socket.localPosition = new Vector3(0f, 0.07f, -0.26f);
+                socket.localPosition = new Vector3(0f, 0.07f, -0.37f);
                 socket.localEulerAngles = new Vector3(0, 180f, 0);
             }
             p.part = prefab;

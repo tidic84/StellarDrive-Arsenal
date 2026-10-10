@@ -47,6 +47,7 @@ namespace Arsenal.Weapons
         protected override void AfterAwake()
         {
             _def = WeaponDefs.ByItem(ItemId);
+            if (_def == null) return; // the template itself (its item id is set after it wakes up)
             _muzzle = GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Muzzle");
             _display = GetComponentInChildren<TextMeshPro>(true);
             _ammo = AmmoLeft.TryGetValue(ItemId, out int a) ? a : _def.Magazine;
@@ -105,7 +106,7 @@ namespace Arsenal.Weapons
 
         private void Update()
         {
-            if (!enabled) return;
+            if (!enabled || _def == null) return;
             Keyboard kb = Keyboard.current;
             if (kb != null && kb.rKey.wasPressedThisFrame) StartReload();
 
@@ -126,7 +127,7 @@ namespace Arsenal.Weapons
 
         private void LateUpdate()
         {
-            if (_camera == null || _def.AimFov <= 0f) return;
+            if (_def == null || _camera == null || _def.AimFov <= 0f) return;
             if (_aimBlend > 0f)
                 _camera.fieldOfView = Mathf.Lerp(_baseFov, _def.AimFov, _aimBlend);
             else if (Mathf.Abs(_camera.fieldOfView - _baseFov) > 0.01f && Mathf.Abs(_camera.fieldOfView - _def.AimFov) < Mathf.Abs(_baseFov - _def.AimFov))
@@ -185,8 +186,10 @@ namespace Arsenal.Weapons
 
         private void OnGUI()
         {
-            if (_def == null || _def.Kind != WeaponKind.Marksman || _aimBlend <= 0.85f || !enabled) return;
-            ScopeOverlay.Draw();
+            if (_def == null || !enabled || Arsenal.Visual.Assets.IsTemplate(this)) return;
+            if (_def.Kind == WeaponKind.Marksman && _aimBlend > 0.85f) ScopeOverlay.Draw();
+            float reload = Reloading ? 1f - (_reloadDone - Time.time) / _def.ReloadTime : -1f;
+            AmmoHud.Draw(Loc.T(_def.NameFr, _def.NameEn), _ammo, _def.Magazine, reload, _def.Automatic);
         }
 
         private void RestoreFov()
