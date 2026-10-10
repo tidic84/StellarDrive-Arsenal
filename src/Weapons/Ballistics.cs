@@ -45,7 +45,7 @@ namespace Arsenal.Weapons
         public static readonly System.Random Rng = new System.Random();
 
         /// <summary>Fires one bullet in the client physics scene. Returns where it ended for the tracer.</summary>
-        public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts)
+        public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts, Rigidbody ignore = null)
         {
             PhysicsScene scene = ClientScene.PhysicsScene;
             float penetration = spec.Penetration;
@@ -61,6 +61,13 @@ namespace Arsenal.Weapons
                 if (!scene.Raycast(pos, dir, out RaycastHit hit, left, Mask, QueryTriggerInteraction.Ignore))
                     return pos + dir * left;
                 travelled += hit.distance;
+                if (ignore != null && hit.rigidbody == ignore)
+                {
+                    // our own ship: the round leaves through the barrel clearance
+                    pos = hit.point + dir * 0.05f;
+                    travelled += 0.05f;
+                    continue;
+                }
                 Collider col = hit.collider;
 
                 if (ShipPartsTagDetection.ColliderIsHull(col) && TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local))

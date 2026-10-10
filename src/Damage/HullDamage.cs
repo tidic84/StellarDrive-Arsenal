@@ -43,6 +43,8 @@ namespace Arsenal.Damage
             ArsenalNet.OnClientHello += SendSnapshot;
         }
 
+        public static void ResetClient() => Client.Clear();
+
         public static void ResetAll()
         {
             Server.Clear();
@@ -55,6 +57,10 @@ namespace Arsenal.Damage
         {
             Server.Clear();
             foreach (var kv in states) Server[kv.Key] = kv.Value;
+            // the host's own client may already be connected: give everyone the loaded holes
+            if (ArsenalNet.IsServer && Server.Count > 0)
+                foreach (FishNet.Connection.NetworkConnection c in FishNet.InstanceFinder.ServerManager.Clients.Values)
+                    SendSnapshot(c);
         }
 
         // ------------------------------------------------------------------ client API

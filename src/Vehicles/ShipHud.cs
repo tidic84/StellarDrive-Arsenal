@@ -1,0 +1,137 @@
+using Arsenal.Content;
+using Arsenal.Core;
+using Ships;
+using Ships.Interface.Model.Parts;
+using UnityEngine;
+
+namespace Arsenal.Vehicles
+{
+    /// <summary>
+    /// Pilot overlay while flying a ship with weapons: where each weapon points (300 m ahead), the missile
+    /// lock and missiles left, the laser heat. Drawn in thin ink-like lines to sit with the game's HUD.
+    /// </summary>
+    internal sealed class ShipHud : MonoBehaviour
+    {
+        private static Texture2D _px;
+        private static GUIStyle _label;
+
+        private static Texture2D Px
+        {
+            get
+            {
+                if (_px != null) return _px;
+                _px = new Texture2D(1, 1);
+                _px.SetPixel(0, 0, Color.white);
+                _px.Apply();
+                return _px;
+            }
+        }
+
+        private void OnGUI()
+        {
+            if (!ArsenalMod.InGame || Event.current.type != EventType.Repaint) return;
+            if (!GunnerSeat.TryGetPilotedRoot(out uint root)) return;
+            Camera cam = Camera.main;
+            if (cam == null) return;
+            if (_label == null)
+                _label = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
+
+            foreach (ShipWeapons.Mount m in ShipWeapons.Mounts)
+            {
+                if (ShipWeapons.RootOf(m.Ctx.ShipId) != root) continue;
+                if (!Svc.ShipsClient.TryGetTrackedShip(m.Ctx.ShipId, out TrackedShipClient ship) || !ship.IsRigidbodyLoaded) continue;
+                if (!ship.TryGetStatefulPart(m.Ctx.PartId, out StatefulPart part)) continue;
+                Vector3 aim = ShipWeapons.PartPoint(ship, part, new Vector3(0, 0.27f, 0.6f)) + ShipWeapons.PartForward(ship, part) * 300f;
+                Vector3 sp = cam.WorldToScreenPoint(aim);
+                if (sp.z <= 0) continue;
+                var c = new Vector2(sp.x, Screen.height - sp.y);
+                Color ink = new Color(0.95f, 0.98f, 1f, 0.9f);
+                switch (m.Kind)
+                {
+                    case ShipContent.MachineGunId:
+                        Cross(c, 9f, 4f, ink);
+                        break;
+                    case ShipContent.LaserCannonId:
+                        Ring(c, 10f, ink);
+                        Bar(new Rect(c.x + 16f, c.y - 10f, 5f, 20f), m.Heat, m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f));
+                        break;
+                    case ShipContent.MissilePodId:
+                        Diamond(c, 8f, ink);
+                        GUI.color = ink;
+                        GUI.Label(new Rect(c.x + 14f, c.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
+                        if (m.LockedTarget != 0 && Svc.ShipsClient.TryGetTrackedShip(m.LockedTarget, out TrackedShipClient t) && t.IsRigidbodyLoaded)
+                        {
+                            Vector3 tp = cam.WorldToScreenPoint(ShipWeapons.TargetPoint(t));
+                            if (tp.z > 0)
+                            {
+                                var tc = new Vector2(tp.x, Screen.height - tp.y);
+                                Color lockCol = new Color(1f, 0.35f, 0.25f, 0.95f);
+                                Brackets(tc, 26f, lockCol);
+                                GUI.color = lockCol;
+                                GUI.Label(new Rect(tc.x - 30f, tc.y + 28f, 120f, 20f), Loc.T("VERROUILLÉ", "LOCKED"), _label);
+                            }
+                        }
+                        break;
+                }
+            }
+            GUI.color = Color.white;
+        }
+
+        private static void Line(Vector2 a, Vector2 b, float width, Color c)
+        {
+            GUI.color = c;
+            Vector2 d = b - a;
+            float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+            Matrix4x4 m = GUI.matrix;
+            GUIUtility.RotateAroundPivot(angle, a);
+            GUI.DrawTexture(new Rect(a.x, a.y - width / 2f, d.magnitude, width), Px);
+            GUI.matrix = m;
+        }
+
+        private static void Cross(Vector2 c, float r, float gap, Color col)
+        {
+            Line(c + new Vector2(-r, 0), c + new Vector2(-gap, 0), 2f, col);
+            Line(c + new Vector2(gap, 0), c + new Vector2(r, 0), 2f, col);
+            Line(c + new Vector2(0, -r), c + new Vector2(0, -gap), 2f, col);
+            Line(c + new Vector2(0, gap), c + new Vector2(0, r), 2f, col);
+        }
+
+        private static void Ring(Vector2 c, float r, Color col)
+        {
+            const int n = 16;
+            for (int i = 0; i < n; i++)
+            {
+                float a0 = i * Mathf.PI * 2f / n, a1 = (i + 1) * Mathf.PI * 2f / n;
+                Line(c + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * r, c + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * r, 2f, col);
+            }
+        }
+
+        private static void Diamond(Vector2 c, float r, Color col)
+        {
+            Line(c + new Vector2(0, -r), c + new Vector2(r, 0), 2f, col);
+            Line(c + new Vector2(r, 0), c + new Vector2(0, r), 2f, col);
+            Line(c + new Vector2(0, r), c + new Vector2(-r, 0), 2f, col);
+            Line(c + new Vector2(-r, 0), c + new Vector2(0, -r), 2f, col);
+        }
+
+        private static void Brackets(Vector2 c, float r, Color col)
+        {
+            float l = r * 0.45f;
+            foreach (var s in new[] { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(1, 1), new Vector2(-1, 1) })
+            {
+                Vector2 corner = c + s * r;
+                Line(corner, corner - new Vector2(s.x * l, 0), 2.5f, col);
+                Line(corner, corner - new Vector2(0, s.y * l), 2.5f, col);
+            }
+        }
+
+        private static void Bar(Rect r, float fill, Color col)
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.5f);
+            GUI.DrawTexture(r, Px);
+            GUI.color = col;
+            float h = r.height * Mathf.Clamp01(fill);
+            GUI.DrawTexture(new Rect(r.x, r.yMax - h, r.width, h), Px);
+        }
+    }
+}

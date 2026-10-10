@@ -10,6 +10,7 @@ using Ships;
 using Ships.Interface.Model;
 using Ships.Interface.Model.Gases;
 using Ships.Interface.Model.Parts;
+using Ships.Interface.Model.Parts.Common;
 using Ships.Interface.Model.Placement;
 using Ships.Interface.Services;
 using Ships.Interface.Settings;
@@ -47,7 +48,10 @@ namespace Arsenal
                     SpawnTestWall(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 6f);
                     break;
                 case "lookat":
-                    LookAtTestShip(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 0f, a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 1f);
+                    LookAtShip(_testShipId, new Vector3(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 0f, a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 1f, 0.5f));
+                    break;
+                case "lookg":
+                    LookAtShip(_gunshipId, new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture)));
                     break;
                 case "fire":
                 {
@@ -79,6 +83,28 @@ namespace Arsenal
                     LoggerInstance.Msg($"[DEV] model {model.name} at {model.localPosition} {model.localEulerAngles}; visuals fp={tool.Visuals.firstPersonPosition} rot={tool.Visuals.firstPersonRotation.eulerAngles}");
                     break;
                 }
+                case "gunship":
+                    SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
+                    break;
+                case "range":
+                {
+                    SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
+                    var gsv = Svc.ShipsServer.GetShip(_gunshipId);
+                    var ph = gsv.PhysicsState;
+                    float dist = a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 16f;
+                    SpawnWallAt(ph.SpaceId, ph.Position + ph.Rotation * new Vector3(0f, -0.3f, dist), ph.Rotation);
+                    break;
+                }
+                case "gun":
+                    Vehicles.GunnerSeat.DevSetButtons(new PartContext(_gunshipId, 1), byte.Parse(a[1]));
+                    break;
+                case "parts":
+                    foreach (var mnt in Vehicles.ShipWeapons.Mounts)
+                        LoggerInstance.Msg($"[DEV] mount {mnt.Ctx} kind {mnt.Kind} heat {mnt.Heat:F2} missiles {mnt.Missiles} lock {mnt.LockedTarget} visual {(mnt.Visual != null)}");
+                    if (Svc.ShipsClient.TryGetTrackedShip(_gunshipId, out TrackedShipClient gs))
+                        foreach (var sp in gs.StatefulParts)
+                            LoggerInstance.Msg($"[DEV] part {sp.Id} {sp.Settings?.id} {sp.State}");
+                    break;
                 case "holes":
                     foreach (var kv in Damage.HullDamage.ServerStates)
                         LoggerInstance.Msg($"[DEV] {kv.Key} hp={kv.Value.Health:F0} holes={kv.Value.Holes.Count}");
@@ -97,6 +123,15 @@ namespace Arsenal
         private void SpawnTestWall(float distance)
         {
             TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
+            var phys = p.PhysicsState;
+            Quaternion rot = phys.Rotation;
+            Vector3 fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, rot * Vector3.up).normalized;
+            Quaternion shipRot = Quaternion.LookRotation(fwd, rot * Vector3.up);
+            SpawnWallAt(phys.SpaceId, phys.Position + fwd * distance + shipRot * new Vector3(0, 0.6f, -0.5f), shipRot);
+        }
+
+        private void SpawnWallAt(uint space, Vector3 position, Quaternion shipRot)
+        {
             var settings = new PartSettingsProvider();
             HullPartSettings iron = (HullPartSettings)settings.GetPartSettingById(2);
             HullPartSettings wood = (HullPartSettings)settings.GetPartSettingById(75);
@@ -116,17 +151,13 @@ namespace Arsenal
                 for (int z = 0; z <= 5; z++)
                     parts.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
             }
-            var phys = p.PhysicsState;
-            Quaternion rot = phys.Rotation;
-            Vector3 fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, rot * Vector3.up).normalized;
-            Quaternion shipRot = Quaternion.LookRotation(fwd, rot * Vector3.up);
             uint id = Svc.Get<IWorldObjectsIdsServerProvider>().CreateUniqueIdForObject();
             var snap = new ShipStateSnapshot
             {
                 Id = id,
                 RelativeSpaceId = Svc.Get<WorldTracking.Interface.Services.ISpacesServerProvider>().GetOrCreateShipRelativeSpace(id),
-                SpaceId = phys.SpaceId,
-                Position = phys.Position + fwd * distance + shipRot * new Vector3(0, 0.6f, -0.5f),
+                SpaceId = space,
+                Position = position,
                 Rotation = shipRot,
                 Velocity = Vector3.zero,
                 RoomGasState = new RoomGasState[0],
@@ -138,15 +169,66 @@ namespace Arsenal
             LoggerInstance.Msg($"[DEV] test wall ship {id} with {parts.Count} parts");
         }
 
-        private void LookAtTestShip(float x, float y)
+        private uint _gunshipId;
+
+        private void SpawnGunship(float side)
         {
-            if (!Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient ship) || !ship.IsRigidbodyLoaded)
+            TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
+            var settings = new PartSettingsProvider();
+            HullPartSettings floor = (HullPartSettings)settings.GetPartSettingById(1);
+            var hull = new System.Collections.Generic.List<HullPart>();
+            for (int x = -2; x <= 2; x++)
+                for (int z = -2; z <= 4; z++)
+                    hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+            var parts = new[]
+            {
+                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
+                new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.MachineGunId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
+                new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.MissilePodId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 3.2f), PartOrientation.Forward)),
+                new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.LaserCannonId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
+                new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ArmoryId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+            };
+            var phys = p.PhysicsState;
+            Quaternion rot = phys.Rotation;
+            Vector3 up = rot * Vector3.up;
+            Vector3 fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, up).normalized;
+            Quaternion shipRot = Quaternion.LookRotation(fwd, up);
+            uint id = Svc.Get<IWorldObjectsIdsServerProvider>().CreateUniqueIdForObject();
+            var snap = new ShipStateSnapshot
+            {
+                Id = id,
+                RelativeSpaceId = Svc.Get<WorldTracking.Interface.Services.ISpacesServerProvider>().GetOrCreateShipRelativeSpace(id),
+                SpaceId = phys.SpaceId,
+                Position = phys.Position + shipRot * new Vector3(side, 0.7f, -1f),
+                Rotation = shipRot,
+                Velocity = Vector3.zero,
+                RoomGasState = new RoomGasState[0],
+                HullParts = hull.ToArray(),
+                StatefulParts = parts,
+            };
+            Svc.ShipsServer.LoadShip(snap);
+            _gunshipId = id;
+            var cables = Svc.Get<Ships.Cables.CablesServerTracker>();
+            (ushort part, byte seatSocket)[] wires = { (2, 6), (3, 7), (4, 8) };
+            foreach (var (part, seatSocket) in wires)
+                cables.AddCable(new CableState
+                {
+                    Type = CableType.Signal,
+                    PlugA = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, 1, seatSocket) },
+                    PlugB = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, part, 0) },
+                });
+            LoggerInstance.Msg($"[DEV] gunship {id}");
+        }
+
+        private void LookAtShip(uint shipId, Vector3 local)
+        {
+            if (!Svc.ShipsClient.TryGetTrackedShip(shipId, out TrackedShipClient ship) || !ship.IsRigidbodyLoaded)
             {
                 LoggerInstance.Msg("[DEV] test ship not loaded");
                 return;
             }
             Transform rb = ship.ShipRigidBody.transform;
-            Vector3 target = rb.TransformPoint(new Vector3(x, y, 0.5f));
+            Vector3 target = rb.TransformPoint(local);
             var look = Object.FindObjectsByType<PlayerLookControls>(FindObjectsSortMode.None).First();
             Camera cam = Camera.main;
             Vector3 up = look.Rotation * Vector3.up;

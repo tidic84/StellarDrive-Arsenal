@@ -381,7 +381,7 @@ namespace Arsenal.Visual
         }
 
         /// <summary>A continuous beam segment that lives one frame (the laser cannon redraws it every frame).</summary>
-        public static void Beam(Vector3 from, Vector3 to, float width, Material mat)
+        public static void Beam(Vector3 from, Vector3 to, float width, Material mat, float life = 0.001f)
         {
             var go = new GameObject("Arsenal.Beam");
             var lr = go.AddComponent<LineRenderer>();
@@ -393,7 +393,7 @@ namespace Arsenal.Visual
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.SetPosition(0, from);
             lr.SetPosition(1, to);
-            Instance._items.Add(new Body { T = go.transform, Life = 0.001f, BaseScale = Vector3.one });
+            Instance._items.Add(new Body { T = go.transform, Life = life, BaseScale = Vector3.one });
         }
     }
 }

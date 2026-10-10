@@ -141,7 +141,8 @@ namespace Arsenal.Weapons
         {
             uint space = r.ReadUInt32();
             Vector3 pos = r.ReadVector3();
-            ExplosiveDef def = (WeaponKind)r.ReadByte() == WeaponKind.Charge ? Charge : Grenade;
+            var kind = (WeaponKind)r.ReadByte();
+            ExplosiveDef def = kind == WeaponKind.Charge ? Charge : kind == WeaponKind.ShipMissile ? Arsenal.Vehicles.Missiles.Warhead : Grenade;
             ServerExplode(space, pos, def.Radius, def.Power, def.PlayerDamage);
         }
 

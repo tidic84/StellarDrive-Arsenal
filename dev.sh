@@ -13,6 +13,8 @@ taskkill //IM StellarDrive.exe //F > /dev/null 2>&1 || true
 dotnet build src/Arsenal.csproj -c Release -p:DefineConstants=DEV -nologo -v q 2>&1 | grep -E "error|rror CS" && exit 1
 sleep 2
 cp src/bin/Release/Arsenal.dll "$GAME/Mods/"
+W="/c/Users/tidic/AppData/LocalLow/CuriousOwlGames/StellarDrive/WorldSaves"
+rm -rf "$W/ARS_Test" && mkdir -p "$W/ARS_Test" && cp "$W/WB_Dump/world.json" "$W/WB_Dump/world.jpg" "$W/ARS_Test/"
 rm -f "$LOG"
 (cd "$GAME" && ./StellarDrive.exe -screen-fullscreen 0 -screen-width 1280 -screen-height 720 > /dev/null 2>&1 &)
 for i in $(seq 1 "$TIMEOUT"); do
