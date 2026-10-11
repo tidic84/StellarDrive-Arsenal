@@ -32,7 +32,9 @@ Bullets and blasts damage hull panels for real:
 - **Blasts push ships.** An explosion shoves every ship in reach away from it, from the side of the hull it hits — off-centre hits also set it spinning. The bigger the warhead (grenade < rocket < SAM < torpedo), the harder the push, so a rocket or missile hit visibly knocks an aircraft off its course.
 - Damage is decided by the host and synced to every player, and it is **saved with the world** (`arsenal-damage.txt` next to `world.json`).
 
-Slopes, corners and doors take damage and break, but only flat panels get holes.
+Every hull piece gets round holes and breaks — flat panels, wall and floor corners, slopes, slope corners and pivoted walls (their real outline is read from the game's meshes). A round that fits inside an existing hole passes through untouched; one that clips the rim bites into it and widens the hole, so firing at the same spot keeps chewing the piece. Doors take damage and break but keep no holes.
+
+- **Blasts wreck machinery.** Missiles, rockets, torpedoes, grenades and charges also damage the parts bolted to a ship — thrusters, tanks, seats, batteries, consoles, chests, weapons... Each has hit points according to its size; a direct hit from a rocket or missile destroys what it hits, nearby parts are damaged and give way to the next blast, a torpedo clears a whole area. Destroyed parts disappear the way they do in crashes.
 
 ![Round bullet hole through an iron wall, second plate behind](docs/bullet_holes.jpg)
 ![Blast holes running across panel seams](docs/blast_holes.jpg)
@@ -151,7 +153,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.3.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.4.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.3.1", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.4.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -96,7 +96,11 @@ namespace Arsenal
         public override void OnSceneWasUnloaded(int buildIndex, string sceneName)
         {
             // server damage lives as long as the world (it is reloaded from the save with the next world)
-            if (sceneName == MainGameScene) HullDamage.ResetAll();
+            if (sceneName == MainGameScene)
+            {
+                HullDamage.ResetAll();
+                PartDamage.Reset();
+            }
         }
 
         public override void OnUpdate()

@@ -18,9 +18,8 @@ namespace Arsenal.Damage
     /// </summary>
     internal static class HoleVisuals
     {
-        private const float HalfThickness = 0.04f; // the game's flat segment is 1 x 1 x 0.08
 
-        private static readonly Dictionary<HoleMask, Mesh> MeshCache = new Dictionary<HoleMask, Mesh>();
+        private static readonly Dictionary<(HullMeshSegmentType, HoleMask), Mesh> MeshCache = new Dictionary<(HullMeshSegmentType, HoleMask), Mesh>();
         private static readonly Dictionary<ShipHullVisuals, uint> VisualOwners = new Dictionary<ShipHullVisuals, uint>();
 
         // Build context, set by the patches below.
@@ -80,9 +79,9 @@ namespace Arsenal.Damage
 
         private static void GetSegmentMeshPostfix(HullMeshSegmentType type, ref Mesh __result)
         {
-            if (!_inChunk || !_hasCurrentPart || type != HullMeshSegmentType.Flat) return;
+            if (!_inChunk || !_hasCurrentPart) return;
             if (!HullDamage.TryGetClientHoles(new PanelKey(_chunkShipId, _currentPart), out HoleMask holes) || holes.IsEmpty) return;
-            __result = GetMesh(holes);
+            __result = GetMesh(holes, type);
         }
 
         private static bool TryGetShipId(ShipHullVisuals hv, out uint id)
@@ -118,12 +117,12 @@ namespace Arsenal.Damage
 
         // ------------------------------------------------------------------ mesh
 
-        public static Mesh GetMesh(HoleMask holes)
+        public static Mesh GetMesh(HoleMask holes, HullMeshSegmentType type)
         {
-            if (MeshCache.TryGetValue(holes, out Mesh m) && m != null) return m;
+            if (MeshCache.TryGetValue((type, holes), out Mesh m) && m != null) return m;
             if (MeshCache.Count > 512) ClearMeshCacheOnly();
-            m = BuildMesh(holes);
-            MeshCache[holes] = m;
+            m = BuildMesh(holes, SegmentShapes.Get(type));
+            MeshCache[(type, holes)] = m;
             return m;
         }
 
@@ -135,34 +134,38 @@ namespace Arsenal.Damage
         }
 
         /// <summary>
-        /// Panel with round holes: marching squares over the distance to the nearest hole edge, on a 64 x 64 grid
-        /// (1.6 cm), with edge points interpolated so circles come out smooth. Full cells are merged into strips,
-        /// cells crossed by a hole edge get their solid part plus a wall following the edge.
+        /// A hull piece with round holes, any shape: marching squares over the signed distance to "solid"
+        /// (inside the piece's outline and outside every hole), on a ~1.6 cm grid, with edge points interpolated so
+        /// circles come out smooth and straight edges stay straight. Full cells are merged into strips; cells crossed
+        /// by an edge get their solid part plus a wall following it (hole walls and the piece's own rim).
         /// </summary>
-        private static Mesh BuildMesh(HoleMask holes)
+        private static Mesh BuildMesh(HoleMask holes, SegmentShape shape)
         {
-            const int N = 64;
-            const float cs = 1f / N;
+            Rect b = shape.Bounds;
+            const float target = 1f / 64f;
+            int nx = Mathf.Max(8, Mathf.CeilToInt(b.width / target)), ny = Mathf.Max(8, Mathf.CeilToInt(b.height / target));
+            float csx = b.width / nx, csy = b.height / ny;
             var v = new List<Vector3>(4096);
             var n = new List<Vector3>(4096);
             var t = new List<int>(8192);
-            float z = HalfThickness;
+            float zf = shape.ZCenter + shape.HalfThickness, zb = shape.ZCenter - shape.HalfThickness;
+            float Solid(Vector2 p) => Mathf.Min(shape.Inside(p), holes.Distance(p.x, p.y));
 
-            var f = new float[N + 1, N + 1];
-            for (int j = 0; j <= N; j++)
-                for (int i = 0; i <= N; i++)
+            var f = new float[nx + 1, ny + 1];
+            for (int j = 0; j <= ny; j++)
+                for (int i = 0; i <= nx; i++)
                 {
-                    float d = holes.Distance(i * cs - 0.5f, j * cs - 0.5f);
-                    f[i, j] = Mathf.Abs(d) < 0.0001f ? 0.0001f : d; // never exactly on the edge
+                    float d = Solid(new Vector2(b.xMin + i * csx, b.yMin + j * csy));
+                    f[i, j] = Mathf.Abs(d) < 0.00001f ? -0.00001f : d; // exactly on an edge counts as outside
                 }
 
             var poly = new List<(Vector2 p, bool edge)>(8);
-            for (int j = 0; j < N; j++)
+            for (int j = 0; j < ny; j++)
             {
                 int runStart = -1;
-                for (int i = 0; i <= N; i++)
+                for (int i = 0; i <= nx; i++)
                 {
-                    bool full = i < N && f[i, j] > 0f && f[i + 1, j] > 0f && f[i + 1, j + 1] > 0f && f[i, j + 1] > 0f;
+                    bool full = i < nx && f[i, j] > 0f && f[i + 1, j] > 0f && f[i + 1, j + 1] > 0f && f[i, j + 1] > 0f;
                     if (full)
                     {
                         if (runStart < 0) runStart = i;
@@ -170,18 +173,17 @@ namespace Arsenal.Damage
                     }
                     if (runStart >= 0)
                     {
-                        // one strip for the run of solid cells
-                        float x0 = runStart * cs - 0.5f, x1 = i * cs - 0.5f, y0 = j * cs - 0.5f, y1 = y0 + cs;
-                        Quad(v, n, t, new Vector3(x0, y1, z), new Vector3(x0, y0, z), new Vector3(x1, y0, z), new Vector3(x1, y1, z), Vector3.forward);
-                        Quad(v, n, t, new Vector3(x1, y1, -z), new Vector3(x1, y0, -z), new Vector3(x0, y0, -z), new Vector3(x0, y1, -z), Vector3.back);
+                        float x0 = b.xMin + runStart * csx, x1 = b.xMin + i * csx, y0 = b.yMin + j * csy, y1 = y0 + csy;
+                        Quad(v, n, t, new Vector3(x0, y1, zf), new Vector3(x0, y0, zf), new Vector3(x1, y0, zf), new Vector3(x1, y1, zf), Vector3.forward);
+                        Quad(v, n, t, new Vector3(x1, y1, zb), new Vector3(x1, y0, zb), new Vector3(x0, y0, zb), new Vector3(x0, y1, zb), Vector3.back);
                         runStart = -1;
                     }
-                    if (i == N) break;
-                    float a = f[i, j], b = f[i + 1, j], c = f[i + 1, j + 1], dd = f[i, j + 1];
-                    if (a <= 0f && b <= 0f && c <= 0f && dd <= 0f) continue; // all hole
-                    Vector2 p0 = new Vector2(i * cs - 0.5f, j * cs - 0.5f);
-                    Vector2[] corner = { p0, p0 + new Vector2(cs, 0), p0 + new Vector2(cs, cs), p0 + new Vector2(0, cs) };
-                    float[] val = { a, b, c, dd };
+                    if (i == nx) break;
+                    float a = f[i, j], bb = f[i + 1, j], c = f[i + 1, j + 1], dd = f[i, j + 1];
+                    if (a <= 0f && bb <= 0f && c <= 0f && dd <= 0f) continue;
+                    Vector2 p0 = new Vector2(b.xMin + i * csx, b.yMin + j * csy);
+                    Vector2[] corner = { p0, p0 + new Vector2(csx, 0), p0 + new Vector2(csx, csy), p0 + new Vector2(0, csy) };
+                    float[] val = { a, bb, c, dd };
                     poly.Clear();
                     for (int k = 0; k < 4; k++)
                     {
@@ -196,10 +198,10 @@ namespace Arsenal.Damage
                     if (poly.Count < 3) continue;
                     for (int k = 1; k + 1 < poly.Count; k++)
                     {
-                        Tri(v, n, t, V(poly[0].p, z), V(poly[k].p, z), V(poly[k + 1].p, z), Vector3.forward);
-                        Tri(v, n, t, V(poly[0].p, -z), V(poly[k + 1].p, -z), V(poly[k].p, -z), Vector3.back);
+                        Tri(v, n, t, V(poly[0].p, zf), V(poly[k].p, zf), V(poly[k + 1].p, zf), Vector3.forward);
+                        Tri(v, n, t, V(poly[0].p, zb), V(poly[k + 1].p, zb), V(poly[k].p, zb), Vector3.back);
                     }
-                    // walls along the hole edge, facing into the hole
+                    // walls along edges (hole rims and the piece's outline), facing away from the solid
                     for (int k = 0; k < poly.Count; k++)
                     {
                         var e0 = poly[k];
@@ -209,14 +211,13 @@ namespace Arsenal.Damage
                         if (dir.sqrMagnitude < 1e-10f) continue;
                         Vector2 mid = (e0.p + e1.p) * 0.5f;
                         Vector2 nrm = new Vector2(dir.y, -dir.x).normalized;
-                        if (holes.Distance(mid.x + nrm.x * 0.004f, mid.y + nrm.y * 0.004f) > holes.Distance(mid.x - nrm.x * 0.004f, mid.y - nrm.y * 0.004f)) nrm = -nrm;
-                        Vector3 wn = new Vector3(nrm.x, nrm.y, 0f);
-                        Quad(v, n, t, V(e0.p, -z), V(e1.p, -z), V(e1.p, z), V(e0.p, z), wn);
+                        if (Solid(mid + nrm * 0.004f) > Solid(mid - nrm * 0.004f)) nrm = -nrm;
+                        Quad(v, n, t, V(e0.p, zb), V(e1.p, zb), V(e1.p, zf), V(e0.p, zf), new Vector3(nrm.x, nrm.y, 0f));
                     }
                 }
             }
 
-            var mesh = new Mesh { name = "Flat (Arsenal holes)" };
+            var mesh = new Mesh { name = "Hull segment (Arsenal holes)" };
             if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             mesh.SetVertices(v);
             mesh.SetNormals(n);

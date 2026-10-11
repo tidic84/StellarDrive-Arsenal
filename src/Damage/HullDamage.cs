@@ -128,8 +128,11 @@ namespace Arsenal.Damage
             if (CanHaveHoles(p))
                 st.Holes = st.Holes.Union(add);
             st.Health -= damage;
+#if DEV
+            if (p.SegmentType != HullMeshSegmentType.Flat) ArsenalMod.Log.Msg($"[DEV] {p.SegmentType} {key.Pos.VoxelCoord} hp {st.Health:0}/{max:0} holes {SegmentShapes.Get(p).Coverage(st.Holes):P0}");
+#endif
 
-            bool broken = st.Health <= 0f || st.Holes.Coverage() >= Materials.BreakHoleRatio;
+            bool broken = st.Health <= 0f || SegmentShapes.Get(p).Coverage(st.Holes) >= Materials.BreakHoleRatio;
             if (broken)
             {
                 Server.Remove(key);
@@ -150,7 +153,8 @@ namespace Arsenal.Damage
             });
         }
 
-        public static bool CanHaveHoles(HullPart p) => !p.HullSettings.hasItsOwnMesh && p.SegmentType == HullMeshSegmentType.Flat;
+        /// <summary>Every hull piece drawn from the game's segment meshes (flat, corners, slopes) can be holed; doors and other custom meshes cannot.</summary>
+        public static bool CanHaveHoles(HullPart p) => !p.HullSettings.hasItsOwnMesh;
 
         private static void BreakPanel(TrackedShipServer ship, HullPart part)
         {

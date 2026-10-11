@@ -165,6 +165,9 @@ namespace Arsenal
                 case "fov":
                     Camera.main.fieldOfView = float.Parse(a[1], CultureInfo.InvariantCulture);
                     break;
+                case "boomg":
+                    _testShipId = _gunshipId;
+                    goto case "boom";
                 case "boom":
                 {
                     // boom <x> <y> <z> [kind]: blast at a point of the test wall (ship-local)
@@ -176,6 +179,20 @@ namespace Arsenal
                 case "noknock":
                     Damage.ShipKnockback.DevNoKnock = !Damage.ShipKnockback.DevNoKnock;
                     break;
+                case "hullparts":
+                    foreach (var hp in Resources.FindObjectsOfTypeAll<HullPartSettings>().OrderBy(h => h.id))
+                        LoggerInstance.Msg($"[DEV] hull {hp.id} {hp.name} seg={hp.hullMeshSegmentType} mat={hp.hullMaterialType} own={hp.hasItsOwnMesh} fwd={hp.defaultForward} up={hp.defaultUp}");
+                    break;
+                case "shapes":
+                {
+                    TrackedPlayerServer sp = Svc.PlayersServer.ActivePlayers.First();
+                    var sph = sp.PhysicsState;
+                    Vector3 sup = sph.Rotation * Vector3.up;
+                    Vector3 sfwd = Vector3.ProjectOnPlane(sph.Rotation * Vector3.forward, sup).normalized;
+                    // rotate 180: the pieces face back towards the player
+                    SpawnShapesAt(sph.SpaceId, sph.Position + sfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + sup * 0.6f, Quaternion.LookRotation(-sfwd, sup));
+                    break;
+                }
                 case "hover":
                     Damage.ShipKnockback.DevHover.Add(_testShipId);
                     break;
@@ -317,6 +334,45 @@ namespace Arsenal
             Vector3 fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, rot * Vector3.up).normalized;
             Quaternion shipRot = Quaternion.LookRotation(fwd, rot * Vector3.up);
             SpawnWallAt(phys.SpaceId, phys.Position + fwd * distance + shipRot * new Vector3(0, 0.6f, -0.5f), shipRot);
+        }
+
+        /// <summary>Dev: a floor with one of each angled hull piece on it, facing the player.</summary>
+        private void SpawnShapesAt(uint space, Vector3 position, Quaternion shipRot)
+        {
+            var settings = new PartSettingsProvider();
+            HullPartSettings S(ushort id) => (HullPartSettings)settings.GetPartSettingById(id);
+            var parts = new System.Collections.Generic.List<HullPart>();
+            for (int x = -3; x <= 3; x++)
+                for (int z = -1; z <= 1; z++)
+                    parts.Add(new HullPart(S(1), new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+            void Add(int x, ushort id, VoxelPartType type)
+            {
+                HullPartSettings s = S(id);
+                parts.Add(new HullPart(s, new HullPartPlacement(new Vector3Int(x, 0, 0), type, s.defaultForward, s.defaultUp)));
+            }
+            Add(-3, 9, VoxelPartType.Interior);    // iron slope
+            Add(-2, 10, VoxelPartType.Interior);   // iron slope corner
+            Add(-1, 5, VoxelPartType.Interior);    // iron pivoted wall
+            Add(0, 12, VoxelPartType.ForwardWall); // iron wall corner
+            Add(1, 72, VoxelPartType.Interior);    // wood slope
+            Add(2, 33, VoxelPartType.Interior);    // glass slope
+            Add(3, 11, VoxelPartType.Interior);    // iron slope corner, inverted
+            uint shipId = Svc.Get<IWorldObjectsIdsServerProvider>().CreateUniqueIdForObject();
+            var snap = new ShipStateSnapshot
+            {
+                Id = shipId,
+                RelativeSpaceId = Svc.Get<WorldTracking.Interface.Services.ISpacesServerProvider>().GetOrCreateShipRelativeSpace(shipId),
+                SpaceId = space,
+                Position = position,
+                Rotation = shipRot,
+                Velocity = Vector3.zero,
+                RoomGasState = new RoomGasState[0],
+                HullParts = parts.ToArray(),
+                StatefulParts = new StatefulPart[0],
+            };
+            Svc.ShipsServer.LoadShip(snap);
+            _testShipId = shipId;
+            LoggerInstance.Msg($"[DEV] shapes ship {shipId} with {parts.Count} parts");
         }
 
         private void SpawnWallAt(uint space, Vector3 position, Quaternion shipRot)

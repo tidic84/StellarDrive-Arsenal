@@ -222,6 +222,9 @@ namespace Arsenal.Weapons
                     }
                 }
 
+                // machinery on this ship (thrusters, tanks, seats...)
+                PartDamage.ApplyBlast(ship, local, radius, power);
+
                 var done = new HashSet<HullPartPosition>();
                 int r = Mathf.CeilToInt(radius) + 1;
                 Vector3Int c0 = Vector3Int.RoundToInt(local);
@@ -244,17 +247,18 @@ namespace Arsenal.Weapons
                     HullPartPlacement pl = part.HullPlacement;
                     if (!done.Add(pl.Position)) return;
                     Vector3 rel = Quaternion.Inverse(pl.Rotation) * (local - pl.LocalPosition);
-                    // distance to the 1x1 panel rectangle
-                    float dx = Mathf.Max(0f, Mathf.Abs(rel.x) - 0.5f), dy = Mathf.Max(0f, Mathf.Abs(rel.y) - 0.5f);
-                    float d = Mathf.Sqrt(dx * dx + dy * dy + rel.z * rel.z);
+                    // distance to the piece (square panel, triangle corner, long slope...)
+                    SegmentShape shape = SegmentShapes.Get(part);
+                    float inPlane = shape.DistanceTo(new Vector2(rel.x, rel.y)), dz = rel.z - shape.ZCenter;
+                    float d = Mathf.Sqrt(inPlane * inPlane + dz * dz);
                     if (d >= radius) return;
                     float f = 1f - d / radius;
                     var holes = new HoleMask();
                     // hole size from the blast's distance to the plane, so one circle spans neighbouring panels evenly
-                    float fp = 1f - Mathf.Abs(rel.z) / radius;
+                    float fp = 1f - Mathf.Abs(dz) / radius;
                     float material = Materials.HoleScale(part.MaterialType) * (part.MaterialType == HullMaterialType.Glass ? 1.5f : 1.1f);
                     float hr = Mathf.Clamp(0.08f + 0.7f * Mathf.Pow(Mathf.Max(0f, fp), 1.5f) * Mathf.Sqrt(power / 1000f) * material, 0.04f, 0.9f);
-                    if (HullDamage.CanHaveHoles(part) && fp > 0.25f && dx * dx + dy * dy < hr * hr)
+                    if (HullDamage.CanHaveHoles(part) && fp > 0.25f && inPlane < hr)
                     {
                         // same torn outline on every panel of the blast, so lobes line up across seams
                         holes = holes.PunchDisc(Mathf.Clamp(rel.x, -1.95f, 1.95f), Mathf.Clamp(rel.y, -1.95f, 1.95f), hr, new System.Random(blastSeed));

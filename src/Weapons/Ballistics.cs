@@ -83,13 +83,22 @@ namespace Arsenal.Weapons
                     }
                 }
 
+#if DEV
+                if (ShipPartsTagDetection.ColliderIsHull(col))
+                {
+                    bool ok = TryResolvePanel(hit, out PanelKey dk, out HullPart dp, out Vector2 dl);
+                    ArsenalMod.Log.Msg($"[DEV] hull hit tag {col.tag} resolved {ok} {(ok ? dk + " seg " + dp.SegmentType + " mat " + dp.MaterialType + " local " + dl : "")}");
+                }
+#endif
                 if (ShipPartsTagDetection.ColliderIsHull(col) && TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local, out Vector3 shipLocal))
                 {
                     HullMaterialType mat = part.MaterialType;
                     float cos = Mathf.Abs(Vector3.Dot(dir, hit.normal));
                     float skip = Mathf.Min(0.6f, (Materials.Thickness + 0.04f) / Mathf.Max(0.2f, cos));
                     bool holeAble = HullDamage.CanHaveHoles(part);
-                    if (holeAble && HullDamage.TryGetClientHoles(key, out HoleMask existing) && existing.IsHoleAt(local.x, local.y))
+                    // only a round that fits inside an existing hole goes through untouched; one that clips the rim bites into it
+                    float roundR = Mathf.Max(0.005f, spec.HoleRadius * Materials.HoleScale(mat) * 0.8f);
+                    if (holeAble && HullDamage.TryGetClientHoles(key, out HoleMask existing) && existing.Distance(local.x, local.y) < -roundR)
                     {
                         // through an existing hole
                         pos = hit.point + dir * skip;
@@ -131,6 +140,8 @@ namespace Arsenal.Weapons
                         {
                             float ease = Mathf.Clamp(0.7f + 0.12f * Mathf.Min(penetration / resistance, 4f), 0.75f, 1.2f);
                             float r = spec.HoleRadius * Materials.HoleScale(mat) * ease;
+                            // biting into the rim of an existing hole widens it
+                            if (HullDamage.TryGetClientHoles(key, out HoleMask around)) { float dh = around.Distance(local.x, local.y); if (dh < r) r += Mathf.Max(0f, -dh) * 0.5f + r * 0.35f; }
                             holes = holes.PunchDisc(local.x, local.y, r);
                             float shatter = Materials.ShatterScale(mat);
                             if (shatter > 0f) holes = holes.PunchDisc(local.x, local.y, r * shatter, Rng);
@@ -230,7 +241,7 @@ namespace Arsenal.Weapons
         {
             HullPartPlacement pl = part.HullPlacement;
             Vector3 c = Quaternion.Inverse(pl.Rotation) * (shipCenter - pl.LocalPosition);
-            if (Mathf.Abs(c.x) + radius <= 0.5f && Mathf.Abs(c.y) + radius <= 0.5f) return; // fully inside
+            if (SegmentShapes.Get(part).Inside(new Vector2(c.x, c.y)) >= radius) return; // fully inside
             if (!Svc.ShipsClient.TryGetTrackedShip(key.ShipId, out TrackedShipClient ship)) return;
             Vector3Int ax = Vector3Int.RoundToInt(pl.Rotation * Vector3.right), ay = Vector3Int.RoundToInt(pl.Rotation * Vector3.up);
             for (int i = -1; i <= 1; i++)
@@ -242,9 +253,9 @@ namespace Arsenal.Weapons
                     if (!n.HasValue || !HullDamage.CanHaveHoles(n.Value)) continue;
                     HullPartPlacement np = n.Value.HullPlacement;
                     Vector3 lc = Quaternion.Inverse(np.Rotation) * (shipCenter - np.LocalPosition);
-                    if (Mathf.Abs(lc.z) > 0.06f) continue; // not in the same plane
-                    float dx = Mathf.Max(0f, Mathf.Abs(lc.x) - 0.5f), dy = Mathf.Max(0f, Mathf.Abs(lc.y) - 0.5f);
-                    if (dx * dx + dy * dy >= radius * radius) continue;
+                    SegmentShape shape = SegmentShapes.Get(n.Value);
+                    if (Mathf.Abs(lc.z - shape.ZCenter) > 0.06f) continue; // not in the same plane
+                    if (shape.DistanceTo(new Vector2(lc.x, lc.y)) >= radius) continue;
                     var nk = new PanelKey(key.ShipId, np.Position);
                     HoleMask holes = HoleMask.Disc(lc.x, lc.y, radius);
                     HullDamage.ReportHit(nk, holes, damage);
