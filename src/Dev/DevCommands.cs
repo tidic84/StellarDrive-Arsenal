@@ -75,9 +75,9 @@ namespace Arsenal
                     int mask = Tools.Common.RaycastMasks.BuildDetectionLayer | (1 << LayerMask.NameToLayer("Interactable"));
                     foreach (var sio in Object.FindObjectsByType<Ships.Cables.VisualObjects.SocketInteractionObject>(FindObjectsSortMode.None))
                     {
-                        if (sio.EntityPartSocket.EntityId != _gunshipId) continue;
+                        if (a.Length < 2 && sio.EntityPartSocket.EntityId != _gunshipId) continue;
                         Vector3 target = sio.transform.position;
-                        Vector3 from = Camera.main.transform.position;
+                        Vector3 from = a.Length > 1 ? target - sio.transform.forward * 1.2f + sio.transform.up * 0.5f : Camera.main.transform.position;
                         bool hit = WorldTracking.Interface.Values.ClientScene.PhysicsScene.Raycast(from, (target - from).normalized, out RaycastHit h, 50f, mask);
                         LoggerInstance.Msg($"[DEV] part {sio.EntityPartSocket.Socket.PartId} socket {sio.EntityPartSocket.Socket.SocketId}: first hit {(hit ? h.collider.name + (h.collider.GetComponent<Ships.Cables.VisualObjects.SocketInteractionObject>() == sio ? " = SOCKET" : "") : "none")}");
                     }

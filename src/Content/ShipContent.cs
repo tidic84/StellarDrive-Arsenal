@@ -37,6 +37,7 @@ namespace Arsenal.Content
         public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId };
         public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
         public static readonly byte[] FireSockets = { 6, 7, 8 };
+        private const float SocketZ = -0.37f; // weapons' signal input, at the back of the base
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
@@ -269,6 +270,10 @@ namespace Arsenal.Content
                     break;
             }
             p.size = Vector3.one;
+            // the part's box stops in front of the cable socket, or it swallows the clicks meant for it
+            float front = boundsCenter.z + boundsSize.z / 2f, back = Mathf.Max(boundsCenter.z - boundsSize.z / 2f, SocketZ + 0.04f);
+            boundsCenter.z = (front + back) / 2f;
+            boundsSize.z = front - back;
             GameObject prefab = ClonePrefab(display.part, "Arsenal.Weapon" + id);
             ShipPartBounds bounds = prefab.GetComponent<ShipPartBounds>();
             if (bounds != null)
@@ -293,7 +298,7 @@ namespace Arsenal.Content
             Transform socket = prefab.GetComponentsInChildren<SocketObject>(true).FirstOrDefault()?.transform;
             if (socket != null)
             {
-                socket.localPosition = new Vector3(0f, 0.07f, -0.37f);
+                socket.localPosition = new Vector3(0f, 0.07f, SocketZ);
                 socket.localEulerAngles = Vector3.zero; // the game plugs cables in along the socket's forward: into the weapon
             }
             p.part = prefab;
