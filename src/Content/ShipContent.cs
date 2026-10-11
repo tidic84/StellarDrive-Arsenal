@@ -275,7 +275,7 @@ namespace Arsenal.Content
             if (socket != null)
             {
                 socket.localPosition = new Vector3(0f, 0.07f, -0.37f);
-                socket.localEulerAngles = new Vector3(0, 180f, 0);
+                socket.localEulerAngles = Vector3.zero; // the game plugs cables in along the socket's forward: into the weapon
             }
             p.part = prefab;
             return p;

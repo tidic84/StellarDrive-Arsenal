@@ -151,7 +151,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.3.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.3.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json
