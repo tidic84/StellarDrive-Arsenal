@@ -104,6 +104,10 @@ namespace Arsenal.Visual
 
         public static void Beep(Vector3 pos) => Play("beep", () => Tone(0.08f, 1650f), pos, 0.35f, 1f, 1f, 30f);
 
+        /// <summary>Lock-on tones: a short blip while acquiring, a higher one once locked.</summary>
+        public static void LockTone(Vector3 pos, bool locked) =>
+            Play(locked ? "lockon" : "acquire", () => Tone(locked ? 0.07f : 0.05f, locked ? 2350f : 1200f), pos, 0.3f, 1f, 1f, 15f);
+
         public static void MissileLaunch(Vector3 pos) => Play("missile", () => Whoosh(1.4f, true), pos, 1f, Jitter(0.05f), 4f, 500f);
 
         public static FMOD.Channel LaserLoop(Vector3 pos) => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true);

@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.1.0", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.2.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 2;
+        internal const int ProtocolVersion = 3;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -38,6 +38,7 @@ namespace Arsenal
             HoleVisuals.Patch(HarmonyInstance);
             ShipContent.Patch(HarmonyInstance);
             GunnerSeat.Patch(HarmonyInstance);
+            ShipKnockback.Patch(HarmonyInstance);
             HarmonyInstance.Patch(AccessTools.Method(typeof(ShipState), nameof(ShipState.RemoveHullPart)),
                 postfix: new HarmonyMethod(typeof(ArsenalMod), nameof(OnHullPartRemoved)));
 
@@ -61,6 +62,7 @@ namespace Arsenal
         {
             Svc.Clear();
             HullDamage.ResetClient();
+            ShipKnockback.Reset();
             HoleVisuals.ClearCaches();
             Fx.ClearAll();
             Assets.ClearSceneRefs();
@@ -83,6 +85,7 @@ namespace Arsenal
                 ShipContent.RegisterResearch();
                 ShipWeapons.Ensure();
                 CombatHud.Ensure();
+                LockHud.Ensure();
                 Armory.ArmoryUi.Ensure();
             }
 #if DEV

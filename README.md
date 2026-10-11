@@ -11,6 +11,7 @@ Bullets and blasts damage hull panels for real:
 - **Real holes.** Each flat panel is a 16 × 16 grid (6 cm cells). A bullet punches a small hole through it; a blast tears a ragged one sized by distance. The holes are cut into the game's own panel mesh, so they keep the panel's colours and edges, and you can see (and shoot) through them.
 - **Penetration.** A round goes through a panel if it has enough penetration for the material and the angle: glass < wood < iron. It loses some on the way and carries on to the next panel; otherwise it stops and only dents the panel.
 - **Breaking.** Every hit also wears the panel down. Once it has no strength left, or too much of it is gone, it breaks into the game's own debris.
+- **Blasts push ships.** An explosion shoves every ship in reach away from it, from the side of the hull it hits — off-centre hits also set it spinning. The bigger the warhead (grenade < rocket < SAM < torpedo), the harder the push, so a rocket or missile hit visibly knocks an aircraft off its course.
 - Damage is decided by the host and synced to every player, and it is **saved with the world** (`arsenal-damage.txt` next to `world.json`).
 
 Slopes, corners and doors take damage and break, but only flat panels get holes.
@@ -38,9 +39,12 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 | "Néant" disintegrator | energy | continuous beam that ramps up and burns through walls |
 | "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
 | "Titan" rocket launcher | explosive | accelerating rocket, big blast |
+| "Eagle" SAM launcher | explosive | **locks on by itself** to the ship you point at (blips, then a steady tone and red brackets); the missile leads its target and has a proximity fuse |
 | Grenade | explosive | left click throws (3 s fuse, bounces) |
 | Breaching charge | explosive | left click sticks it to a surface, right click detonates all yours |
 
+![All hand weapons](docs/models_weapons.jpg)
+![SAM lock-on](docs/sam_lock.jpg)
 ![Breaching charge through an iron wall](docs/breaching_charge.jpg)
 ![Scope](docs/scope.jpg)
 ![Laser minigun](docs/minigun.jpg)
@@ -74,10 +78,13 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **"Disruptor" ion cannon**: ion bolts that knock out the controls of the ship they hit for 8 seconds.
 - **"Longinus" ship railgun**: charges for a second, then fires a slug that goes through several ships.
 - **"Leviathan" torpedo tube**: locks a ship and launches a slow, homing, very heavy torpedo (15 s reload).
+- **"Hail" rocket pod**: 9 unguided rockets fired in a salvo while the signal is on, full reload in 12 s.
+- **"Falcon" SAM battery**: a radar turret that turns by itself towards the nearest **flying** ship, locks it automatically and fires a guided missile while its signal is on (4 missiles, reloads by itself).
 - **Armory**: the weapon fabrication terminal (see above).
 
 While you pilot, the HUD shows where each weapon points, the missile and torpedo lock, the laser heat, the railgun charge and what the point defence is tracking. A ship hit by an ion bolt or an EMP can't fly or shoot until it recovers.
 
+![Ship weapons](docs/models_parts.jpg)
 ![Gunship](docs/gunship.jpg)
 ![Gunner seat HUD with a missile lock](docs/gunner_seat_hud.jpg)
 ![Missile hit](docs/missile_hit.jpg)
@@ -125,7 +132,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.1.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.2.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

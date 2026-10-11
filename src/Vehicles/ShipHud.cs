@@ -15,7 +15,7 @@ namespace Arsenal.Vehicles
         private static Texture2D _px;
         private static GUIStyle _label;
 
-        private static Texture2D Px
+        internal static Texture2D Px
         {
             get
             {
@@ -65,6 +65,23 @@ namespace Arsenal.Vehicles
                         Bar(new Rect(c.x + 22f, c.y - 12f, 5f, 24f), Time.time < m.NextShot ? 1f - (m.NextShot - Time.time) / 4f : m.Charge,
                             Time.time < m.NextShot ? new Color(0.5f, 0.55f, 0.6f) : new Color(0.5f, 0.85f, 1f));
                         break;
+                    case ShipContent.RocketPodId:
+                        Cross(c, 14f, 8f, new Color(1f, 0.6f, 0.35f, 0.9f));
+                        GUI.color = ink;
+                        GUI.Label(new Rect(c.x + 16f, c.y - 10f, 120f, 20f), m.Rockets > 0 ? new string('|', m.Rockets) : Loc.T("RECHARGE", "RELOADING"), _label);
+                        break;
+                    case ShipContent.SamBatteryId:
+                    {
+                        // the battery aims by itself: show where its launcher points and the missiles left
+                        if (m.Pitch == null) continue;
+                        Vector3 sp2 = cam.WorldToScreenPoint(m.Pitch.position + m.Pitch.forward * 300f);
+                        if (sp2.z <= 0) continue;
+                        var c2 = new Vector2(sp2.x, Screen.height - sp2.y);
+                        Ring(c2, 6f, new Color(1f, 0.85f, 0.3f, 0.8f));
+                        GUI.color = ink;
+                        GUI.Label(new Rect(c2.x + 12f, c2.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
+                        continue;
+                    }
                     case ShipContent.PdcId:
                         // point defence aims by itself: show what it is tracking
                         if (m.Tracking != null && !(m.Tracking is Object o && o == null))
@@ -96,7 +113,7 @@ namespace Arsenal.Vehicles
             GUI.color = Color.white;
         }
 
-        private static void Line(Vector2 a, Vector2 b, float width, Color c)
+        internal static void Line(Vector2 a, Vector2 b, float width, Color c)
         {
             GUI.color = c;
             Vector2 d = b - a;
@@ -107,7 +124,7 @@ namespace Arsenal.Vehicles
             GUI.matrix = m;
         }
 
-        private static void Cross(Vector2 c, float r, float gap, Color col)
+        internal static void Cross(Vector2 c, float r, float gap, Color col)
         {
             Line(c + new Vector2(-r, 0), c + new Vector2(-gap, 0), 2f, col);
             Line(c + new Vector2(gap, 0), c + new Vector2(r, 0), 2f, col);
@@ -115,7 +132,7 @@ namespace Arsenal.Vehicles
             Line(c + new Vector2(0, gap), c + new Vector2(0, r), 2f, col);
         }
 
-        private static void Ring(Vector2 c, float r, Color col)
+        internal static void Ring(Vector2 c, float r, Color col)
         {
             const int n = 16;
             for (int i = 0; i < n; i++)
@@ -125,7 +142,7 @@ namespace Arsenal.Vehicles
             }
         }
 
-        private static void Diamond(Vector2 c, float r, Color col)
+        internal static void Diamond(Vector2 c, float r, Color col)
         {
             Line(c + new Vector2(0, -r), c + new Vector2(r, 0), 2f, col);
             Line(c + new Vector2(r, 0), c + new Vector2(0, r), 2f, col);
@@ -133,7 +150,7 @@ namespace Arsenal.Vehicles
             Line(c + new Vector2(-r, 0), c + new Vector2(0, -r), 2f, col);
         }
 
-        private static void Brackets(Vector2 c, float r, Color col)
+        internal static void Brackets(Vector2 c, float r, Color col)
         {
             float l = r * 0.45f;
             foreach (var s in new[] { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(1, 1), new Vector2(-1, 1) })
@@ -144,7 +161,7 @@ namespace Arsenal.Vehicles
             }
         }
 
-        private static void Bar(Rect r, float fill, Color col)
+        internal static void Bar(Rect r, float fill, Color col)
         {
             GUI.color = new Color(0f, 0f, 0f, 0.5f);
             GUI.DrawTexture(r, Px);

@@ -23,6 +23,7 @@ namespace Arsenal.Weapons
         Flamethrower = 16,
         Tesla = 17,
         Disintegrator = 18,
+        SamLauncher = 19,
         // ship-mounted
         ShipGun = 20,
         ShipLaser = 21,
@@ -34,6 +35,8 @@ namespace Arsenal.Weapons
         IonCannon = 27,
         Pdc = 28,
         Capital = 29,
+        ShipRockets = 30,
+        ShipSam = 31,
     }
 
     internal enum FireMode : byte
@@ -142,7 +145,7 @@ namespace Arsenal.Weapons
         // Item ids far from the game's (0-3, 100-112).
         public const uint PistolId = 9101, RifleId = 9102, MarksmanId = 9103, GrenadeId = 9104, ChargeId = 9105;
         public const uint LaserPistolId = 9110, GaussId = 9111, SmgId = 9112, PlasmaShotgunId = 9113, RailgunId = 9114, MinigunId = 9115,
-            EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121;
+            EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121, SamLauncherId = 9122;
 
         private const uint Iron = 101, Glass = 102, Shard = 103, Aluminium = 104, Fuel = 100, Wood = 110, Copper = 112;
 
@@ -346,10 +349,24 @@ namespace Arsenal.Weapons
             Model = GunModels.Disintegrator, HoldPosition = Long,
         };
 
+        public static readonly HandWeaponDef SamLauncher = new HandWeaponDef
+        {
+            Kind = WeaponKind.SamLauncher, ItemId = SamLauncherId, Category = ArmoryCategory.Explosives, Rarity = Rarity.Epic,
+            NameFr = "Lance-missiles sol-air « Aigle »", NameEn = "\"Eagle\" surface-to-air launcher",
+            DescFr = "Visez un vaisseau : le verrouillage se fait tout seul (bips puis tonalité continue). Le missile suit sa cible, anticipe sa trajectoire et explose à proximité.",
+            DescEn = "Point it at a ship: it locks on by itself (blips, then a steady tone). The missile chases its target, leads it and blows up close to it.",
+            Cost = new[] { (Iron, (byte)18), (Copper, (byte)10), (Shard, (byte)2), (Glass, (byte)2) },
+            Mode = FireMode.Projectile, Projectile = ProjectileKind.Sam,
+            Automatic = false, RoundsPerMinute = 30, Magazine = 1, ReloadTime = 3.5f,
+            SpreadDegrees = 0.2f, AimSpreadDegrees = 0f, RecoilKick = 0.1f, AimFov = 35f, Mass = 14f,
+            Tracer = TracerStyle.None, Sound = SoundStyle.Launcher, MuzzleSize = 0.4f,
+            Model = GunModels.SamLauncher, HoldPosition = new Vector3(-0.12f, -0.03f, 0.0f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.24f,
+        };
+
         public static readonly HandWeaponDef[] Guns =
         {
             Pistol, LaserPistol, Gauss, Smg, Rifle, PlasmaShotgun, Marksman, Railgun, Minigun, Flamethrower,
-            GrenadeLauncher, RocketLauncher, EmpCarbine, Tesla, Disintegrator,
+            GrenadeLauncher, RocketLauncher, SamLauncher, EmpCarbine, Tesla, Disintegrator,
         };
 
         public static HandWeaponDef ByItem(uint itemId)

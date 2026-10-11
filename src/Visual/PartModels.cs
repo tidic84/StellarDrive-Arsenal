@@ -18,13 +18,22 @@ namespace Arsenal.Visual
 
         private static void Mount(MeshKit k, float w, float d)
         {
-            // bolted base plate + pivot ring
-            k.Bevel(new Vector3(0, 0.03f, 0), new Vector3(w, 0.06f, d), 0.02f, Shade.HatchDark, Shade.Dark);
+            // bolted base plate with a raised deck, hex bolts and a stepped pivot ring
+            k.ChamferBox(new Vector3(0, 0.022f, 0), new Vector3(w, 0.044f, d), 0.014f, Shade.HatchDark, Shade.Dark);
+            k.ChamferBox(new Vector3(0, 0.05f, 0), new Vector3(w - 0.08f, 0.012f, d - 0.08f), 0.006f, Shade.Dark, Shade.Black);
             for (int x = -1; x <= 1; x += 2)
                 for (int z = -1; z <= 1; z += 2)
-                    k.Cylinder(new Vector3(x * (w / 2 - 0.05f), 0.065f, z * (d / 2 - 0.05f)), 0.018f, 0.012f, 6, Shade.Grey, Shade.Grey);
-            k.At(Vector3.zero, new Vector3(-90f, 0, 0));
-            k.Cylinder(new Vector3(0, 0, 0.09f), 0.17f, 0.06f, 10, Shade.Light, Shade.HatchMid);
+                    GunParts.With(k, new Vector3(x * (w / 2 - 0.035f), 0.044f, z * (d / 2 - 0.035f)), new Vector3(-90f, 0, 0), () =>
+                        k.Lathe(Vector2.zero, new[] { new Vector2(0.016f, 0f), new Vector2(0.016f, 0.01f), new Vector2(0.01f, 0.014f) }, 6, Shade.Grey, null, Shade.Grey));
+            GunParts.With(k, Vector3.zero, new Vector3(-90f, 0, 0), () =>
+                k.Lathe(Vector2.zero, new[] { new Vector2(0.18f, 0.056f), new Vector2(0.18f, 0.075f), new Vector2(0.165f, 0.082f), new Vector2(0.15f, 0.082f), new Vector2(0.15f, 0.12f) }, 24, Shade.Light, null, Shade.Grey));
+            // ring of bolt heads on the pivot
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * Mathf.PI / 4f;
+                GunParts.With(k, new Vector3(Mathf.Cos(a) * 0.168f, 0.082f, Mathf.Sin(a) * 0.168f), new Vector3(-90f, 0, 0), () =>
+                    k.Lathe(Vector2.zero, new[] { new Vector2(0.006f, 0f), new Vector2(0.006f, 0.005f) }, 6, Shade.Black, null, Shade.Black));
+            }
             k.At(Vector3.zero);
         }
 
@@ -272,6 +281,117 @@ namespace Arsenal.Visual
             WeaponModels.MeshChild(tube, "Nose", n.Build("Arsenal.TorpedoNose"), Assets.ToolAtlas);
             Point(root.transform, "Muzzle", new Vector3(0, 0.38f, 0.75f));
             return root;
+        }
+
+        /// <summary>"Grêle" rocket pod: armoured box of 3 x 3 launch tubes with rocket noses showing (each "Tube").</summary>
+        public static GameObject RocketPod()
+        {
+            var root = new GameObject("RocketPodModel");
+            var k = new MeshKit();
+            Mount(k, 0.56f, 0.6f);
+            // armoured housing: chamfered box, side armour plates with bolts, hazard stripes
+            k.ChamferBox(new Vector3(0, 0.33f, 0.02f), new Vector3(0.44f, 0.38f, 0.62f), 0.035f, Shade.HatchLight, Shade.Light);
+            foreach (float x in new[] { -0.226f, 0.226f })
+            {
+                k.ChamferBox(new Vector3(x, 0.33f, 0.0f), new Vector3(0.016f, 0.3f, 0.5f), 0.006f, Shade.Dark, Shade.HatchDark);
+                for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 2; j++)
+                        GunParts.Screw(k, x + Mathf.Sign(x) * 0.008f, 0.22f + j * 0.22f, -0.2f + i * 0.2f, 0.007f);
+                for (int i = 0; i < 4; i++)
+                    k.Box(new Vector3(x + Mathf.Sign(x) * 0.009f, 0.155f, -0.2f + i * 0.13f), new Vector3(0.002f, 0.02f, 0.06f), i % 2 == 0 ? Shade.Yellow : Shade.Black);
+            }
+            // front face with the tube mouths
+            k.ChamferBox(new Vector3(0, 0.33f, 0.34f), new Vector3(0.4f, 0.34f, 0.03f), 0.012f, Shade.Dark, Shade.Black);
+            // top: sensor box and lifting eyes
+            k.ChamferBox(new Vector3(0.1f, 0.535f, -0.15f), new Vector3(0.1f, 0.03f, 0.14f), 0.008f, Shade.Dark, Shade.Black);
+            foreach (float z in new[] { -0.2f, 0.2f })
+                GunParts.With(k, new Vector3(-0.12f, 0.535f, z), new Vector3(0, 90f, 0), () => k.Tube(Vector3.zero, 0.022f, 0.012f, 0.012f, 12, Shade.Grey, Shade.Black));
+            // rear: cable socket housing
+            k.ChamferBox(new Vector3(0, 0.25f, -0.3f), new Vector3(0.2f, 0.12f, 0.04f), 0.01f, Shade.Dark, Shade.Black);
+            Mesh nose = RocketNose(0.04f);
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                {
+                    Vector3 p = new Vector3(-0.12f + c * 0.12f, 0.22f + r * 0.11f, 0f);
+                    k.Tube(new Vector3(p.x, p.y, 0.355f), 0.05f, 0.042f, 0.02f, 16, Shade.Grey, Shade.Black);
+                    k.Lathe(new Vector2(p.x, p.y), new[] { new Vector2(0.042f, 0.2f), new Vector2(0.042f, 0.365f) }, 16, Shade.Black);
+                    Transform t = Point(root.transform, "Tube", new Vector3(p.x, p.y, 0.3f));
+                    WeaponModels.MeshChild(t, "Nose", nose, Assets.ToolAtlas);
+                }
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.RocketPod"), Assets.ToolAtlas);
+            return root;
+        }
+
+        private static Mesh RocketNose(float r)
+        {
+            var k = new MeshKit();
+            k.Lathe(Vector2.zero, new[] { new Vector2(r, -0.05f), new Vector2(r, 0.0f), new Vector2(r * 0.8f, 0.03f), new Vector2(r * 0.35f, 0.055f), new Vector2(0f, 0.062f) }, 12, Shade.Red);
+            k.Lathe(Vector2.zero, new[] { new Vector2(r * 1.01f, -0.03f), new Vector2(r * 1.01f, -0.02f) }, 12, Shade.Yellow, Shade.Yellow, Shade.Yellow);
+            return k.Build("Arsenal.RocketNose" + r);
+        }
+
+        /// <summary>
+        /// "Faucon" SAM battery: a yawing Head with a radar mast (Radar spins) and a Pitch cradle carrying four
+        /// missile canisters ("Tube", seeker domes showing). Barrel axis along +z.
+        /// </summary>
+        public static GameObject SamBattery()
+        {
+            var root = new GameObject("SamBatteryModel");
+            var k = new MeshKit();
+            Mount(k, 0.56f, 0.56f);
+            WeaponModels.MeshChild(root.transform, "Base", k.Build("Arsenal.SamBase"), Assets.ToolAtlas);
+
+            Transform head = Point(root.transform, "Head", new Vector3(0, 0.12f, 0));
+            var h = new MeshKit();
+            // turntable and yoke
+            GunParts.With(h, Vector3.zero, new Vector3(-90f, 0, 0), () =>
+                h.Lathe(Vector2.zero, new[] { new Vector2(0.17f, 0f), new Vector2(0.17f, 0.04f), new Vector2(0.14f, 0.055f) }, 24, Shade.Dark, null, Shade.HatchDark));
+            foreach (float x in new[] { -0.17f, 0.17f })
+                GunParts.Side(h, new[] { GunParts.P(-0.1f, 0.04f), GunParts.P(0.1f, 0.04f), GunParts.P(0.06f, 0.24f), GunParts.P(-0.06f, 0.24f) }, 0.035f, Shade.HatchLight, Shade.Light, 0.008f, x);
+            // radar mast behind the cradle
+            h.ChamferBox(new Vector3(0, 0.12f, -0.15f), new Vector3(0.08f, 0.14f, 0.08f), 0.01f, Shade.Dark, Shade.Black);
+            GunParts.With(h, new Vector3(0, 0.19f, -0.15f), new Vector3(-90f, 0, 0), () => h.Lathe(Vector2.zero, new[] { new Vector2(0.018f, 0f), new Vector2(0.018f, 0.18f) }, 10, Shade.Grey, null, Shade.Grey));
+            WeaponModels.MeshChild(head, "Head", h.Build("Arsenal.SamHead"), Assets.ToolAtlas);
+            Lens(head, new Vector3(0, 0.12f, -0.107f), 0.02f, new Color(1f, 0.3f, 0.2f)).transform.localEulerAngles = new Vector3(0, 180f, 0);
+
+            Transform radar = Point(head, "Radar", new Vector3(0, 0.38f, -0.15f));
+            var r = new MeshKit();
+            // dish (shallow bowl facing +z) on a little arm, and its feed horn
+            r.Lathe(Vector2.zero, new[] { new Vector2(0.0f, -0.03f), new Vector2(0.07f, -0.02f), new Vector2(0.125f, 0.004f), new Vector2(0.125f, 0.016f) }, 20, Shade.Light, null, Shade.Dark);
+            r.Lathe(Vector2.zero, new[] { new Vector2(0.006f, -0.006f), new Vector2(0.006f, 0.07f), new Vector2(0.014f, 0.08f) }, 8, Shade.Black, null, Shade.Black);
+            r.ChamferBox(new Vector3(0, -0.04f, -0.03f), new Vector3(0.03f, 0.05f, 0.03f), 0.005f, Shade.Dark, Shade.Black);
+            WeaponModels.MeshChild(radar, "Dish", r.Build("Arsenal.SamRadar"), Assets.ToolAtlas);
+
+            Transform pitch = Point(head, "Pitch", new Vector3(0, 0.2f, 0.02f));
+            var c = new MeshKit();
+            // trunnion and the 2 x 2 canister pack
+            GunParts.With(c, Vector3.zero, new Vector3(0, 90f, 0), () => c.Lathe(Vector2.zero, new[] { new Vector2(0.04f, -0.19f), new Vector2(0.04f, 0.19f) }, 14, Shade.Grey, Shade.Dark, Shade.Dark));
+            c.ChamferBox(new Vector3(0, 0f, 0.05f), new Vector3(0.28f, 0.03f, 0.5f), 0.008f, Shade.Dark, Shade.Black);
+            Mesh dome = SamDome();
+            foreach (float y in new[] { -0.075f, 0.075f })
+                foreach (float x in new[] { -0.075f, 0.075f })
+                {
+                    c.ChamferBox(new Vector3(x, y, 0.05f), new Vector3(0.13f, 0.13f, 0.56f), 0.014f, Shade.HatchMid, Shade.Grey);
+                    c.Tube(new Vector3(x, y, 0.335f), 0.05f, 0.044f, 0.012f, 16, Shade.Dark, Shade.Black);
+                    c.Lathe(new Vector2(x, y), new[] { new Vector2(0.044f, 0.2f), new Vector2(0.044f, 0.336f) }, 16, Shade.Black);
+                    c.Box(new Vector3(x + Mathf.Sign(x) * 0.066f, y, 0.05f), new Vector3(0.002f, 0.03f, 0.3f), Shade.Yellow);
+                    Transform t = Point(pitch, "Tube", new Vector3(x, y, 0.3f));
+                    WeaponModels.MeshChild(t, "Dome", dome, Assets.ToolAtlas);
+                }
+            // strap bands around the pack
+            foreach (float z in new[] { -0.12f, 0.2f })
+                c.ChamferBox(new Vector3(0, 0f, z), new Vector3(0.29f, 0.29f, 0.03f), 0.012f, Shade.Dark, Shade.Black);
+            WeaponModels.MeshChild(pitch, "Pack", c.Build("Arsenal.SamPack"), Assets.ToolAtlas);
+            Point(pitch, "Muzzle", new Vector3(0, 0f, 0.4f));
+            return root;
+        }
+
+        private static Mesh SamDome()
+        {
+            var k = new MeshKit();
+            k.Lathe(Vector2.zero, new[] { new Vector2(0.04f, -0.06f), new Vector2(0.04f, 0.0f), new Vector2(0.034f, 0.025f), new Vector2(0.018f, 0.042f), new Vector2(0f, 0.046f) }, 14, Shade.White);
+            k.Lathe(Vector2.zero, new[] { new Vector2(0.041f, -0.02f), new Vector2(0.041f, -0.01f) }, 14, Shade.Yellow, Shade.Yellow, Shade.Yellow);
+            return k.Build("Arsenal.SamDome");
         }
 
         /// <summary>Fire-control console bolted to the right of the advanced pilot seat, with three coloured triggers.</summary>

@@ -201,6 +201,26 @@ namespace Arsenal.Weapons
                     local.x > b.UpperCoord.x + radius + 1 || local.y > b.UpperCoord.y + radius + 1 || local.z > b.UpperCoord.z + radius + 1)
                     continue;
 
+                // push the ship away from the blast, from the side of the hull that faces it
+                {
+                    Vector3 lo = (Vector3)b.LowerCoord - Vector3.one * 0.5f, hi = (Vector3)b.UpperCoord + Vector3.one * 0.5f;
+                    Vector3 closest = Vector3.Max(lo, Vector3.Min(hi, local));
+                    float dist = Vector3.Distance(local, closest);
+                    float reach = radius * 1.5f;
+                    if (dist < reach)
+                    {
+                        float k = 1f - dist / reach;
+                        Vector3 center = (lo + hi) * 0.5f;
+                        Vector3 away = closest - local;
+                        if (away.sqrMagnitude < 0.0001f) away = center - local; // went off inside the hull
+                        if (away.sqrMagnitude < 0.0001f) away = Vector3.up;
+                        Vector3 dirWorld = shipRot * away.normalized;
+                        Vector3 pointWorld = shipPos + shipRot * closest;
+                        uint rootId = Svc.ShipsServer.TryGetTrackedRootShip(ship.Id, out TrackedShipServer root) && root != null ? root.Id : ship.Id;
+                        ShipKnockback.Queue(rootId, dirWorld * (power * ShipKnockback.ImpulsePerPower * k * k), pointWorld);
+                    }
+                }
+
                 var done = new HashSet<HullPartPosition>();
                 int r = Mathf.CeilToInt(radius) + 1;
                 Vector3Int c0 = Vector3Int.RoundToInt(local);

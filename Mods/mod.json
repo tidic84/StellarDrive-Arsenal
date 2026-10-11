@@ -2,7 +2,7 @@
     "id": "arsenal",
     "name": "Arsenal",
     "author": "tidic84",
-    "version": "1.1.0",
-    "description": "Firearms, explosives and ship weapons in the game's style. Bullets punch real holes through hull panels, panels break apart. 15 hand weapons (gauss, plasma, railgun, laser minigun, flamethrower, Tesla arc, disintegrator, launchers...) made at an armory terminal, PvP with hit markers and kill feed. Gunner seat, machine gun, homing missiles, laser, point defence, plasma, ion, railgun and torpedo ship weapons. Multiplayer: every player needs the mod.",
+    "version": "1.2.0",
+    "description": "Firearms, explosives and ship weapons in the game's style. Bullets punch real holes through hull panels, panels break apart. 15 hand weapons (gauss, plasma, railgun, laser minigun, flamethrower, Tesla arc, disintegrator, launchers...) made at an armory terminal, PvP with hit markers and kill feed. SAM launcher with auto lock-on. Gunner seat, machine gun, homing missiles, laser, point defence, plasma, ion, railgun, torpedo, rocket pod and self-aiming SAM battery. Blasts push ships off course. Multiplayer: every player needs the mod.",
     "thumbnail": "Thumbnail.png"
 }

@@ -21,6 +21,7 @@ namespace Arsenal.Weapons
         Plasma = 3,   // ship plasma cannon: slow glowing ball
         Ion = 4,      // ship ion cannon: knocks ships out
         Torpedo = 5,  // "Leviathan": slow homing heavy warhead
+        Sam = 6,      // surface-to-air missile: fast, agile, proximity fuse
     }
 
     internal sealed class ProjectileSpec
@@ -31,6 +32,8 @@ namespace Arsenal.Weapons
         public float BlastRadius, BlastPower, BlastPlayerDamage;
         public float EmpSeconds, DirectPanelDamage, DirectPlayerDamage;
         public bool Homing;
+        public float Fuse = 4f;        // proximity fuse distance to the target (homing)
+        public float GuideAfter = 0.5f; // seconds of straight flight before the seeker steers
         public float TrailEvery;
         public Color TrailColor = new Color(0.8f, 0.78f, 0.75f);
         public float TrailSize = 0.12f;
@@ -77,6 +80,11 @@ namespace Arsenal.Weapons
             {
                 Kind = ProjectileKind.Torpedo, Blast = WeaponKind.Torpedo, Speed = 25f, MaxSpeed = 60f, Accel = 12f, TurnRate = 22f, Life = 35f, Radius = 0.35f,
                 BlastRadius = 9f, BlastPower = 4200f, BlastPlayerDamage = 170f, Homing = true, TrailEvery = 0.035f, TrailSize = 0.15f,
+            },
+            [ProjectileKind.Sam] = new ProjectileSpec
+            {
+                Kind = ProjectileKind.Sam, Blast = WeaponKind.SamLauncher, Speed = 40f, MaxSpeed = 175f, Accel = 160f, TurnRate = 150f, Life = 14f, Radius = 0.1f,
+                BlastRadius = 5f, BlastPower = 1900f, BlastPlayerDamage = 120f, Homing = true, Fuse = 6f, GuideAfter = 0.25f, TrailEvery = 0.02f, TrailSize = 0.1f,
             },
         };
 
@@ -198,6 +206,10 @@ namespace Arsenal.Weapons
                     mf.sharedMesh = Missiles.Mesh;
                     child.localScale = Vector3.one * 0.7f;
                     break;
+                case ProjectileKind.Sam:
+                    mf.sharedMesh = Missiles.Mesh;
+                    child.localScale = Vector3.one * 0.85f;
+                    break;
                 case ProjectileKind.Torpedo:
                     mf.sharedMesh = Missiles.Mesh;
                     child.localScale = new Vector3(2.4f, 2.4f, 2.2f);
@@ -252,6 +264,8 @@ namespace Arsenal.Weapons
         public uint Id;
 
         private float _age, _nextTrail;
+        private Vector3 _lastTargetPos, _targetVel;
+        private bool _hasLast;
         private bool _done;
 
         public Vector3 Position => transform.position;
@@ -278,9 +292,16 @@ namespace Arsenal.Weapons
                 return;
             }
             Vector3 dir = Velocity.sqrMagnitude > 0.01f ? Velocity.normalized : transform.forward;
-            if (Spec.Homing && Target != 0 && _age > 0.5f && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
+            if (Spec.Homing && Target != 0 && _age > Spec.GuideAfter && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
             {
-                Vector3 want = (ShipWeapons.TargetPoint(t) - transform.position).normalized;
+                // lead pursuit: aim where the target will be when the missile gets there
+                Vector3 tp = ShipWeapons.TargetPoint(t);
+                Vector3 tv = _hasLast && Time.deltaTime > 0f ? (tp - _lastTargetPos) / Time.deltaTime : Vector3.zero;
+                _targetVel = Vector3.Lerp(_targetVel, tv, 0.2f);
+                _lastTargetPos = tp;
+                _hasLast = true;
+                float eta = Vector3.Distance(tp, transform.position) / Mathf.Max(20f, Velocity.magnitude);
+                Vector3 want = (tp + _targetVel * Mathf.Min(eta, 4f) - transform.position).normalized;
                 dir = Vector3.RotateTowards(dir, want, Spec.TurnRate * Mathf.Deg2Rad * dt, 0f);
             }
             float speed = Mathf.Min(Spec.MaxSpeed, Velocity.magnitude + Spec.Accel * dt);
@@ -304,8 +325,8 @@ namespace Arsenal.Weapons
             else
                 transform.Rotate(new Vector3(400f, 130f, 0f) * dt, Space.Self);
 
-            if (Spec.Homing && Target != 0 && _age > 1f && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient tt) && tt.IsRigidbodyLoaded &&
-                (ShipWeapons.TargetPoint(tt) - transform.position).sqrMagnitude < 4f * 4f)
+            if (Spec.Homing && Target != 0 && _age > Spec.GuideAfter + 0.4f && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient tt) && tt.IsRigidbodyLoaded &&
+                (ShipWeapons.TargetPoint(tt) - transform.position).sqrMagnitude < Spec.Fuse * Spec.Fuse)
             {
                 Detonate();
                 return;
@@ -316,7 +337,11 @@ namespace Arsenal.Weapons
                 if (Spec.Kind == ProjectileKind.Plasma || Spec.Kind == ProjectileKind.Ion)
                     Fx.Flame(transform.position, -dir * 2f, Spec.TrailSize);
                 else
+                {
                     Fx.Puff(transform.position - dir * 0.3f, Spec.TrailSize, Spec.TrailColor, 1.2f, 1, -dir);
+                    // rocket motor flame
+                    if (Spec.Kind != ProjectileKind.Grenade) Fx.Flame(transform.position - dir * 0.35f, -dir * 3f, Spec.TrailSize * 0.8f);
+                }
             }
         }
 

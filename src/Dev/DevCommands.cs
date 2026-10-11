@@ -152,8 +152,25 @@ namespace Arsenal
                 case "select":
                     Object.FindObjectsByType<ToolBelt>(FindObjectsSortMode.None).First().SelectTool(int.Parse(a[1]));
                     break;
+                case "target":
+                {
+                    // target <distance> <height>: a test wall ship in front of the player, up in the air
+                    TrackedPlayerServer tp = Svc.PlayersServer.ActivePlayers.First();
+                    var tph = tp.PhysicsState;
+                    Vector3 tup = tph.Rotation * Vector3.up;
+                    Vector3 tfwd = Vector3.ProjectOnPlane(tph.Rotation * Vector3.forward, tup).normalized;
+                    SpawnWallAt(tph.SpaceId, tph.Position + tfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + tup * float.Parse(a[2], CultureInfo.InvariantCulture), Quaternion.LookRotation(tfwd, tup));
+                    break;
+                }
+                case "hover":
+                    Damage.ShipKnockback.DevHover.Add(_testShipId);
+                    break;
                 case "wall":
                     SpawnTestWall(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 6f);
+                    break;
+                case "sheet":
+                    // contact sheet of models: sheet guns | sheet parts [filter]
+                    Dev.ModelSheet.Render(a[1], a.Length > 2 ? a[2] : null);
                     break;
                 case "particon":
                 {
@@ -347,6 +364,8 @@ namespace Arsenal
                 new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ArmoryId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
                 new StatefulPart(6, settings.GetPartSettingById(Content.ShipContent.IonCannonId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
                 new StatefulPart(7, settings.GetPartSettingById(Content.ShipContent.PdcId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+                new StatefulPart(8, settings.GetPartSettingById(Content.ShipContent.RocketPodId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 2.6f), PartOrientation.Forward)),
+                new StatefulPart(9, settings.GetPartSettingById(Content.ShipContent.SamBatteryId), new FloatingPartPlacement(new Vector3(2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
             } : new[]
             {
                 new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),

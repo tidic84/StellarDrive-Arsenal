@@ -1,4 +1,5 @@
 using UnityEngine;
+using static Arsenal.Visual.GunParts;
 
 namespace Arsenal.Visual
 {
@@ -14,12 +15,12 @@ namespace Arsenal.Visual
     }
 
     /// <summary>
-    /// Low-poly guns in the game's style: chunky industrial shapes, dark hatched bodies, black details,
-    /// light panels, all on the mining laser's hand-drawn atlas. Units are metres, +z is forward.
+    /// Guns in the game's style: chunky industrial shapes with chamfered silhouettes, dark hatched bodies,
+    /// black details and light panels, all on the mining laser's hand-drawn atlas. Units are metres, +z forward.
     /// </summary>
     internal static class WeaponModels
     {
-        private static Transform Point(Transform parent, string name, Vector3 pos, Vector3 euler)
+        internal static Transform Point(Transform parent, string name, Vector3 pos, Vector3 euler)
         {
             var t = new GameObject(name).transform;
             t.SetParent(parent, false);
@@ -37,120 +38,206 @@ namespace Arsenal.Visual
             return go;
         }
 
+        internal static void Hands(Model m, Vector3 right, Vector3 left)
+        {
+            m.RightHand = Point(m.Root.transform, "RightHandPos", right, new Vector3(8.5f, 29.4f, 284.5f));
+            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", left, new Vector3(356.7f, 15.4f, 347f));
+            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", left, new Vector3(8.6f, 24.3f, 10.2f));
+        }
+
+        // ------------------------------------------------------------------ sidearm
+
         public static Model Pistol()
         {
             var k = new MeshKit();
-            // slide
-            k.Bevel(new Vector3(0, 0.035f, 0.035f), new Vector3(0.034f, 0.038f, 0.19f), 0.008f, Shade.HatchLight, Shade.Light);
-            k.Box(new Vector3(0, 0.056f, 0.035f), new Vector3(0.02f, 0.004f, 0.17f), Shade.Black);
-            for (int i = 0; i < 4; i++)
-                k.Box(new Vector3(0, 0.035f, -0.04f + i * 0.012f), new Vector3(0.036f, 0.026f, 0.004f), Shade.Black);
-            // frame + trigger guard
-            k.Box(new Vector3(0, 0.008f, 0.04f), new Vector3(0.03f, 0.018f, 0.16f), Shade.Dark);
-            k.Box(new Vector3(0, -0.012f, 0.03f), new Vector3(0.012f, 0.022f, 0.006f), Shade.Black);
-            k.Box(new Vector3(0, -0.026f, 0.05f), new Vector3(0.01f, 0.005f, 0.05f), Shade.Dark);
-            k.Box(new Vector3(0, -0.012f, 0.073f), new Vector3(0.01f, 0.03f, 0.005f), Shade.Dark);
-            // barrel
-            k.Cylinder(new Vector3(0, 0.035f, 0.135f), 0.009f, 0.02f, 8, Shade.Black, Shade.Dark);
-            // sights
-            k.Box(new Vector3(0, 0.058f, 0.12f), new Vector3(0.005f, 0.008f, 0.008f), Shade.Yellow);
-            k.Box(new Vector3(0, 0.058f, -0.05f), new Vector3(0.02f, 0.008f, 0.008f), Shade.Black);
-            // grip, raked back
-            k.At(new Vector3(0, -0.005f, -0.03f), new Vector3(-14f, 0, 0));
-            k.Bevel(new Vector3(0, -0.05f, 0), new Vector3(0.032f, 0.1f, 0.045f), 0.006f, Shade.HatchDark, Shade.Dark);
-            k.Box(new Vector3(0, -0.1f, 0), new Vector3(0.034f, 0.008f, 0.047f), Shade.Black);
-            k.At(Vector3.zero);
+            // slide: angled nose, flat top, raised rear
+            Side(k, new[]
+            {
+                P(-0.062f, 0.017f), P(0.128f, 0.017f), P(0.134f, 0.024f), P(0.134f, 0.046f), P(0.122f, 0.055f),
+                P(-0.05f, 0.055f), P(-0.062f, 0.05f),
+            }, 0.032f, Shade.HatchLight, Shade.Light, 0.004f);
+            // rear and front serrations, ejection port
+            for (int i = 0; i < 5; i++)
+                Plates(k, Rect(-0.052f + i * 0.007f, 0.022f, -0.049f + i * 0.007f, 0.05f), 0.016f, Shade.Black, 0.0012f);
+            for (int i = 0; i < 3; i++)
+                Plates(k, Rect(0.1f + i * 0.007f, 0.026f, 0.103f + i * 0.007f, 0.048f), 0.016f, Shade.Black, 0.0012f);
+            k.ChamferBox(new Vector3(0.006f, 0.05f, 0.03f), new Vector3(0.02f, 0.012f, 0.05f), 0.002f, Shade.Dark, Shade.Black);
+            k.Box(new Vector3(0.008f, 0.0565f, 0.03f), new Vector3(0.012f, 0.002f, 0.04f), Shade.Black);
+            // barrel showing at the nose
+            k.Tube(new Vector3(0, 0.036f, 0.135f), 0.0085f, 0.0045f, 0.006f, 14, Shade.Dark, Shade.Black);
+            // frame with dust cover and accessory rail
+            Side(k, new[] { P(-0.045f, 0.002f), P(0.124f, 0.002f), P(0.124f, 0.017f), P(-0.05f, 0.017f) }, 0.029f, Shade.Dark, Shade.Black, 0.003f);
+            for (int i = 0; i < 3; i++) k.Box(new Vector3(0, -0.0005f, 0.09f + i * 0.011f), new Vector3(0.024f, 0.004f, 0.005f), Shade.Black);
+            TriggerGroup(k, 0.03f, 0.003f);
+            Grip(k, -0.008f, 0.002f, Shade.HatchDark, 16f, 0.098f);
+            // hammer, slide stop, sights
+            Side(k, new[] { P(-0.066f, 0.044f), P(-0.06f, 0.044f), P(-0.06f, 0.056f), P(-0.068f, 0.059f) }, 0.01f, Shade.Black, Shade.Black, 0.001f);
+            k.ChamferBox(new Vector3(-0.0165f, 0.019f, 0.03f), new Vector3(0.003f, 0.006f, 0.022f), 0.001f, Shade.Black);
+            IronSights(k, 0.055f, 0.118f, -0.046f);
+            Screws(k, 0.0145f, P(0.0f, 0.009f), P(-0.035f, -0.02f));
 
             var m = new Model { Root = new GameObject("PistolModel") };
             MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Pistol"), Assets.ToolAtlas);
-            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.035f, 0.15f), Vector3.zero);
-            Point(m.Root.transform, "Sight", new Vector3(0, 0.063f, -0.05f), Vector3.zero);
-            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.012f, -0.04f, -0.045f), new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.02f, -0.05f, -0.02f), new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.02f, -0.05f, -0.02f), new Vector3(8.6f, 24.3f, 10.2f));
-            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0175f, 0.012f, 0.04f), new Vector3(0, -90f, 0));
+            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.036f, 0.14f), Vector3.zero);
+            Point(m.Root.transform, "Sight", new Vector3(0, 0.064f, -0.046f), Vector3.zero);
+            Hands(m, new Vector3(0.012f, -0.04f, -0.045f), new Vector3(-0.02f, -0.05f, -0.02f));
+            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0165f, 0.01f, 0.07f), new Vector3(0, -90f, 0));
             return m;
         }
+
+        // ------------------------------------------------------------------ AR-47
 
         public static Model Rifle()
         {
             var k = new MeshKit();
-            // receiver
-            k.Bevel(new Vector3(0, 0.02f, 0.03f), new Vector3(0.05f, 0.07f, 0.3f), 0.012f, Shade.HatchLight, Shade.Light);
-            k.Box(new Vector3(0, 0.058f, 0.03f), new Vector3(0.022f, 0.008f, 0.26f), Shade.Black); // top rail
-            for (int i = 0; i < 6; i++)
-                k.Box(new Vector3(0, 0.064f, -0.07f + i * 0.04f), new Vector3(0.026f, 0.005f, 0.012f), Shade.Dark);
-            // light side panel with ejection port
-            k.Box(new Vector3(0.026f, 0.03f, 0.06f), new Vector3(0.004f, 0.03f, 0.1f), Shade.Yellow);
-            k.Box(new Vector3(0.028f, 0.032f, 0.06f), new Vector3(0.002f, 0.012f, 0.04f), Shade.Black);
-            // handguard with vents
-            k.Bevel(new Vector3(0, 0.02f, 0.27f), new Vector3(0.056f, 0.06f, 0.2f), 0.014f, Shade.HatchDark, Shade.Dark);
-            for (int i = 0; i < 4; i++)
-                k.Box(new Vector3(0, 0.02f, 0.21f + i * 0.04f), new Vector3(0.058f, 0.02f, 0.01f), Shade.Black);
-            // barrel + muzzle brake
-            k.Cylinder(new Vector3(0, 0.025f, 0.43f), 0.011f, 0.14f, 8, Shade.Black, Shade.Dark);
-            k.Cylinder(new Vector3(0, 0.025f, 0.51f), 0.017f, 0.04f, 8, Shade.Black, Shade.HatchDark);
-            // open reflex sight: base, hoop and a small dot on a post
-            k.Box(new Vector3(0, 0.066f, 0.0f), new Vector3(0.03f, 0.006f, 0.05f), Shade.Dark);
-            k.Box(new Vector3(-0.0155f, 0.084f, 0.012f), new Vector3(0.004f, 0.032f, 0.01f), Shade.Dark);
-            k.Box(new Vector3(0.0155f, 0.084f, 0.012f), new Vector3(0.004f, 0.032f, 0.01f), Shade.Dark);
-            k.Box(new Vector3(0, 0.1015f, 0.012f), new Vector3(0.035f, 0.004f, 0.01f), Shade.Dark);
-            k.Box(new Vector3(0, 0.073f, 0.02f), new Vector3(0.0015f, 0.012f, 0.0015f), Shade.Dark);
-            k.Box(new Vector3(0, 0.0805f, 0.02f), new Vector3(0.003f, 0.003f, 0.003f), Shade.Red);
-            // stock
-            k.Bevel(new Vector3(0, 0.0f, -0.2f), new Vector3(0.04f, 0.08f, 0.18f), 0.01f, Shade.HatchLight, Shade.Light);
-            k.Box(new Vector3(0, -0.005f, -0.293f), new Vector3(0.044f, 0.095f, 0.012f), Shade.Black);
-            // magazine (slanted) and grip
-            k.At(new Vector3(0, -0.02f, 0.1f), new Vector3(12f, 0, 0));
-            k.Bevel(new Vector3(0, -0.055f, 0), new Vector3(0.032f, 0.11f, 0.055f), 0.008f, Shade.Dark, Shade.Black);
-            k.Box(new Vector3(0, -0.112f, 0), new Vector3(0.036f, 0.008f, 0.058f), Shade.Black);
-            k.At(new Vector3(0, -0.02f, -0.04f), new Vector3(-16f, 0, 0));
-            k.Bevel(new Vector3(0, -0.045f, 0), new Vector3(0.03f, 0.09f, 0.042f), 0.006f, Shade.HatchDark, Shade.Dark);
-            k.At(Vector3.zero);
-            // trigger guard
-            k.Box(new Vector3(0, -0.028f, 0.02f), new Vector3(0.01f, 0.005f, 0.06f), Shade.Dark);
+            // upper receiver with sloped front
+            Side(k, new[]
+            {
+                P(-0.085f, 0.014f), P(0.2f, 0.014f), P(0.2f, 0.05f), P(0.17f, 0.058f), P(-0.07f, 0.058f), P(-0.085f, 0.05f),
+            }, 0.046f, Shade.HatchLight, Shade.Light, 0.005f);
+            // ejection port + forward assist + yellow side panel
+            Plates(k, RectC(0.03f, 0.026f, 0.1f, 0.048f, 0.003f), 0.023f, Shade.Yellow, 0.0015f);
+            Plates(k, RectC(0.045f, 0.031f, 0.085f, 0.043f, 0.002f), 0.0245f, Shade.Black, 0.0012f, false);
+            k.Lathe(new Vector2(0.026f, 0.05f), new[] { P(0.006f, -0.03f), P(0.006f, -0.012f), P(0.004f, -0.01f) }, 10, Shade.Dark, Shade.Dark, Shade.Black);
+            // lower receiver and magazine well
+            Side(k, new[]
+            {
+                P(-0.075f, -0.016f), P(0.03f, -0.016f), P(0.05f, -0.03f), P(0.125f, -0.03f), P(0.14f, -0.012f), P(0.14f, 0.014f), P(-0.075f, 0.014f),
+            }, 0.04f, Shade.HatchDark, Shade.Dark, 0.004f);
+            Screws(k, 0.02f, P(-0.05f, 0.0f), P(0.11f, -0.02f));
+            // handguard: chamfered square tube with vents, rail on top
+            k.ChamferBox(new Vector3(0, 0.032f, 0.31f), new Vector3(0.052f, 0.052f, 0.22f), 0.012f, Shade.HatchDark, Shade.Dark);
+            for (int i = 0; i < 5; i++)
+                Plates(k, RectC(0.225f + i * 0.04f, 0.02f, 0.25f + i * 0.04f, 0.044f, 0.004f), 0.026f, Shade.Black, 0.0012f);
+            k.ChamferBox(new Vector3(0, 0.032f, 0.205f), new Vector3(0.058f, 0.058f, 0.012f), 0.006f, Shade.Grey, Shade.Black);
+            Rail(k, 0.058f, -0.07f, 0.41f);
+            // barrel, gas block, flash hider
+            Barrel(k, 0.03f, 0.42f, 0.5f, 0.0095f);
+            k.ChamferBox(new Vector3(0, 0.038f, 0.44f), new Vector3(0.022f, 0.03f, 0.02f), 0.003f, Shade.Black, Shade.Black);
+            FlashHider(k, 0.03f, 0.545f, 0.014f, 0.045f);
+            // banana magazine, grip, guard
+            CurvedMag(k, 0.122f, -0.028f, 0.115f, 0.05f, 0.03f, 0.04f, Shade.Dark, Shade.Black);
+            TriggerGroup(k, 0.01f, -0.016f, 0.06f);
+            Grip(k, -0.02f, -0.016f, Shade.HatchDark, 18f, 0.09f, 0.03f);
+            // buffer tube and adjustable stock with cheek rest
+            Barrel(k, 0.03f, -0.2f, -0.085f, 0.013f, Shade.Dark);
+            Side(k, new[]
+            {
+                P(-0.3f, -0.05f), P(-0.27f, -0.05f), P(-0.17f, 0.005f), P(-0.15f, 0.005f), P(-0.15f, 0.052f), P(-0.3f, 0.06f),
+            }, 0.042f, Shade.HatchLight, Shade.Light, 0.005f);
+            Side(k, new[] { P(-0.305f, -0.056f), P(-0.293f, -0.056f), P(-0.293f, 0.066f), P(-0.305f, 0.066f) }, 0.046f, Shade.Black, Shade.Black, 0.003f);
+            Plates(k, RectC(-0.26f, 0.015f, -0.17f, 0.045f, 0.004f), 0.021f, Shade.Dark, 0.0012f);
+            ReflexSight(k, 0.02f, 0.066f);
 
             var m = new Model { Root = new GameObject("RifleModel") };
             MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Rifle"), Assets.ToolAtlas);
-            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.025f, 0.535f), Vector3.zero);
-            Point(m.Root.transform, "Sight", new Vector3(0, 0.0805f, 0.02f), Vector3.zero);
-            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.012f, -0.05f, -0.06f), new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.03f, -0.02f, 0.27f), new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.03f, -0.02f, 0.27f), new Vector3(8.6f, 24.3f, 10.2f));
-            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0285f, 0.03f, 0.115f), new Vector3(0, -90f, 0));
+            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.55f), Vector3.zero);
+            Point(m.Root.transform, "Sight", new Vector3(0, 0.0805f, 0.024f), Vector3.zero);
+            Hands(m, new Vector3(0.012f, -0.05f, -0.06f), new Vector3(-0.03f, 0.0f, 0.28f));
+            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0255f, 0.037f, 0.115f), new Vector3(0, -90f, 0));
             return m;
         }
 
-        /// <summary>Hand grenade: faceted body, yellow band, spoon and ring. Pivot at its centre.</summary>
+        // ------------------------------------------------------------------ anti-materiel rifle
+
+        public static Model Marksman()
+        {
+            var k = new MeshKit();
+            // massive receiver
+            Side(k, new[]
+            {
+                P(-0.12f, -0.012f), P(0.2f, -0.012f), P(0.22f, 0.0f), P(0.22f, 0.05f), P(0.2f, 0.062f), P(-0.1f, 0.062f), P(-0.12f, 0.05f),
+            }, 0.058f, Shade.HatchMid, Shade.Grey, 0.006f);
+            Plates(k, RectC(0.0f, 0.012f, 0.16f, 0.05f, 0.005f), 0.029f, Shade.Orange, 0.0015f);
+            Plates(k, RectC(0.02f, 0.02f, 0.08f, 0.042f, 0.003f), 0.0305f, Shade.Black, 0.0012f, false);
+            // bolt handle
+            With(k, new Vector3(0.03f, 0.04f, -0.06f), new Vector3(0, 90f, 0), () => k.Lathe(Vector2.zero, new[] { P(0.004f, 0f), P(0.004f, 0.025f), P(0.009f, 0.028f), P(0.009f, 0.038f), P(0.0f, 0.042f) }, 10, Shade.Black, Shade.Black));
+            Screws(k, 0.029f, P(-0.09f, 0.0f), P(0.19f, 0.0f), P(0.19f, 0.048f));
+            // fluted heavy barrel with a long brake
+            k.Lathe(new Vector2(0, 0.03f), new[] { P(0.02f, 0.22f), P(0.02f, 0.26f), P(0.016f, 0.28f), P(0.016f, 0.72f) }, 16, Shade.HatchDark, null, Shade.Black);
+            for (int i = 0; i < 6; i++)
+                With(k, new Vector3(0, 0.03f, 0.5f), new Vector3(0, 0, i * 60f), () => k.Box(new Vector3(0, 0.0158f, 0f), new Vector3(0.004f, 0.002f, 0.36f), Shade.Black));
+            k.ChamferBox(new Vector3(0, 0.03f, 0.765f), new Vector3(0.056f, 0.036f, 0.09f), 0.008f, Shade.HatchDark, Shade.Dark);
+            for (int i = 0; i < 3; i++) k.Box(new Vector3(0, 0.03f, 0.74f + i * 0.026f), new Vector3(0.058f, 0.022f, 0.012f), Shade.Black);
+            k.Tube(new Vector3(0, 0.03f, 0.811f), 0.012f, 0.009f, 0.003f, 12, Shade.Dark, Shade.Black);
+            // scope on rings
+            Rail(k, 0.062f, -0.1f, 0.2f);
+            Scope(k, 0.108f, -0.13f, 0.17f, 0.018f);
+            ScopeRings(k, 0.068f, 0.108f, 0.018f, -0.03f, 0.1f);
+            // box magazine, grip, guard
+            BoxMag(k, 0.13f, -0.012f, 0.07f, 0.075f, 0.042f, Shade.Dark);
+            TriggerGroup(k, -0.02f, -0.012f, 0.06f);
+            Grip(k, -0.05f, -0.012f, Shade.HatchDark, 16f, 0.095f, 0.032f);
+            // skeleton stock with cheek riser and padded butt
+            Side(k, new[] { P(-0.38f, 0.035f), P(-0.12f, 0.035f), P(-0.12f, 0.06f), P(-0.37f, 0.064f) }, 0.044f, Shade.HatchLight, Shade.Light, 0.005f);
+            Side(k, new[] { P(-0.37f, -0.065f), P(-0.31f, -0.065f), P(-0.15f, -0.012f), P(-0.12f, -0.012f), P(-0.12f, 0.004f), P(-0.16f, 0.004f), P(-0.32f, -0.045f), P(-0.37f, -0.045f) }, 0.04f, Shade.HatchLight, Shade.Light, 0.004f);
+            Side(k, new[] { P(-0.37f, -0.07f), P(-0.345f, -0.07f), P(-0.345f, 0.066f), P(-0.37f, 0.07f) }, 0.044f, Shade.HatchLight, Shade.Light, 0.004f);
+            Side(k, new[] { P(-0.39f, -0.075f), P(-0.37f, -0.075f), P(-0.37f, 0.072f), P(-0.39f, 0.072f) }, 0.05f, Shade.Black, Shade.Black, 0.005f);
+            k.ChamferBox(new Vector3(0, 0.074f, -0.27f), new Vector3(0.036f, 0.022f, 0.1f), 0.006f, Shade.Dark, Shade.Black);
+            // folded bipod under the barrel
+            With(k, new Vector3(0, 0.005f, 0.32f), new Vector3(-4f, 0, 0), () =>
+            {
+                k.ChamferBox(new Vector3(0, 0.004f, 0f), new Vector3(0.03f, 0.014f, 0.03f), 0.003f, Shade.Dark, Shade.Black);
+                foreach (float x in new[] { -0.011f, 0.011f })
+                {
+                    k.Lathe(new Vector2(x, -0.004f), new[] { P(0.004f, 0.0f), P(0.004f, 0.17f), P(0.006f, 0.175f), P(0.006f, 0.19f) }, 8, Shade.Black, Shade.Black, Shade.Black);
+                }
+            });
+
+            var m = new Model { Root = new GameObject("MarksmanModel") };
+            MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Marksman"), Assets.ToolAtlas);
+            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.82f), Vector3.zero);
+            Point(m.Root.transform, "Sight", new Vector3(0, 0.108f, -0.13f), Vector3.zero);
+            Hands(m, new Vector3(0.012f, -0.05f, -0.08f), new Vector3(-0.03f, -0.02f, 0.28f));
+            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0315f, 0.035f, 0.13f), new Vector3(0, -90f, 0));
+            return m;
+        }
+
+        // ------------------------------------------------------------------ explosives
+
+        /// <summary>Hand grenade: segmented body, yellow band, fuse head, spoon and ring. Pivot at its centre.</summary>
         public static Mesh GrenadeMesh()
         {
             var k = new MeshKit();
-            k.At(Vector3.zero, new Vector3(-90f, 0, 0));
-            k.Cylinder(new Vector3(0, 0, 0), 0.032f, 0.06f, 8, Shade.Dark, Shade.HatchDark);
-            k.Frustum(new Vector3(0, 0, 0.03f), 0.032f, 0.018f, 0.018f, 8, Shade.Dark);
-            k.Cylinder(new Vector3(0, 0, 0.0f), 0.0335f, 0.012f, 8, Shade.Yellow, Shade.Yellow);
-            k.Cylinder(new Vector3(0, 0, 0.055f), 0.011f, 0.016f, 6, Shade.Grey, Shade.Grey);
-            k.At(Vector3.zero, new Vector3(90f, 0, 0));
-            k.Frustum(new Vector3(0, 0, 0.03f), 0.032f, 0.02f, 0.016f, 8, Shade.Dark);
-            k.At(Vector3.zero);
-            // spoon down the side, pin ring
-            k.Box(new Vector3(0.03f, 0.03f, 0f), new Vector3(0.006f, 0.05f, 0.014f), Shade.Light);
-            k.Box(new Vector3(-0.016f, 0.062f, 0f), new Vector3(0.016f, 0.003f, 0.003f), Shade.Grey);
-            k.Box(new Vector3(-0.026f, 0.062f, 0f), new Vector3(0.003f, 0.014f, 0.014f), Shade.Grey);
+            With(k, Vector3.zero, new Vector3(-90f, 0, 0), () =>
+            {
+                // body of revolution along +z (= up)
+                k.Lathe(Vector2.zero, new[]
+                {
+                    P(0.0f, -0.036f), P(0.018f, -0.035f), P(0.029f, -0.026f), P(0.033f, -0.012f), P(0.033f, 0.012f), P(0.029f, 0.026f), P(0.016f, 0.034f), P(0.012f, 0.036f),
+                }, 16, Shade.HatchDark, null, Shade.Dark);
+                k.Lathe(Vector2.zero, new[] { P(0.0338f, -0.006f), P(0.0338f, 0.006f) }, 16, Shade.Yellow, Shade.Yellow, Shade.Yellow);
+                foreach (float z in new[] { -0.02f, 0.017f })
+                    k.Lathe(Vector2.zero, new[] { P(0.032f, z - 0.0015f), P(0.0335f, z), P(0.032f, z + 0.0015f) }, 16, Shade.Black);
+                // fuse head
+                k.Lathe(Vector2.zero, new[] { P(0.011f, 0.035f), P(0.011f, 0.05f), P(0.008f, 0.054f), P(0.0f, 0.055f) }, 12, Shade.Grey, Shade.Grey);
+            });
+            // spoon down the side, pin and ring
+            Side(k, new[] { P(-0.006f, 0.052f), P(0.006f, 0.052f), P(0.006f, 0.046f), P(0.036f, 0.03f), P(0.036f, -0.01f), P(0.031f, -0.01f), P(0.031f, 0.026f), P(-0.006f, 0.046f) }, 0.012f, Shade.Light, Shade.Grey, 0.001f, 0f);
+            k.Tube(new Vector3(-0.024f, 0.048f, 0f), 0.009f, 0.0065f, 0.002f, 12, Shade.Grey, Shade.Grey);
+            k.Box(new Vector3(-0.012f, 0.048f, 0f), new Vector3(0.016f, 0.002f, 0.002f), Shade.Grey);
             return k.Build("Arsenal.Grenade");
         }
 
-        /// <summary>Breaching charge: a block with a strap, wires and a little armed light. Pivot on its back face (sticks to walls).</summary>
+        /// <summary>Breaching charge: a block with a strap, a timer and wires. Pivot on its back face (sticks to walls).</summary>
         public static Mesh ChargeMesh()
         {
             var k = new MeshKit();
-            k.Bevel(new Vector3(0, 0, 0.025f), new Vector3(0.2f, 0.12f, 0.05f), 0.01f, Shade.HatchLight, Shade.Light);
-            k.Box(new Vector3(0, 0, 0.026f), new Vector3(0.03f, 0.124f, 0.054f), Shade.Orange);
-            k.Box(new Vector3(0.045f, 0.0f, 0.053f), new Vector3(0.05f, 0.04f, 0.008f), Shade.Dark);
-            k.Box(new Vector3(0.045f, 0.0f, 0.0575f), new Vector3(0.036f, 0.024f, 0.002f), Shade.Black);
-            k.Box(new Vector3(-0.05f, 0.02f, 0.052f), new Vector3(0.006f, 0.006f, 0.006f), Shade.Red);
-            k.Box(new Vector3(-0.035f, -0.03f, 0.052f), new Vector3(0.05f, 0.004f, 0.004f), Shade.Blue);
-            k.Box(new Vector3(-0.03f, -0.022f, 0.052f), new Vector3(0.04f, 0.004f, 0.004f), Shade.Yellow);
+            k.ChamferBox(new Vector3(0, 0, 0.022f), new Vector3(0.2f, 0.12f, 0.044f), 0.008f, Shade.HatchLight, Shade.Light);
+            k.ChamferBox(new Vector3(0, 0, 0.002f), new Vector3(0.206f, 0.126f, 0.006f), 0.003f, Shade.Dark, Shade.Black); // adhesive back plate
+            k.ChamferBox(new Vector3(0.062f, 0, 0.024f), new Vector3(0.026f, 0.126f, 0.05f), 0.004f, Shade.Orange, Shade.Orange); // strap
+            k.ChamferBox(new Vector3(-0.062f, 0, 0.024f), new Vector3(0.026f, 0.126f, 0.05f), 0.004f, Shade.Orange, Shade.Orange);
+            // timer box with a screen and keypad
+            k.ChamferBox(new Vector3(0, 0.0f, 0.052f), new Vector3(0.07f, 0.06f, 0.016f), 0.004f, Shade.Dark, Shade.Black);
+            k.Box(new Vector3(0, 0.012f, 0.0605f), new Vector3(0.05f, 0.018f, 0.002f), Shade.Black);
+            for (int x = 0; x < 3; x++)
+                for (int y = 0; y < 2; y++)
+                    k.Box(new Vector3(-0.016f + x * 0.016f, -0.012f - y * 0.012f, 0.0605f), new Vector3(0.01f, 0.007f, 0.003f), Shade.Grey);
+            k.Box(new Vector3(0.028f, 0.022f, 0.062f), new Vector3(0.006f, 0.006f, 0.004f), Shade.Red);
+            // wires
+            k.Lathe(new Vector2(-0.04f, 0.03f), new[] { P(0.002f, 0.025f), P(0.002f, 0.05f) }, 6, Shade.Blue, Shade.Blue, Shade.Blue);
+            With(k, new Vector3(-0.035f, 0.032f, 0.05f), new Vector3(0, 90f, 0), () => k.Lathe(Vector2.zero, new[] { P(0.002f, 0f), P(0.002f, 0.06f) }, 6, Shade.Yellow, Shade.Yellow, Shade.Yellow));
+            With(k, new Vector3(-0.035f, -0.03f, 0.05f), new Vector3(0, 90f, 0), () => k.Lathe(Vector2.zero, new[] { P(0.002f, 0f), P(0.002f, 0.06f) }, 6, Shade.Red, Shade.Red, Shade.Red));
             return k.Build("Arsenal.Charge");
         }
 
@@ -160,9 +247,7 @@ namespace Arsenal.Visual
             GameObject body = MeshChild(m.Root.transform, "Body", GrenadeMesh(), Assets.ToolAtlas);
             body.transform.localPosition = new Vector3(0, 0.02f, 0.03f);
             m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.02f, 0.06f), Vector3.zero);
-            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.02f, -0.01f, 0.0f), new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.15f, -0.12f, -0.05f), new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.15f, -0.12f, -0.05f), new Vector3(8.6f, 24.3f, 10.2f));
+            Hands(m, new Vector3(0.02f, -0.01f, 0.0f), new Vector3(-0.15f, -0.12f, -0.05f));
             return m;
         }
 
@@ -173,56 +258,7 @@ namespace Arsenal.Visual
             body.transform.localPosition = new Vector3(0, 0.03f, 0.04f);
             body.transform.localEulerAngles = new Vector3(-70f, 0, 0);
             m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.1f), Vector3.zero);
-            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.05f, -0.01f, 0.0f), new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.07f, -0.01f, 0.03f), new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.07f, -0.01f, 0.03f), new Vector3(8.6f, 24.3f, 10.2f));
-            return m;
-        }
-
-        public static Model Marksman()
-        {
-            var k = new MeshKit();
-            // long receiver
-            k.Bevel(new Vector3(0, 0.02f, 0.02f), new Vector3(0.06f, 0.075f, 0.36f), 0.014f, Shade.HatchMid, Shade.Grey);
-            k.Box(new Vector3(0.031f, 0.03f, 0.04f), new Vector3(0.004f, 0.035f, 0.16f), Shade.Orange);
-            k.Box(new Vector3(0.033f, 0.03f, 0.02f), new Vector3(0.002f, 0.014f, 0.05f), Shade.Black);
-            // heavy barrel, fluted look
-            k.Cylinder(new Vector3(0, 0.03f, 0.47f), 0.016f, 0.56f, 6, Shade.Black, Shade.HatchDark);
-            for (int i = 0; i < 3; i++)
-                k.Cylinder(new Vector3(0, 0.03f, 0.3f + i * 0.1f), 0.019f, 0.012f, 6, Shade.Black, Shade.Dark);
-            // big muzzle brake
-            k.Box(new Vector3(0, 0.03f, 0.78f), new Vector3(0.06f, 0.035f, 0.07f), Shade.HatchDark, Shade.Dark);
-            k.Box(new Vector3(0, 0.03f, 0.775f), new Vector3(0.062f, 0.02f, 0.015f), Shade.Black);
-            k.Box(new Vector3(0, 0.03f, 0.795f), new Vector3(0.062f, 0.02f, 0.015f), Shade.Black);
-            // scope on mounts
-            k.Cylinder(new Vector3(0, 0.1f, 0.05f), 0.022f, 0.24f, 8, Shade.Black, Shade.HatchDark);
-            k.Cylinder(new Vector3(0, 0.1f, 0.18f), 0.03f, 0.05f, 8, Shade.Blue, Shade.Dark);
-            k.Cylinder(new Vector3(0, 0.1f, -0.08f), 0.027f, 0.04f, 8, Shade.Black, Shade.Dark);
-            k.Box(new Vector3(0, 0.07f, -0.01f), new Vector3(0.018f, 0.03f, 0.02f), Shade.Dark);
-            k.Box(new Vector3(0, 0.07f, 0.11f), new Vector3(0.018f, 0.03f, 0.02f), Shade.Dark);
-            // stock with cheek rest
-            k.Bevel(new Vector3(0, 0.0f, -0.25f), new Vector3(0.045f, 0.09f, 0.22f), 0.012f, Shade.HatchLight, Shade.Light);
-            k.Box(new Vector3(0, 0.055f, -0.23f), new Vector3(0.04f, 0.02f, 0.1f), Shade.Dark);
-            k.Box(new Vector3(0, -0.005f, -0.365f), new Vector3(0.05f, 0.1f, 0.014f), Shade.Black);
-            // box magazine + grip
-            k.Box(new Vector3(0, -0.045f, 0.08f), new Vector3(0.04f, 0.06f, 0.07f), Shade.Dark, Shade.Black);
-            k.At(new Vector3(0, -0.02f, -0.06f), new Vector3(-16f, 0, 0));
-            k.Bevel(new Vector3(0, -0.045f, 0), new Vector3(0.032f, 0.09f, 0.045f), 0.006f, Shade.HatchDark, Shade.Dark);
-            k.At(Vector3.zero);
-            // folded bipod
-            k.At(new Vector3(0, 0.0f, 0.4f), new Vector3(-8f, 0, 0));
-            k.Box(new Vector3(0.012f, -0.005f, 0.06f), new Vector3(0.008f, 0.008f, 0.14f), Shade.Black);
-            k.Box(new Vector3(-0.012f, -0.005f, 0.06f), new Vector3(0.008f, 0.008f, 0.14f), Shade.Black);
-            k.At(Vector3.zero);
-
-            var m = new Model { Root = new GameObject("MarksmanModel") };
-            MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Marksman"), Assets.ToolAtlas);
-            m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.82f), Vector3.zero);
-            Point(m.Root.transform, "Sight", new Vector3(0, 0.1f, -0.1f), Vector3.zero);
-            m.RightHand = Point(m.Root.transform, "RightHandPos", new Vector3(0.012f, -0.05f, -0.08f), new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", new Vector3(-0.03f, -0.02f, 0.28f), new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", new Vector3(-0.03f, -0.02f, 0.28f), new Vector3(8.6f, 24.3f, 10.2f));
-            m.Display = Point(m.Root.transform, "Display", new Vector3(0.0335f, 0.04f, 0.1f), new Vector3(0, -90f, 0));
+            Hands(m, new Vector3(0.05f, -0.01f, 0.0f), new Vector3(-0.07f, -0.01f, 0.03f));
             return m;
         }
     }

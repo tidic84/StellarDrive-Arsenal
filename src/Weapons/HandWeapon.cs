@@ -48,6 +48,7 @@ namespace Arsenal.Weapons
         private object _rampTarget;
         private float _ramp = 1f;
         private readonly List<ImpactFx> _impacts = new List<ImpactFx>();
+        private readonly LockOn _lock = new LockOn();
 
         // Ammo / heat are kept per weapon type for the session, so switching tools changes nothing.
         private static readonly Dictionary<uint, (int ammo, float heat, float time)> Saved = new Dictionary<uint, (int, float, float)>();
@@ -183,6 +184,13 @@ namespace Arsenal.Weapons
             }
             _recoil = Mathf.MoveTowards(_recoil, 0f, dt * Mathf.Max(0.02f, _def.RecoilKick) * 12f);
             _aimBlend = Mathf.MoveTowards(_aimBlend, _aiming ? 1f : 0f, dt * 6f);
+            if (_def.Projectile == ProjectileKind.Sam && _camera != null)
+            {
+                // seeker: locks automatically on the ship it is pointed at (tighter cone when aiming)
+                _lock.Cone = _aiming ? 6f : 9f;
+                _lock.Update(_camera.transform.position, _camera.transform.forward, 0, dt, !Reloading && _ammo > 0);
+                LockHud.Show(_lock);
+            }
             WeaponHud.Show(_def, UsesFuel ? Mathf.CeilToInt(_fuel) : _ammo, _heat, _overheated, Reloading ? 1f - (_reloadDone - Time.time) / _def.ReloadTime : -1f, _def.Mode == FireMode.Charge ? _charge : -1f, Effects.LocalJammed);
         }
 
@@ -369,11 +377,12 @@ namespace Arsenal.Weapons
             ProjectileSpec spec = Projectiles.Specs[_def.Projectile];
             Vector3 lob = _def.Projectile == ProjectileKind.Grenade ? Vector3.ProjectOnPlane(Fx.Up, dir).normalized * 0.12f : Vector3.zero;
             Vector3 v = (dir + lob).normalized * spec.Speed;
-            Projectiles.Launch(_def.Projectile, cam.CameraPos + dir * 0.7f, v, 0, 0);
+            uint target = _def.Projectile == ProjectileKind.Sam ? _lock.Locked : 0;
+            Projectiles.Launch(_def.Projectile, cam.CameraPos + dir * 0.7f, v, target, 0);
             Vector3 muzzle = MuzzlePos(cam.CameraPos);
             Fx.MuzzleFlash(muzzle, dir, _def.MuzzleSize, _muzzle);
             Fx.Puff(muzzle, 0.15f, new Color(0.8f, 0.78f, 0.75f), 1.2f, 3, dir * 2f);
-            if (_def.Projectile == ProjectileKind.Rocket)
+            if (_def.Projectile == ProjectileKind.Rocket || _def.Projectile == ProjectileKind.Sam)
                 Fx.Puff(muzzle - dir * 1.1f, 0.3f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 5, -dir * 4f); // back-blast
             Sounds.Shot(_def.Kind, muzzle);
             NotifyFiring();

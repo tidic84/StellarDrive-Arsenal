@@ -32,15 +32,15 @@ namespace Arsenal.Content
     internal static class ShipContent
     {
         public const ushort GunnerSeatId = 9201, MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
-        public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217;
-        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId };
+        public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217, RocketPodId = 9218, SamBatteryId = 9219;
+        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId };
         public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
         public static readonly byte[] FireSockets = { 6, 7, 8 };
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
 
-        public static bool IsWeapon(ushort settingsId) => settingsId >= MachineGunId && settingsId <= TorpedoId;
+        public static bool IsWeapon(ushort settingsId) => settingsId >= MachineGunId && settingsId <= SamBatteryId;
 
         public static void Patch(HarmonyLib.Harmony h)
         {
@@ -221,6 +221,24 @@ namespace Arsenal.Content
                     boundsCenter = new Vector3(0, 0.3f, 0.05f);
                     boundsSize = new Vector3(0.6f, 0.6f, 1.0f);
                     break;
+                case RocketPodId:
+                    p = Clone(display, id, "Lance-roquettes « Grêle »", "\"Hail\" rocket pod",
+                        "Tire une salve de 9 roquettes non guidées tant que le signal est actif. Grosse explosion à l'impact, qui repousse les vaisseaux touchés. Rechargement complet en 12 s.",
+                        "Fires a salvo of 9 unguided rockets while the signal is on. Big blast on impact that knocks ships off course. Full reload in 12 s.",
+                        95f, items, (101, 22), (112, 8), (100, 4));
+                    model = PartModels.RocketPod();
+                    boundsCenter = new Vector3(0, 0.28f, 0.03f);
+                    boundsSize = new Vector3(0.6f, 0.56f, 0.8f);
+                    break;
+                case SamBatteryId:
+                    p = Clone(display, id, "Batterie sol-air « Faucon »", "\"Falcon\" SAM battery",
+                        "Tourelle à radar qui pivote seule vers l'appareil le plus proche et le verrouille automatiquement. À chaque impulsion de signal, tire un missile qui le poursuit. 4 missiles, rechargement automatique.",
+                        "Radar turret that turns by itself towards the nearest aircraft and locks it automatically. Each signal pulse fires a missile that chases it. 4 missiles, reloads by itself.",
+                        110f, items, (101, 26), (112, 14), (103, 3), (102, 4));
+                    model = PartModels.SamBattery();
+                    boundsCenter = new Vector3(0, 0.3f, 0.05f);
+                    boundsSize = new Vector3(0.6f, 0.6f, 0.8f);
+                    break;
                 default:
                     p = Clone(display, id, "Canon laser", "Laser cannon",
                         "Rayon continu tant que le signal est actif. Fait fondre la coque et perce des trous. Surchauffe après quelques secondes.",
@@ -294,6 +312,7 @@ namespace Arsenal.Content
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[GunnerSeatId], Parts[ArmoryId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId] } },
                 },
             };
             Traverse.Create(__instance).Field("tabsConfig").SetValue(tabs.Concat(new[] { tab }).ToArray());
@@ -311,9 +330,9 @@ namespace Arsenal.Content
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
                     new[] { Parts[GunnerSeatId], Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
-                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] }, items, (101, 30), (112, 15), (103, 2));
+                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId], Parts[RocketPodId] }, items, (101, 30), (112, 15), (103, 2));
                 ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },
-                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
+                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
                 list.list.Add(light);
                 list.list.Add(heavy);
                 list.list.Add(advanced);

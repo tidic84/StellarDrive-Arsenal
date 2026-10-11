@@ -53,6 +53,9 @@ namespace Arsenal.Vehicles
             public Transform Head, Pitch, Barrels, Tube;
             public float Spin;            // gatling barrel speed
             public IThreat Tracking;      // point-defence target
+            public Transform Radar;
+            public LockOn Lock;           // SAM battery
+            public int Rockets = -1;      // rocket pod (-1 = not loaded yet)
         }
 
         // muzzle offsets in part space (must match PartModels)
@@ -128,6 +131,8 @@ namespace Arsenal.Vehicles
                             case ShipContent.IonCannonId: UpdateBolt(ship, part, m, on, owner.Value, ProjectileKind.Ion, 2.2f, WeaponKind.IonCannon); break;
                             case ShipContent.RailgunId: UpdateRailgun(ship, part, m, on, owner.Value); break;
                             case ShipContent.TorpedoId: UpdateTorpedo(ship, part, m, on, owner.Value); break;
+                            case ShipContent.RocketPodId: UpdateRocketPod(ship, part, m, on, owner.Value); break;
+                            case ShipContent.SamBatteryId: UpdateSamBattery(ship, part, m, on, owner.Value); break;
                         }
                     }
                     catch (System.Exception ex)
@@ -194,7 +199,7 @@ namespace Arsenal.Vehicles
             if (m.Visual != null) return;
             if (!Svc.ShipsClient.TryGetVisualPart(m.Ctx, out IShipPartVisual v) || !(v is Component c)) return;
             m.Visual = c.transform;
-            string pointName = m.Kind == ShipContent.MissilePodId ? "Tube" : "Muzzle";
+            string pointName = m.Kind == ShipContent.MissilePodId || m.Kind == ShipContent.RocketPodId || m.Kind == ShipContent.SamBatteryId ? "Tube" : "Muzzle";
             m.Points = c.GetComponentsInChildren<Transform>(true).Where(t => t.name == pointName).ToArray();
             m.Lens = c.GetComponentsInChildren<Renderer>(true).FirstOrDefault(r => r.name == "Lens");
             Transform[] all = c.GetComponentsInChildren<Transform>(true);
@@ -202,6 +207,7 @@ namespace Arsenal.Vehicles
             m.Pitch = all.FirstOrDefault(t => t.name == "Pitch");
             m.Barrels = all.FirstOrDefault(t => t.name == "Barrels" && t.GetComponent<Renderer>() == null);
             if (m.Kind == ShipContent.TorpedoId) m.Tube = all.FirstOrDefault(t => t.name == "Tube");
+            m.Radar = all.FirstOrDefault(t => t.name == "Radar");
         }
 
         private static Vector3 VisualPoint(Mount m, int index, Vector3 fallback)
@@ -476,6 +482,137 @@ namespace Arsenal.Vehicles
             Projectiles.Launch(ProjectileKind.Torpedo, from, vel, m.LockedTarget, RootOf(ship.Id));
             Sounds.MissileLaunch(from);
             Fx.Puff(from, 0.5f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 4, fwd * 2f);
+        }
+
+        // ------------------------------------------------------------------ rocket pod
+
+        private static readonly Vector3[] PodRocketTubes = BuildRocketTubes();
+
+        private static Vector3[] BuildRocketTubes()
+        {
+            var t = new Vector3[9];
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    t[r * 3 + c] = new Vector3(-0.12f + c * 0.12f, 0.22f + r * 0.11f, 0.42f);
+            return t;
+        }
+
+        private void UpdateRocketPod(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            if (m.Rockets < 0) m.Rockets = 9;
+            // reloads the whole pod once emptied, or after a pause in firing
+            if (m.Rockets < 9 && (m.Rockets == 0 || !on))
+            {
+                if (m.ReloadAt <= 0f) m.ReloadAt = Time.time + (m.Rockets == 0 ? 12f : 8f);
+                else if (Time.time >= m.ReloadAt)
+                {
+                    m.Rockets = 9;
+                    m.ReloadAt = 0f;
+                    if (owner) Sounds.Reload(PartPoint(ship, part, new Vector3(0, 0.3f, 0)));
+                }
+            }
+            else if (on) m.ReloadAt = 0f;
+            if (m.Points != null)
+                for (int i = 0; i < m.Points.Length; i++)
+                    if (m.Points[i] != null) m.Points[i].gameObject.SetActive(!owner || i >= 9 - m.Rockets);
+
+            if (!owner || !on || m.Rockets <= 0 || Time.time < m.NextShot) return;
+            m.NextShot = Time.time + 0.13f;
+            int tube = Mathf.Clamp(9 - m.Rockets, 0, 8);
+            m.Rockets--;
+            Vector3 from = PartPoint(ship, part, PodRocketTubes[tube]);
+            Vector3 fwd = PartForward(ship, part);
+            Vector3 dir = Quaternion.AngleAxis(Random.Range(0f, 360f), fwd) * Quaternion.AngleAxis(Random.Range(0f, 1.2f), Vector3.Cross(fwd, Fx.Up).normalized) * fwd;
+            Rigidbody body = RootBody(ship);
+            Vector3 vel = (body != null ? body.velocity : Vector3.zero) + dir * Projectiles.Specs[ProjectileKind.Rocket].Speed;
+            Projectiles.Launch(ProjectileKind.Rocket, from, vel, 0, RootOf(ship.Id));
+            Fx.Puff(from, 0.18f, new Color(0.8f, 0.78f, 0.75f), 1.2f, 2, dir * 2f);
+            Fx.Puff(PartPoint(ship, part, PodRocketTubes[tube] - new Vector3(0, 0, 0.75f)), 0.25f, new Color(0.8f, 0.78f, 0.75f), 1.4f, 2, -dir * 4f); // back-blast
+            Sounds.Shot(WeaponKind.RocketLauncher, from);
+        }
+
+        // ------------------------------------------------------------------ SAM battery
+
+        private const float SamRange = 1600f;
+
+        private void UpdateSamBattery(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            float dt = Time.deltaTime;
+            uint root = RootOf(ship.Id);
+            bool powered = !Effects.IsShipEmp(ship.Id);
+            if (m.Radar != null && powered) m.Radar.Rotate(0f, (on ? 220f : 90f) * dt, 0f, Space.Self);
+            if (m.Lock == null) m.Lock = new LockOn { Cone = 5f, KeepCone = 14f, LockTime = 1.4f, Range = SamRange, MinRange = 25f, Filter = Airborne };
+
+            // reload one missile at a time
+            if (m.Missiles < 4)
+            {
+                if (m.ReloadAt <= 0f) m.ReloadAt = Time.time + 8f;
+                else if (Time.time >= m.ReloadAt)
+                {
+                    m.Missiles++;
+                    m.ReloadAt = m.Missiles < 4 ? Time.time + 8f : 0f;
+                }
+            }
+            if (m.Points != null)
+                for (int i = 0; i < m.Points.Length; i++)
+                    if (m.Points[i] != null) m.Points[i].gameObject.SetActive(!owner || i < m.Missiles);
+
+            // pick what to aim at: the ship being locked, else the closest aircraft above the mount
+            Vector3 basePos = PartPoint(ship, part, new Vector3(0, 0.32f, 0));
+            Vector3 up = ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * Vector3.up);
+            Vector3 aimDir = PartForward(ship, part);
+            uint target = powered ? (m.Lock.Candidate != 0 ? m.Lock.Candidate : NearestAircraft(root, basePos, up)) : 0;
+            if (target != 0 && Svc.ShipsClient.TryGetTrackedShip(target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
+            {
+                Vector3 to = TargetPoint(t) - basePos;
+                if (Vector3.Dot(to.normalized, up) > -0.15f) aimDir = to.normalized;
+            }
+            AimHead(m, aimDir, dt * 0.6f);
+            Vector3 gunFwd = m.Pitch != null ? m.Pitch.forward : aimDir;
+
+            if (powered && owner) m.Lock.Update(basePos, gunFwd, root, dt, GunnerSeat.TryGetPilotedRoot(out uint piloted) && piloted == root);
+            else m.Lock.Clear();
+            if (owner && GunnerSeat.TryGetPilotedRoot(out uint me) && me == root) LockHud.Show(m.Lock);
+
+            if (!owner || !on || m.Lock.Locked == 0 || m.Missiles <= 0 || Time.time < m.NextShot) return;
+            m.NextShot = Time.time + 1.2f;
+            int tube = Mathf.Clamp(4 - m.Missiles, 0, 3);
+            m.Missiles--;
+            Vector3 from = m.Points != null && tube < m.Points.Length && m.Points[tube] != null ? m.Points[tube].position + gunFwd * 0.15f : basePos + gunFwd * 0.6f;
+            Rigidbody body = RootBody(ship);
+            Vector3 vel = (body != null ? body.velocity : Vector3.zero) + gunFwd * Projectiles.Specs[ProjectileKind.Sam].Speed;
+            Projectiles.Launch(ProjectileKind.Sam, from, vel, m.Lock.Locked, root);
+            Sounds.MissileLaunch(from);
+            Fx.Puff(from - gunFwd * 0.7f, 0.3f, new Color(0.8f, 0.78f, 0.75f), 1.6f, 4, -gunFwd * 4f);
+        }
+
+        /// <summary>Flying, not sitting on the ground: nothing solid within a few metres under its centre of mass.</summary>
+        public static bool Airborne(TrackedShipClient s)
+        {
+            Vector3 p = TargetPoint(s);
+            Vector3 down = -Fx.Up;
+            var hits = new RaycastHit[8];
+            int n = ClientScene.PhysicsScene.Raycast(p, down, hits, 5f, Ballistics.Mask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+                if (!IsOwnShip(hits[i], s.Id)) return false; // ground, or something it rests on
+            return true;
+        }
+
+        /// <summary>Closest other ship assembly above the mount, within SAM range.</summary>
+        private static uint NearestAircraft(uint myRoot, Vector3 from, Vector3 up)
+        {
+            uint best = 0;
+            float bestD = SamRange;
+            foreach (TrackedShipClient s in Svc.ShipsClient.Ships)
+            {
+                if (!s.IsRigidbodyLoaded || RootOf(s.Id) != s.Id || s.Id == myRoot) continue;
+                Vector3 to = TargetPoint(s) - from;
+                float d = to.magnitude;
+                if (d < 25f || d >= bestD || Vector3.Dot(to / d, up) < -0.15f || !Airborne(s)) continue;
+                bestD = d;
+                best = s.Id;
+            }
+            return best;
         }
 
         // ------------------------------------------------------------------ laser
