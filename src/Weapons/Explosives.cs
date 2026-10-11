@@ -162,10 +162,49 @@ namespace Arsenal.Weapons
             uint shipId = r.ReadUInt32();
             Vector3 local = r.ReadVector3();
             var kind = (WeaponKind)r.ReadByte();
+            ServerExplodeOnShip(shipId, local, kind, conn);
+        }
+
+        public static void ServerExplodeOnShip(uint shipId, Vector3 local, WeaponKind kind, NetworkConnection conn = null)
+        {
             TrackedShipServer ship = Svc.ShipsServer.Ships.FirstOrDefault(s => s.Id == shipId);
             if (ship == null || !HullDamage.TryGetServerWorldPose(ship, out Vector3 pos, out Quaternion rot, out var rootPhysics)) return;
             (float radius, float power, float player) = BlastFor(kind);
-            ServerExplode(rootPhysics.SpaceId, pos + rot * local, radius, power, player, conn, kind);
+            ServerExplode(rootPhysics.SpaceId, pos + rot * OnHull(ship, local), radius, power, player, conn, kind);
+        }
+
+        /// <summary>
+        /// Moves a blast onto the nearest piece of hull. A proximity fuse fires beside the ship, or near its centre
+        /// deep inside a big hollow hull: left there, the blast pushed the ship but reached no panel.
+        /// </summary>
+        private static Vector3 OnHull(TrackedShipServer ship, Vector3 local)
+        {
+            const int MaxReach = 24;
+            Vector3Int c = Vector3Int.RoundToInt(local);
+            Vector3 best = local;
+            float bestSq = float.MaxValue;
+            for (int r = 0; r <= MaxReach; r++)
+            {
+                for (int x = -r; x <= r; x++)
+                    for (int y = -r; y <= r; y++)
+                        for (int z = -r; z <= r; z++)
+                        {
+                            if (Mathf.Max(Mathf.Abs(x), Mathf.Abs(y), Mathf.Abs(z)) != r) continue; // this shell only
+                            Vector3Int p = c + new Vector3Int(x, y, z);
+                            ShipVoxel v = ship.GetVoxel(p);
+                            if (v == null || !(v.Floor.HasValue || v.ForwardWall.HasValue || v.RightWall.HasValue || v.InteriorPart.HasValue)) continue;
+                            float sq = ((Vector3)p - local).sqrMagnitude;
+                            if (sq < bestSq) { bestSq = sq; best = p; }
+                        }
+                if (bestSq <= (float)r * r) break; // nothing in a further shell can be closer
+            }
+            if (bestSq == float.MaxValue || bestSq < 1f) return local;
+            // just outside that piece, on the side the blast came from
+            Vector3 onHull = best + (local - best).normalized * 0.5f;
+#if DEV
+            ArsenalMod.Log.Msg($"[DEV] blast moved {Vector3.Distance(local, onHull):0.0} m onto the hull of ship {ship.Id}");
+#endif
+            return onHull;
         }
 
         /// <summary>Radius, hull power and player damage of each kind of blast (shared by clients and server).</summary>
@@ -294,6 +333,9 @@ namespace Arsenal.Weapons
                     hits.Add((new PanelKey(ship.Id, pl.Position), holes, power * f * f));
                 }
             }
+#if DEV
+            ArsenalMod.Log.Msg($"[DEV] explosion {weapon} r {radius} power {power}: {hits.Count} panels, max damage {(hits.Count > 0 ? hits.Max(h => h.damage) : 0f):0}");
+#endif
             foreach (var h in hits) HullDamage.ApplyServer(h.key, h.holes, h.damage);
 
             if (Svc.PlayersServer != null)

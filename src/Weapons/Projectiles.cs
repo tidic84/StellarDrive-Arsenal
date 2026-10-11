@@ -501,8 +501,9 @@ namespace Arsenal.Weapons
             // blow up on the side of the ship it came from, a little short of the centre
             Vector3 point = targetCenter - miss.normalized * Mathf.Min(miss.magnitude, 2f);
             transform.position = point;
+            // where the missile is at that moment: the server moves the blast onto the nearest piece of hull
             _pinShip = Target;
-            _pinLocal = Quaternion.Inverse(targetRot) * (point - targetOrigin);
+            _pinLocal = Quaternion.Inverse(targetRot) * (targetCenter - miss - targetOrigin);
 #if DEV
             ArsenalMod.Log.Msg($"[DEV] hypersonic fuse: missed centre by {miss.magnitude:0.0} m at {Velocity.magnitude:0} m/s (target {targetVel.magnitude:0} m/s)");
 #endif

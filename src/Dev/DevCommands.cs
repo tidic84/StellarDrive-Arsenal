@@ -159,7 +159,7 @@ namespace Arsenal
                     var tph = tp.PhysicsState;
                     Vector3 tup = tph.Rotation * Vector3.up;
                     Vector3 tfwd = Vector3.ProjectOnPlane(tph.Rotation * Vector3.forward, tup).normalized;
-                    SpawnWallAt(tph.SpaceId, tph.Position + tfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + tup * float.Parse(a[2], CultureInfo.InvariantCulture), Quaternion.LookRotation(tfwd, tup));
+                    SpawnWallAt(tph.SpaceId, tph.Position + tfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + tup * float.Parse(a[2], CultureInfo.InvariantCulture), Quaternion.LookRotation(tfwd, tup), a.Length > 3 && a[3] == "hollow");
                     break;
                 }
                 case "fov":
@@ -268,6 +268,10 @@ namespace Arsenal
                     foreach (PartSettings ps in Resources.FindObjectsOfTypeAll<PartSettings>().OrderBy(s => s.id))
                         if (a.Length < 2 || ps.name.IndexOf(a[1], System.StringComparison.OrdinalIgnoreCase) >= 0)
                             LoggerInstance.Msg($"[DEV] part settings {ps.id} {ps.name}");
+                    break;
+                case "shipblast":
+                    // shipblast <x> <y> <z>: a hypersonic blast pinned at that point of the test ship (its own frame)
+                    Weapons.Explosives.ServerExplodeOnShip(_testShipId, new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture)), Weapons.WeaponKind.HyperMissile);
                     break;
                 case "tgt":
                     TargetTest(a);
@@ -451,7 +455,7 @@ namespace Arsenal
             LoggerInstance.Msg($"[DEV] shapes ship {shipId} with {parts.Count} parts");
         }
 
-        private void SpawnWallAt(uint space, Vector3 position, Quaternion shipRot)
+        private void SpawnWallAt(uint space, Vector3 position, Quaternion shipRot, bool hollow = false)
         {
             var settings = new PartSettingsProvider();
             HullPartSettings iron = (HullPartSettings)settings.GetPartSettingById(2);
@@ -459,7 +463,13 @@ namespace Arsenal
             HullPartSettings glass = (HullPartSettings)settings.GetPartSettingById(7);
             HullPartSettings floor = (HullPartSettings)settings.GetPartSettingById(1);
             var parts = new System.Collections.Generic.List<HullPart>();
-            for (int x = -4; x <= 4; x++)
+            // hollow: two big plates 14 m apart, the centre of mass in the empty middle (a large hull seen from far)
+            if (hollow)
+                for (int x = -6; x <= 6; x++)
+                    for (int z = -6; z <= 6; z++)
+                        foreach (int y in new[] { 0, 14 })
+                            parts.Add(new HullPart(iron, new HullPartPlacement(new Vector3Int(x, y, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+            for (int x = -4; x <= 4 && !hollow; x++)
             {
                 HullPartSettings s = x < -1 ? wood : x > 1 ? glass : iron;
                 if (x == -4 || x == 4) { for (int z = 0; z <= 5; z++) parts.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward))); continue; }
