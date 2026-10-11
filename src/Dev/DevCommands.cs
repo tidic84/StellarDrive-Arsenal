@@ -162,6 +162,20 @@ namespace Arsenal
                     SpawnWallAt(tph.SpaceId, tph.Position + tfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + tup * float.Parse(a[2], CultureInfo.InvariantCulture), Quaternion.LookRotation(tfwd, tup));
                     break;
                 }
+                case "fov":
+                    Camera.main.fieldOfView = float.Parse(a[1], CultureInfo.InvariantCulture);
+                    break;
+                case "boom":
+                {
+                    // boom <x> <y> <z> [kind]: blast at a point of the test wall (ship-local)
+                    if (!Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient tw) || !tw.IsRigidbodyLoaded) break;
+                    Vector3 bp = tw.ShipRigidBody.transform.TransformPoint(new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture)));
+                    Weapons.Explosives.RequestExplosion(bp, a.Length > 4 ? (Weapons.WeaponKind)byte.Parse(a[4]) : Weapons.WeaponKind.Grenade);
+                    break;
+                }
+                case "noknock":
+                    Damage.ShipKnockback.DevNoKnock = !Damage.ShipKnockback.DevNoKnock;
+                    break;
                 case "hover":
                     Damage.ShipKnockback.DevHover.Add(_testShipId);
                     break;

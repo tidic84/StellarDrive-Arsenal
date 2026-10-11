@@ -54,7 +54,7 @@ namespace Arsenal.Vehicles
                         var holes = new HoleMask();
                         // glass gives way at once, wood and iron take a few ticks per cell
                         float chance = part.MaterialType == HullMaterialType.Glass ? 1f : part.MaterialType == HullMaterialType.Wood ? 0.6f : 0.3f;
-                        if (holeAble && Random.value < chance) holes.PunchDisc(local.x, local.y, 0.05f, Ballistics.Rng);
+                        if (holeAble && Random.value < chance) holes = holes.PunchDisc(local.x, local.y, 0.05f, Ballistics.Rng);
                         HullDamage.ReportHit(key, holes, PanelDamagePerTick);
                         HullDamage.PredictHoles(key, holes);
                         Fx.EmitSparks(hit.point, hit.normal, 6);

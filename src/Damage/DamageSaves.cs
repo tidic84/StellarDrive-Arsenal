@@ -37,13 +37,13 @@ namespace Arsenal.Damage
                 var lines = HullDamage.ServerStates.Select(kv => string.Join(" ",
                     kv.Key.ShipId, kv.Key.Pos.VoxelCoord.x, kv.Key.Pos.VoxelCoord.y, kv.Key.Pos.VoxelCoord.z, (int)kv.Key.Pos.Type,
                     kv.Value.Health.ToString("R", CultureInfo.InvariantCulture),
-                    kv.Value.Holes.A, kv.Value.Holes.B, kv.Value.Holes.C, kv.Value.Holes.D)).ToList();
+                    kv.Value.Holes.ToSaveString())).ToList();
                 if (lines.Count == 0)
                 {
                     if (File.Exists(path)) File.Delete(path);
                     return;
                 }
-                File.WriteAllLines(path, new[] { "# Arsenal hull damage v1: ship x y z type health holesA holesB holesC holesD" }.Concat(lines));
+                File.WriteAllLines(path, new[] { "# Arsenal hull damage v2: ship x y z type health holes (packed round holes in hex)" }.Concat(lines));
             }
             catch (Exception ex)
             {
@@ -65,12 +65,15 @@ namespace Arsenal.Damage
                     {
                         if (line.StartsWith("#") || string.IsNullOrWhiteSpace(line)) continue;
                         string[] p = line.Split(' ');
-                        if (p.Length < 10) continue;
+                        if (p.Length < 7) continue;
                         var key = new PanelKey(uint.Parse(p[0]), new HullPartPosition(new Vector3Int(int.Parse(p[1]), int.Parse(p[2]), int.Parse(p[3])), (VoxelPartType)int.Parse(p[4])));
                         var st = new PanelState
                         {
                             Health = float.Parse(p[5], CultureInfo.InvariantCulture),
-                            Holes = new HoleMask { A = ulong.Parse(p[6]), B = ulong.Parse(p[7]), C = ulong.Parse(p[8]), D = ulong.Parse(p[9]) },
+                            // v1 lines hold four 64-bit cell masks, v2 lines one list of round holes
+                            Holes = p.Length >= 10
+                                ? HoleMask.FromLegacyCells(ulong.Parse(p[6]), ulong.Parse(p[7]), ulong.Parse(p[8]), ulong.Parse(p[9]))
+                                : HoleMask.FromSaveString(p[6]),
                         };
                         states.Add(new KeyValuePair<PanelKey, PanelState>(key, st));
                     }

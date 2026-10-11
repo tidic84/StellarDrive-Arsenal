@@ -134,54 +134,107 @@ namespace Arsenal.Damage
             MeshCache.Clear();
         }
 
+        /// <summary>
+        /// Panel with round holes: marching squares over the distance to the nearest hole edge, on a 64 x 64 grid
+        /// (1.6 cm), with edge points interpolated so circles come out smooth. Full cells are merged into strips,
+        /// cells crossed by a hole edge get their solid part plus a wall following the edge.
+        /// </summary>
         private static Mesh BuildMesh(HoleMask holes)
         {
-            var v = new List<Vector3>(1024);
-            var n = new List<Vector3>(1024);
-            var t = new List<int>(2048);
-            const int S = HoleMask.Size;
-            const float c = HoleMask.CellSize;
+            const int N = 64;
+            const float cs = 1f / N;
+            var v = new List<Vector3>(4096);
+            var n = new List<Vector3>(4096);
+            var t = new List<int>(8192);
             float z = HalfThickness;
 
-            for (int y = 0; y < S; y++)
-            {
-                int x = 0;
-                while (x < S)
+            var f = new float[N + 1, N + 1];
+            for (int j = 0; j <= N; j++)
+                for (int i = 0; i <= N; i++)
                 {
-                    if (holes.Get(x, y)) { x++; continue; }
-                    int start = x;
-                    while (x < S && !holes.Get(x, y)) x++;
-                    float x0 = start * c - 0.5f, x1 = x * c - 0.5f;
-                    float y0 = y * c - 0.5f, y1 = (y + 1) * c - 0.5f;
-                    // front (+z) and back (-z) faces of this solid run
-                    Quad(v, n, t, new Vector3(x0, y1, z), new Vector3(x0, y0, z), new Vector3(x1, y0, z), new Vector3(x1, y1, z), Vector3.forward);
-                    Quad(v, n, t, new Vector3(x1, y1, -z), new Vector3(x1, y0, -z), new Vector3(x0, y0, -z), new Vector3(x0, y1, -z), Vector3.back);
+                    float d = holes.Distance(i * cs - 0.5f, j * cs - 0.5f);
+                    f[i, j] = Mathf.Abs(d) < 0.0001f ? 0.0001f : d; // never exactly on the edge
+                }
+
+            var poly = new List<(Vector2 p, bool edge)>(8);
+            for (int j = 0; j < N; j++)
+            {
+                int runStart = -1;
+                for (int i = 0; i <= N; i++)
+                {
+                    bool full = i < N && f[i, j] > 0f && f[i + 1, j] > 0f && f[i + 1, j + 1] > 0f && f[i, j + 1] > 0f;
+                    if (full)
+                    {
+                        if (runStart < 0) runStart = i;
+                        continue;
+                    }
+                    if (runStart >= 0)
+                    {
+                        // one strip for the run of solid cells
+                        float x0 = runStart * cs - 0.5f, x1 = i * cs - 0.5f, y0 = j * cs - 0.5f, y1 = y0 + cs;
+                        Quad(v, n, t, new Vector3(x0, y1, z), new Vector3(x0, y0, z), new Vector3(x1, y0, z), new Vector3(x1, y1, z), Vector3.forward);
+                        Quad(v, n, t, new Vector3(x1, y1, -z), new Vector3(x1, y0, -z), new Vector3(x0, y0, -z), new Vector3(x0, y1, -z), Vector3.back);
+                        runStart = -1;
+                    }
+                    if (i == N) break;
+                    float a = f[i, j], b = f[i + 1, j], c = f[i + 1, j + 1], dd = f[i, j + 1];
+                    if (a <= 0f && b <= 0f && c <= 0f && dd <= 0f) continue; // all hole
+                    Vector2 p0 = new Vector2(i * cs - 0.5f, j * cs - 0.5f);
+                    Vector2[] corner = { p0, p0 + new Vector2(cs, 0), p0 + new Vector2(cs, cs), p0 + new Vector2(0, cs) };
+                    float[] val = { a, b, c, dd };
+                    poly.Clear();
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int k2 = (k + 1) & 3;
+                        if (val[k] > 0f) poly.Add((corner[k], false));
+                        if ((val[k] > 0f) != (val[k2] > 0f))
+                        {
+                            float s = val[k] / (val[k] - val[k2]);
+                            poly.Add((Vector2.Lerp(corner[k], corner[k2], s), true));
+                        }
+                    }
+                    if (poly.Count < 3) continue;
+                    for (int k = 1; k + 1 < poly.Count; k++)
+                    {
+                        Tri(v, n, t, V(poly[0].p, z), V(poly[k].p, z), V(poly[k + 1].p, z), Vector3.forward);
+                        Tri(v, n, t, V(poly[0].p, -z), V(poly[k + 1].p, -z), V(poly[k].p, -z), Vector3.back);
+                    }
+                    // walls along the hole edge, facing into the hole
+                    for (int k = 0; k < poly.Count; k++)
+                    {
+                        var e0 = poly[k];
+                        var e1 = poly[(k + 1) % poly.Count];
+                        if (!e0.edge || !e1.edge) continue;
+                        Vector2 dir = e1.p - e0.p;
+                        if (dir.sqrMagnitude < 1e-10f) continue;
+                        Vector2 mid = (e0.p + e1.p) * 0.5f;
+                        Vector2 nrm = new Vector2(dir.y, -dir.x).normalized;
+                        if (holes.Distance(mid.x + nrm.x * 0.004f, mid.y + nrm.y * 0.004f) > holes.Distance(mid.x - nrm.x * 0.004f, mid.y - nrm.y * 0.004f)) nrm = -nrm;
+                        Vector3 wn = new Vector3(nrm.x, nrm.y, 0f);
+                        Quad(v, n, t, V(e0.p, -z), V(e1.p, -z), V(e1.p, z), V(e0.p, z), wn);
+                    }
                 }
             }
 
-            // inner walls of the holes
-            for (int y = 0; y < S; y++)
-                for (int x = 0; x < S; x++)
-                {
-                    if (holes.Get(x, y)) continue;
-                    float x0 = x * c - 0.5f, x1 = x0 + c, y0 = y * c - 0.5f, y1 = y0 + c;
-                    if (x + 1 < S && holes.Get(x + 1, y))
-                        Quad(v, n, t, new Vector3(x1, y0, -z), new Vector3(x1, y1, -z), new Vector3(x1, y1, z), new Vector3(x1, y0, z), Vector3.right);
-                    if (x - 1 >= 0 && holes.Get(x - 1, y))
-                        Quad(v, n, t, new Vector3(x0, y0, z), new Vector3(x0, y1, z), new Vector3(x0, y1, -z), new Vector3(x0, y0, -z), Vector3.left);
-                    if (y + 1 < S && holes.Get(x, y + 1))
-                        Quad(v, n, t, new Vector3(x0, y1, -z), new Vector3(x0, y1, z), new Vector3(x1, y1, z), new Vector3(x1, y1, -z), Vector3.up);
-                    if (y - 1 >= 0 && holes.Get(x, y - 1))
-                        Quad(v, n, t, new Vector3(x0, y0, z), new Vector3(x0, y0, -z), new Vector3(x1, y0, -z), new Vector3(x1, y0, z), Vector3.down);
-                }
-
             var mesh = new Mesh { name = "Flat (Arsenal holes)" };
+            if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             mesh.SetVertices(v);
             mesh.SetNormals(n);
             mesh.SetTriangles(t, 0);
             mesh.RecalculateTangents();
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        private static Vector3 V(Vector2 p, float z) => new Vector3(p.x, p.y, z);
+
+        private static void Tri(List<Vector3> v, List<Vector3> n, List<int> t, Vector3 a, Vector3 b, Vector3 c, Vector3 normal)
+        {
+            int i = v.Count;
+            v.Add(a); v.Add(b); v.Add(c);
+            n.Add(normal); n.Add(normal); n.Add(normal);
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), normal) >= 0f) { t.Add(i); t.Add(i + 1); t.Add(i + 2); }
+            else { t.Add(i); t.Add(i + 2); t.Add(i + 1); }
         }
 
         /// <summary>Adds a quad, flipping the winding if needed so it faces <paramref name="normal"/> (the game's convention).</summary>

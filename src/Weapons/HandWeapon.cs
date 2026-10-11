@@ -509,7 +509,7 @@ namespace Arsenal.Weapons
                     {
                         Ramp(target);
                         var holes = new HoleMask();
-                        if (holeAble && Random.value < 0.25f * _ramp) holes.PunchDisc(local.x, local.y, 0.03f + 0.01f * _ramp, Ballistics.Rng);
+                        if (holeAble && Random.value < 0.25f * _ramp) holes = holes.PunchDisc(local.x, local.y, 0.03f + 0.01f * _ramp, Ballistics.Rng);
                         HullDamage.ReportHit(key, holes, _def.Bullet.PanelDamage * _ramp);
                         HullDamage.PredictHoles(key, holes);
                         Fx.EmitSparks(hit.point, hit.normal, 5);
@@ -596,7 +596,7 @@ namespace Arsenal.Weapons
                 {
                     float mult = part.MaterialType == HullMaterialType.Wood ? 4f : part.MaterialType == HullMaterialType.Glass ? 1.5f : 0.35f;
                     var holes = new HoleMask();
-                    if (part.MaterialType == HullMaterialType.Wood && HullDamage.CanHaveHoles(part) && Random.value < 0.2f) holes.PunchDisc(local.x, local.y, 0.05f, Ballistics.Rng);
+                    if (part.MaterialType == HullMaterialType.Wood && HullDamage.CanHaveHoles(part) && Random.value < 0.2f) holes = holes.PunchDisc(local.x, local.y, 0.05f, Ballistics.Rng);
                     HullDamage.ReportHit(key, holes, _def.Bullet.PanelDamage * mult);
                     HullDamage.PredictHoles(key, holes);
                 }

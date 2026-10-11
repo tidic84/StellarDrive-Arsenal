@@ -26,6 +26,7 @@ namespace Arsenal.Armory
         public (uint item, byte qty)[] Cost;
         public (string label, float value)[] Stats; // 0..1 bars
         public WeaponKind Kind;
+        public string Pierce;                       // what it goes through, null when not a piercing round
     }
 
     /// <summary>
@@ -44,6 +45,7 @@ namespace Arsenal.Armory
                 {
                     ItemId = d.ItemId, Name = d.Name, Description = d.Description, Category = d.Category, Rarity = d.Rarity, Cost = d.Cost, Kind = d.Kind,
                     Stats = Stats(d),
+                    Pierce = PierceText(d),
                 });
             list.Add(new ArmoryEntry
             {
@@ -60,6 +62,19 @@ namespace Arsenal.Armory
                 Stats = new[] { (Loc.T("Dégâts", "Damage"), 0.95f), (Loc.T("Rayon", "Radius"), 0.4f), (Loc.T("Portée", "Range"), 0.05f), (Loc.T("Cadence", "Rate"), 0.15f) },
             });
             return list;
+        }
+
+        /// <summary>"Traverse : verre 4 · bois 1 · fer 0", head-on panels of each hull material.</summary>
+        private static string PierceText(HandWeaponDef d)
+        {
+            if (d.Mode == FireMode.Projectile) return Loc.T("Souffle : ouvre toutes les coques", "Blast: tears any hull open");
+            if (d.Mode == FireMode.Beam) return Loc.T("Rayon : fait fondre toutes les coques", "Beam: melts through any hull");
+            float p = d.Bullet != null ? d.Bullet.Penetration : 0f;
+            if (p <= 0f) return Loc.T("Ne traverse pas les coques", "Does not go through hulls");
+            string Count(Ships.Interface.Model.Parts.HullMaterialType m) => Damage.Materials.PanelsThrough(p, m).ToString();
+            return Loc.T("Traverse", "Goes through") + " :  " + Loc.T("verre", "glass") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Glass) +
+                   "  ·  " + Loc.T("bois", "wood") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Wood) +
+                   "  ·  " + Loc.T("fer", "iron") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Metal);
         }
 
         private static (string, float)[] Stats(HandWeaponDef d)

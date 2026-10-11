@@ -363,7 +363,7 @@ namespace Arsenal.Weapons
                 if (Spec.DirectPanelDamage > 0f && ShipPartsTagDetection.ColliderIsHull(hit.collider) && Ballistics.TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local))
                 {
                     var holes = new HoleMask();
-                    if (HullDamage.CanHaveHoles(part)) holes.PunchDisc(local.x, local.y, 0.06f, Ballistics.Rng);
+                    if (HullDamage.CanHaveHoles(part)) holes = holes.PunchDisc(local.x, local.y, 0.06f, Ballistics.Rng);
                     HullDamage.ReportHit(key, holes, Spec.DirectPanelDamage);
                     HullDamage.PredictHoles(key, holes);
                 }

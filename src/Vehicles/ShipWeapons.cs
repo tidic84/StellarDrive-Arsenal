@@ -63,7 +63,7 @@ namespace Arsenal.Vehicles
         private static readonly Vector3[] PodTubes = { new Vector3(-0.11f, 0.42f, 0.36f), new Vector3(0.11f, 0.42f, 0.36f), new Vector3(-0.11f, 0.24f, 0.36f), new Vector3(0.11f, 0.24f, 0.36f) };
         private static readonly Vector3 LaserMuzzle = new Vector3(0, 0.27f, 0.67f);
 
-        public static readonly BulletSpec GunBullet = new BulletSpec { PlayerDamage = 28, PanelDamage = 16, Penetration = 50, HoleRadius = 0.045f, Range = 700f, ObjectDamage = 1f };
+        public static readonly BulletSpec GunBullet = new BulletSpec { PlayerDamage = 28, PanelDamage = 16, Penetration = 80, HoleRadius = 0.04f, Range = 700f, ObjectDamage = 1f };
 
 #if DEV
         public static readonly HashSet<ushort> DevForceOn = new HashSet<ushort>();
@@ -303,7 +303,7 @@ namespace Arsenal.Vehicles
         // ------------------------------------------------------------------ point defence
 
         private const float PdcRange = 300f;
-        public static readonly BulletSpec RailSlug = new BulletSpec { PlayerDamage = 200, PanelDamage = 300, Penetration = 900, HoleRadius = 0.12f, Range = 1500f, ObjectDamage = 12f, ThroughPlayers = true };
+        public static readonly BulletSpec RailSlug = new BulletSpec { PlayerDamage = 200, PanelDamage = 300, Penetration = 900, HoleRadius = 0.09f, Range = 1500f, ObjectDamage = 12f, ThroughPlayers = true };
         private static readonly Dictionary<IThreat, float> Claimed = new Dictionary<IThreat, float>(); // threats already shot down, waiting for their owner
 
         private void UpdatePdc(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)

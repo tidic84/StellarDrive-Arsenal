@@ -23,6 +23,7 @@ namespace Arsenal.Damage
         private static readonly Dictionary<int, uint> BodyIds = new Dictionary<int, uint>();
 #if DEV
         public static readonly HashSet<uint> DevHover = new HashSet<uint>();
+        public static bool DevNoKnock;
         private static float _devKnockedAt = -10f;
 #endif
         private static readonly AccessTools.FieldRef<ShipRigidbody, Rigidbody> RigidbodyField = AccessTools.FieldRefAccess<ShipRigidbody, Rigidbody>("_rigidbody");
@@ -42,6 +43,9 @@ namespace Arsenal.Damage
         /// <summary>Server: push the root ship <paramref name="rootId"/> (impulse and point in its space).</summary>
         public static void Queue(uint rootId, Vector3 impulse, Vector3 point)
         {
+#if DEV
+            if (DevNoKnock) return;
+#endif
             if (!Pending.TryGetValue(rootId, out var list)) Pending[rootId] = list = new List<(Vector3, Vector3)>();
             list.Add((impulse, point));
         }

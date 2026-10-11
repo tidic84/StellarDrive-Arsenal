@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.2.0", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.3.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 3;
+        internal const int ProtocolVersion = 4;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;

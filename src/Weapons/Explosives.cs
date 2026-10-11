@@ -187,6 +187,7 @@ namespace Arsenal.Weapons
         {
             IWorldTransposeServer transpose = Svc.Get<IWorldTransposeServer>();
             var rng = new System.Random();
+            int blastSeed = rng.Next();
             var hits = new List<(PanelKey key, HoleMask holes, float damage)>();
 
             foreach (TrackedShipServer ship in Svc.ShipsServer.Ships.ToList())
@@ -249,11 +250,14 @@ namespace Arsenal.Weapons
                     if (d >= radius) return;
                     float f = 1f - d / radius;
                     var holes = new HoleMask();
-                    if (HullDamage.CanHaveHoles(part) && f > 0.25f)
+                    // hole size from the blast's distance to the plane, so one circle spans neighbouring panels evenly
+                    float fp = 1f - Mathf.Abs(rel.z) / radius;
+                    float material = Materials.HoleScale(part.MaterialType) * (part.MaterialType == HullMaterialType.Glass ? 1.5f : 1.1f);
+                    float hr = Mathf.Clamp(0.08f + 0.7f * Mathf.Pow(Mathf.Max(0f, fp), 1.5f) * Mathf.Sqrt(power / 1000f) * material, 0.04f, 0.9f);
+                    if (HullDamage.CanHaveHoles(part) && fp > 0.25f && dx * dx + dy * dy < hr * hr)
                     {
-                        float material = part.MaterialType == HullMaterialType.Glass ? 2f : part.MaterialType == HullMaterialType.Wood ? 1.35f : 1f;
-                        float hr = Mathf.Clamp(0.08f + 0.7f * Mathf.Pow(f, 1.5f) * Mathf.Sqrt(power / 1000f) * material, 0.04f, 0.9f);
-                        holes.PunchDisc(Mathf.Clamp(rel.x, -0.45f, 0.45f), Mathf.Clamp(rel.y, -0.45f, 0.45f), hr, rng);
+                        // same torn outline on every panel of the blast, so lobes line up across seams
+                        holes = holes.PunchDisc(Mathf.Clamp(rel.x, -1.95f, 1.95f), Mathf.Clamp(rel.y, -1.95f, 1.95f), hr, new System.Random(blastSeed));
                     }
                     hits.Add((new PanelKey(ship.Id, pl.Position), holes, power * f * f));
                 }

@@ -160,7 +160,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)4), (Copper, (byte)1) },
             Automatic = false, RoundsPerMinute = 360, Magazine = 12, ReloadTime = 1.3f,
             SpreadDegrees = 0.6f, AimSpreadDegrees = 0.2f, RecoilKick = 0.05f, AimFov = 55f, Mass = 1.2f,
-            Bullet = new BulletSpec { PlayerDamage = 20, PanelDamage = 6, Penetration = 13, HoleRadius = 0.03f, ObjectDamage = 0.4f },
+            Bullet = new BulletSpec { PlayerDamage = 20, PanelDamage = 6, Penetration = 18, HoleRadius = 0.03f, ObjectDamage = 0.4f },
             Sound = SoundStyle.Pistol, MuzzleSize = 0.15f, Model = WeaponModels.Pistol, HoldPosition = Sidearm, HoldEuler = SidearmRot, AimDistance = 0.32f,
         };
 
@@ -173,7 +173,7 @@ namespace Arsenal.Weapons
             Ammo = AmmoMode.Heat, HeatPerShot = 0.075f, CoolPerSecond = 0.4f,
             Automatic = false, RoundsPerMinute = 420,
             SpreadDegrees = 0.3f, AimSpreadDegrees = 0.05f, RecoilKick = 0.02f, AimFov = 55f, Mass = 1f,
-            Bullet = new BulletSpec { PlayerDamage = 17, PanelDamage = 5, Penetration = 8, HoleRadius = 0.03f, ObjectDamage = 0.5f },
+            Bullet = new BulletSpec { PlayerDamage = 17, PanelDamage = 5, Penetration = 9, HoleRadius = 0.026f, ObjectDamage = 0.5f },
             Tracer = TracerStyle.Laser, TracerColor = new Color(0.3f, 0.9f, 1f), Sound = SoundStyle.Laser, MuzzleSize = 0.1f,
             Model = GunModels.LaserPistol, HoldPosition = Sidearm, HoldEuler = SidearmRot, AimDistance = 0.32f,
         };
@@ -186,7 +186,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)6), (Copper, (byte)3) },
             Automatic = false, RoundsPerMinute = 110, Magazine = 6, ReloadTime = 2.2f,
             SpreadDegrees = 0.5f, AimSpreadDegrees = 0.1f, RecoilKick = 0.1f, AimFov = 50f, Mass = 2f,
-            Bullet = new BulletSpec { PlayerDamage = 48, PanelDamage = 22, Penetration = 60, HoleRadius = 0.04f, ObjectDamage = 1.5f },
+            Bullet = new BulletSpec { PlayerDamage = 48, PanelDamage = 22, Penetration = 58, HoleRadius = 0.042f, ObjectDamage = 1.5f },
             Tracer = TracerStyle.Ion, TracerColor = new Color(0.55f, 0.75f, 1f), Sound = SoundStyle.Gauss, MuzzleSize = 0.22f,
             Model = GunModels.Gauss, HoldPosition = Sidearm, HoldEuler = SidearmRot, AimDistance = 0.32f,
         };
@@ -199,7 +199,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)6), (Copper, (byte)2) },
             Automatic = true, RoundsPerMinute = 950, Magazine = 40, ReloadTime = 1.6f,
             SpreadDegrees = 3f, AimSpreadDegrees = 1.4f, RecoilKick = 0.025f, AimFov = 55f, Mass = 2.4f,
-            Bullet = new BulletSpec { PlayerDamage = 9, PanelDamage = 3, Penetration = 9, HoleRadius = 0.03f, ObjectDamage = 0.25f },
+            Bullet = new BulletSpec { PlayerDamage = 9, PanelDamage = 3, Penetration = 10, HoleRadius = 0.025f, ObjectDamage = 0.25f },
             Sound = SoundStyle.Smg, MuzzleSize = 0.14f, Model = GunModels.Smg, HoldPosition = new Vector3(-0.1f, 0.1f, -0.06f), HoldEuler = new Vector3(5f, 20f, 0f), AimDistance = 0.3f,
         };
 
@@ -211,7 +211,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)8), (Copper, (byte)3) },
             Automatic = true, RoundsPerMinute = 600, Magazine = 30, ReloadTime = 2.0f,
             SpreadDegrees = 1.4f, AimSpreadDegrees = 0.45f, RecoilKick = 0.04f, AimFov = 48f, Mass = 3.5f,
-            Bullet = new BulletSpec { PlayerDamage = 14, PanelDamage = 7, Penetration = 36, HoleRadius = 0.03f, ObjectDamage = 0.4f },
+            Bullet = new BulletSpec { PlayerDamage = 14, PanelDamage = 7, Penetration = 46, HoleRadius = 0.03f, ObjectDamage = 0.4f },
             Sound = SoundStyle.Rifle, MuzzleSize = 0.2f, Model = WeaponModels.Rifle, HoldPosition = Long,
         };
 
@@ -223,7 +223,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)8), (Copper, (byte)4), (Glass, (byte)2) },
             Automatic = false, RoundsPerMinute = 70, Pellets = 8, Magazine = 6, ReloadTime = 2.4f,
             SpreadDegrees = 5.5f, AimSpreadDegrees = 4f, RecoilKick = 0.12f, AimFov = 55f, Mass = 4f,
-            Bullet = new BulletSpec { PlayerDamage = 10, PanelDamage = 6, Penetration = 7, HoleRadius = 0.035f, Range = 45f, ObjectDamage = 0.5f, BurnSeconds = 3f },
+            Bullet = new BulletSpec { PlayerDamage = 10, PanelDamage = 6, Penetration = 6, HoleRadius = 0.032f, Range = 45f, ObjectDamage = 0.5f, BurnSeconds = 3f },
             Tracer = TracerStyle.Plasma, TracerColor = new Color(1f, 0.5f, 0.15f), Sound = SoundStyle.Plasma, MuzzleSize = 0.3f,
             Model = GunModels.PlasmaShotgun, HoldPosition = Long,
         };
@@ -236,7 +236,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)12), (Copper, (byte)4), (Glass, (byte)2) },
             Automatic = false, RoundsPerMinute = 50, Magazine = 5, ReloadTime = 2.8f,
             SpreadDegrees = 2.5f, AimSpreadDegrees = 0.02f, RecoilKick = 0.16f, AimFov = 18f, Scope = true, Mass = 9f,
-            Bullet = new BulletSpec { PlayerDamage = 85, PanelDamage = 60, Penetration = 110, HoleRadius = 0.07f, Range = 900f, ObjectDamage = 3f },
+            Bullet = new BulletSpec { PlayerDamage = 85, PanelDamage = 60, Penetration = 125, HoleRadius = 0.06f, Range = 900f, ObjectDamage = 3f },
             Sound = SoundStyle.Heavy, MuzzleSize = 0.35f, Model = WeaponModels.Marksman, HoldPosition = new Vector3(-0.08f, 0.06f, 0f),
         };
 
@@ -249,7 +249,7 @@ namespace Arsenal.Weapons
             Mode = FireMode.Charge, ChargeTime = 1.1f,
             Automatic = false, RoundsPerMinute = 40, Magazine = 4, ReloadTime = 3f,
             SpreadDegrees = 0.8f, AimSpreadDegrees = 0f, RecoilKick = 0.2f, AimFov = 20f, Scope = true, Mass = 10f,
-            Bullet = new BulletSpec { PlayerDamage = 110, PanelDamage = 90, Penetration = 320, HoleRadius = 0.09f, Range = 1200f, ObjectDamage = 6f, ThroughPlayers = true },
+            Bullet = new BulletSpec { PlayerDamage = 110, PanelDamage = 90, Penetration = 320, HoleRadius = 0.075f, Range = 1200f, ObjectDamage = 6f, ThroughPlayers = true },
             Tracer = TracerStyle.Rail, TracerColor = new Color(0.5f, 0.85f, 1f), Sound = SoundStyle.Rail, MuzzleSize = 0.4f,
             Model = GunModels.Railgun, HoldPosition = new Vector3(-0.08f, 0.06f, 0f),
         };
@@ -263,7 +263,7 @@ namespace Arsenal.Weapons
             Ammo = AmmoMode.Heat, HeatPerShot = 0.012f, CoolPerSecond = 0.3f, SpinUp = 0.7f,
             Automatic = true, RoundsPerMinute = 1300,
             SpreadDegrees = 2.2f, AimSpreadDegrees = 2.2f, RecoilKick = 0.012f, AimFov = 0f, Mass = 14f,
-            Bullet = new BulletSpec { PlayerDamage = 7, PanelDamage = 4, Penetration = 14, HoleRadius = 0.03f, ObjectDamage = 0.3f },
+            Bullet = new BulletSpec { PlayerDamage = 7, PanelDamage = 4, Penetration = 16, HoleRadius = 0.027f, ObjectDamage = 0.3f },
             Tracer = TracerStyle.Laser, TracerColor = new Color(1f, 0.3f, 0.25f), Sound = SoundStyle.Laser, MuzzleSize = 0.16f,
             Model = GunModels.Minigun, HoldPosition = new Vector3(-0.06f, 0.0f, 0.02f), HoldEuler = new Vector3(4f, 14f, 0f),
         };

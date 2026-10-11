@@ -129,7 +129,7 @@ namespace Arsenal.Damage
                 st.Holes = st.Holes.Union(add);
             st.Health -= damage;
 
-            bool broken = st.Health <= 0f || st.Holes.Count >= HoleMask.Cells * Materials.BreakHoleRatio;
+            bool broken = st.Health <= 0f || st.Holes.Coverage() >= Materials.BreakHoleRatio;
             if (broken)
             {
                 Server.Remove(key);

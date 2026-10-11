@@ -38,7 +38,7 @@ namespace Arsenal.Armory
 
         // info column
         private RawImage _bigIcon;
-        private TextMeshProUGUI _infoName, _infoRarity, _infoDesc, _status, _buttonLabel;
+        private TextMeshProUGUI _infoName, _infoRarity, _infoDesc, _infoPierce, _status, _buttonLabel;
         private Image _buttonFill;
         private RectTransform _statsRoot, _costRoot;
 
@@ -163,7 +163,8 @@ namespace Arsenal.Armory
             _infoName = UiKit.Label(UiKit.Rect(info, "Name", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -350f), new Vector2(-60f, 90f), new Vector2(0.5f, 1f)), "", 58, UiKit.Accent, true, TextAlignmentOptions.Center);
             _infoName.enableWordWrapping = true;
             _infoRarity = UiKit.Label(UiKit.Rect(info, "Rarity", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -440f), new Vector2(-60f, 56f), new Vector2(0.5f, 1f)), "", 42, UiKit.TextDim, false, TextAlignmentOptions.Center);
-            _infoDesc = UiKit.Label(UiKit.Rect(info, "Desc", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -510f), new Vector2(-90f, 200f), new Vector2(0.5f, 1f)), "", 42, UiKit.Text, false, TextAlignmentOptions.TopLeft);
+            _infoDesc = UiKit.Label(UiKit.Rect(info, "Desc", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -510f), new Vector2(-90f, 150f), new Vector2(0.5f, 1f)), "", 40, UiKit.Text, false, TextAlignmentOptions.TopLeft);
+            _infoPierce = UiKit.Label(UiKit.Rect(info, "Pierce", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -662f), new Vector2(-90f, 50f), new Vector2(0.5f, 1f)), "", 36, UiKit.Accent, true, TextAlignmentOptions.Left);
             _statsRoot = UiKit.Rect(info, "Stats", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -720f), new Vector2(-90f, 250f), new Vector2(0.5f, 1f));
             _costRoot = UiKit.Rect(info, "Cost", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -970f), new Vector2(-90f, 240f), new Vector2(0.5f, 1f));
 
@@ -244,6 +245,7 @@ namespace Arsenal.Armory
                 _infoName.text = "";
                 _infoRarity.text = "";
                 _infoDesc.text = "";
+                _infoPierce.text = "";
                 _bigIcon.texture = null;
                 return;
             }
@@ -254,6 +256,7 @@ namespace Arsenal.Armory
             _infoRarity.text = WeaponDefs.RarityName(e.Rarity) + " · " + WeaponDefs.CategoryName(e.Category);
             _infoRarity.color = WeaponDefs.RarityColor(e.Rarity);
             _infoDesc.text = e.Description;
+            _infoPierce.text = e.Pierce ?? "";
 
             foreach (Transform c in _statsRoot) Destroy(c.gameObject);
             for (int i = 0; i < e.Stats.Length; i++)

@@ -8,15 +8,34 @@ Firearms, explosives and ship weapons for **StellarDrive (Demo)**, made to look 
 
 Bullets and blasts damage hull panels for real:
 
-- **Real holes.** Each flat panel is a 16 × 16 grid (6 cm cells). A bullet punches a small hole through it; a blast tears a ragged one sized by distance. The holes are cut into the game's own panel mesh, so they keep the panel's colours and edges, and you can see (and shoot) through them.
-- **Penetration.** A round goes through a panel if it has enough penetration for the material and the angle: glass < wood < iron. It loses some on the way and carries on to the next panel; otherwise it stops and only dents the panel.
-- **Breaking.** Every hit also wears the panel down. Once it has no strength left, or too much of it is gone, it breaks into the game's own debris.
+- **Round holes.** A bullet drills a clean round hole, sized by its calibre; a blast tears a big round hole with ragged lobes, sized by how close it went off. Holes are cut into the game's own panel mesh (smooth outline, inner walls), so they keep the panel's colours and edges, and you can see — and shoot — through them. A hole on a seam carries on into the neighbouring panel instead of stopping in a half circle.
+- **Penetration levels.** Every round has a penetration value and every material a resistance; a slanted panel counts as thicker. A round goes through when it has enough, loses that much and carries on to the next panel, so a weapon goes through a certain number of panels of each material. The armory shows it for each weapon ("Traverse : verre 4 · bois 1 · fer 0").
+- **Materials behave differently.**
+
+  | | Resistance | Holes | Notes |
+  | --- | --- | --- | --- |
+  | Glass | 4 | big, with a shattered rim | weak (40 HP), every hit counts in full |
+  | Wood | 14 | a bit bigger than the calibre | soft, splinters; very shallow hits glance off |
+  | Iron | 38 | clean, a bit smaller than the calibre | tough (460 HP); rounds without enough penetration only dent it, and shallow hits **ricochet** (the round skips off with a tracer and keeps half its punch) |
+
+  | Weapon | Glass | Wood | Iron |
+  | --- | --- | --- | --- |
+  | SMG, PX-9, plasma shotgun | 1–2 | 0 | 0 |
+  | Sidearm, laser minigun | 4 | 1 | 0 |
+  | AR-47 | 9 | 3 | 1 |
+  | Gauss revolver | 9 | 4 | 1 |
+  | Anti-materiel rifle | 9 | 8 | 3 |
+  | Heavy machine gun (ship) | 9 | 5 | 2 |
+  | M-90 railgun / ship railgun | 9 | 9 | 8+ |
+
+- **Breaking.** Every hit also wears the panel down. Once it has no strength left, or half of its area is gone, it breaks into the game's own debris.
 - **Blasts push ships.** An explosion shoves every ship in reach away from it, from the side of the hull it hits — off-centre hits also set it spinning. The bigger the warhead (grenade < rocket < SAM < torpedo), the harder the push, so a rocket or missile hit visibly knocks an aircraft off its course.
 - Damage is decided by the host and synced to every player, and it is **saved with the world** (`arsenal-damage.txt` next to `world.json`).
 
 Slopes, corners and doors take damage and break, but only flat panels get holes.
 
-![Bullet holes through an iron wall](docs/bullet_holes.jpg)
+![Round bullet hole through an iron wall, second plate behind](docs/bullet_holes.jpg)
+![Blast holes running across panel seams](docs/blast_holes.jpg)
 
 ## Hand weapons
 
@@ -132,7 +151,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.2.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.3.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

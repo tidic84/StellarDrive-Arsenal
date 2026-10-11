@@ -43,6 +43,7 @@ namespace Arsenal.Weapons
         }
 
         public static readonly System.Random Rng = new System.Random();
+        private static int _ricochetDepth;
 
         /// <summary>Fires one bullet in the client physics scene. Returns where it ended for the tracer.</summary>
         public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts, Rigidbody ignore = null, WeaponKind weapon = WeaponKind.Rifle)
@@ -82,10 +83,11 @@ namespace Arsenal.Weapons
                     }
                 }
 
-                if (ShipPartsTagDetection.ColliderIsHull(col) && TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local))
+                if (ShipPartsTagDetection.ColliderIsHull(col) && TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local, out Vector3 shipLocal))
                 {
+                    HullMaterialType mat = part.MaterialType;
                     float cos = Mathf.Abs(Vector3.Dot(dir, hit.normal));
-                    float skip = Mathf.Min(0.6f, 0.12f / Mathf.Max(0.2f, cos));
+                    float skip = Mathf.Min(0.6f, (Materials.Thickness + 0.04f) / Mathf.Max(0.2f, cos));
                     bool holeAble = HullDamage.CanHaveHoles(part);
                     if (holeAble && HullDamage.TryGetClientHoles(key, out HoleMask existing) && existing.IsHoleAt(local.x, local.y))
                     {
@@ -94,14 +96,46 @@ namespace Arsenal.Weapons
                         travelled += skip;
                         continue;
                     }
-                    float resistance = Materials.Resistance(part.MaterialType) / Mathf.Max(0.35f, cos);
-                    ImpactKind kind = Kind(part.MaterialType);
+                    // a slanted panel is thicker along the round's path
+                    float resistance = Materials.Resistance(mat) / Mathf.Max(0.3f, cos);
+                    float overmatch = penetration / Mathf.Max(0.01f, Materials.Resistance(mat));
+                    ImpactKind kind = Kind(mat);
                     Color tint = part.Color.Front.AsColorType;
                     impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = kind, Tint = tint });
+
+                    // glancing hit on a hard surface: the round skips off
+                    if (cos < Materials.RicochetCos(mat) && overmatch < 3f && penetration > 0f)
+                    {
+                        HullDamage.ReportHit(key, new HoleMask(), panelDamage * 0.15f);
+                        if (_ricochetDepth >= 2) return hit.point;
+                        Vector3 glance = (Vector3.Reflect(dir, hit.normal) + Random.insideUnitSphere * 0.12f).normalized;
+                        if (Vector3.Dot(glance, hit.normal) < 0.05f) glance = (glance + hit.normal * 0.1f).normalized;
+                        var rest = new BulletSpec
+                        {
+                            PlayerDamage = playerDamage * 0.6f, PanelDamage = panelDamage * 0.5f, Penetration = penetration * 0.5f, HoleRadius = spec.HoleRadius * 0.8f,
+                            Range = Mathf.Max(0f, spec.Range - travelled), ObjectDamage = spec.ObjectDamage * 0.5f, BurnSeconds = spec.BurnSeconds,
+                        };
+                        _ricochetDepth++;
+                        Vector3 end2;
+                        try { end2 = Fire(hit.point + hit.normal * 0.02f, glance, rest, impacts, ignore, weapon); }
+                        finally { _ricochetDepth--; }
+                        Fx.BulletTracer(hit.point, end2, 0.02f, 300f);
+                        Fx.EmitSparks(hit.point, hit.normal, 10);
+                        return hit.point;
+                    }
                     if (penetration >= resistance)
                     {
-                        var holes = new HoleMask();
-                        if (holeAble) holes.PunchDisc(local.x, local.y, spec.HoleRadius, Rng);
+                        // through: hole sized by calibre, material and how easily it went through
+                        HoleMask holes = default;
+                        if (holeAble && spec.HoleRadius > 0f)
+                        {
+                            float ease = Mathf.Clamp(0.7f + 0.12f * Mathf.Min(penetration / resistance, 4f), 0.75f, 1.2f);
+                            float r = spec.HoleRadius * Materials.HoleScale(mat) * ease;
+                            holes = holes.PunchDisc(local.x, local.y, r);
+                            float shatter = Materials.ShatterScale(mat);
+                            if (shatter > 0f) holes = holes.PunchDisc(local.x, local.y, r * shatter, Rng);
+                            PunchAcrossSeams(key, part, shipLocal, r * Mathf.Max(1f, shatter), panelDamage * 0.2f);
+                        }
                         HullDamage.ReportHit(key, holes, panelDamage);
                         if (holeAble) HullDamage.PredictHoles(key, holes);
                         penetration -= resistance;
@@ -113,8 +147,8 @@ namespace Arsenal.Weapons
                         travelled += skip;
                         continue;
                     }
-                    // stopped: a dent only
-                    HullDamage.ReportHit(key, new HoleMask(), panelDamage * 0.35f);
+                    // stopped inside the panel: a dent (harder materials take less)
+                    HullDamage.ReportHit(key, new HoleMask(), panelDamage * Materials.DentDamage(mat));
                     return hit.point;
                 }
 
@@ -160,14 +194,20 @@ namespace Arsenal.Weapons
         };
 
         /// <summary>Maps a raycast hit on a hull collider to the panel, like the recycler does, plus the hit point on the panel plane.</summary>
-        public static bool TryResolvePanel(RaycastHit hit, out PanelKey key, out HullPart part, out Vector2 local)
+        public static bool TryResolvePanel(RaycastHit hit, out PanelKey key, out HullPart part, out Vector2 local) =>
+            TryResolvePanel(hit, out key, out part, out local, out _);
+
+        /// <summary>Same, also giving the hit point in ship coordinates.</summary>
+        public static bool TryResolvePanel(RaycastHit hit, out PanelKey key, out HullPart part, out Vector2 local, out Vector3 shipLocal)
         {
             key = default;
             part = default;
             local = default;
+            shipLocal = default;
             IShipPartTargeter targeter = hit.collider.GetComponentInParent<IShipPartTargeter>();
             if (targeter == null) return false;
             PartHit partHit = targeter.ConvertHitToLocalHit(hit);
+            shipLocal = partHit.Pos;
             PartOrientation? orientation = ShipPartsTagDetection.GuessPartOrientationFromTag(hit.collider);
             Vector3Int coord = orientation.HasValue ? RelativeDirectionsMap.Map[orientation.Value].GetCoord(partHit.Pos) : Vector3Int.RoundToInt(partHit.Pos);
             var pos = new HullPartPosition(coord, ShipPartsTagDetection.GetPartType(hit.collider));
@@ -181,6 +221,37 @@ namespace Arsenal.Weapons
             local = new Vector2(q.x, q.y);
             return true;
         }
+
+        /// <summary>
+        /// A hole near the edge of a panel carries on into the panels next to it in the same plane, so a round
+        /// hole on a seam is cut in both panels instead of ending in a half circle.
+        /// </summary>
+        public static void PunchAcrossSeams(PanelKey key, HullPart part, Vector3 shipCenter, float radius, float damage)
+        {
+            HullPartPlacement pl = part.HullPlacement;
+            Vector3 c = Quaternion.Inverse(pl.Rotation) * (shipCenter - pl.LocalPosition);
+            if (Mathf.Abs(c.x) + radius <= 0.5f && Mathf.Abs(c.y) + radius <= 0.5f) return; // fully inside
+            if (!Svc.ShipsClient.TryGetTrackedShip(key.ShipId, out TrackedShipClient ship)) return;
+            Vector3Int ax = Vector3Int.RoundToInt(pl.Rotation * Vector3.right), ay = Vector3Int.RoundToInt(pl.Rotation * Vector3.up);
+            for (int i = -1; i <= 1; i++)
+                for (int j = -1; j <= 1; j++)
+                {
+                    if (i == 0 && j == 0) continue;
+                    Vector3Int coord = key.Pos.VoxelCoord + ax * i + ay * j;
+                    HullPart? n = ship.GetVoxel(coord)?.GetPartFromType(key.Pos.Type);
+                    if (!n.HasValue || !HullDamage.CanHaveHoles(n.Value)) continue;
+                    HullPartPlacement np = n.Value.HullPlacement;
+                    Vector3 lc = Quaternion.Inverse(np.Rotation) * (shipCenter - np.LocalPosition);
+                    if (Mathf.Abs(lc.z) > 0.06f) continue; // not in the same plane
+                    float dx = Mathf.Max(0f, Mathf.Abs(lc.x) - 0.5f), dy = Mathf.Max(0f, Mathf.Abs(lc.y) - 0.5f);
+                    if (dx * dx + dy * dy >= radius * radius) continue;
+                    var nk = new PanelKey(key.ShipId, np.Position);
+                    HoleMask holes = HoleMask.Disc(lc.x, lc.y, radius);
+                    HullDamage.ReportHit(nk, holes, damage);
+                    HullDamage.PredictHoles(nk, holes);
+                }
+        }
+
 
         /// <summary>Top of another player's body (along the local up).</summary>
         public static bool IsHeadshot(RaycastHit hit)
