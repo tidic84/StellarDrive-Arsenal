@@ -79,7 +79,7 @@ namespace Arsenal.Damage
 
         private static void GetSegmentMeshPostfix(HullMeshSegmentType type, ref Mesh __result)
         {
-            if (!_inChunk || !_hasCurrentPart) return;
+            if (!_inChunk || !_hasCurrentPart || SegmentShapes.ReadingGameMesh) return;
             if (!HullDamage.TryGetClientHoles(new PanelKey(_chunkShipId, _currentPart), out HoleMask holes) || holes.IsEmpty) return;
             __result = GetMesh(holes, type);
         }

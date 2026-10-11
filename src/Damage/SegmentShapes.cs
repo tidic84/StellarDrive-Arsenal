@@ -70,10 +70,22 @@ namespace Arsenal.Damage
 
         public static SegmentShape Get(HullPart part) => Get(part.SegmentType);
 
+        /// <summary>
+        /// True while we read a game mesh. GetSegmentMesh is patched to hand back holed meshes, and building one needs
+        /// this very shape, so the patch must leave the call alone then, or it loops until the stack overflows.
+        /// </summary>
+        public static bool ReadingGameMesh { get; private set; }
+
         private static SegmentShape FromGameMesh(HullMeshSegmentType type)
         {
             HullMeshSegmentsSettings settings = Resources.FindObjectsOfTypeAll<HullMeshSegmentsSettings>().FirstOrDefault();
-            Mesh mesh = settings != null ? settings.GetSegmentMesh(type) : null;
+            Mesh mesh = null;
+            if (settings != null)
+            {
+                ReadingGameMesh = true;
+                try { mesh = settings.GetSegmentMesh(type); }
+                finally { ReadingGameMesh = false; }
+            }
             if (mesh == null || !mesh.isReadable) return null;
             Vector3[] v = mesh.vertices;
             if (v.Length < 3) return null;
