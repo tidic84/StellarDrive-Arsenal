@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.4.0", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.5.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 4;
+        internal const int ProtocolVersion = 6;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -48,6 +48,8 @@ namespace Arsenal
             Explosives.Init();
             Missiles.Init();
             Projectiles.Init();
+            Flares.Init();
+            ThreatWarning.Init();
             Effects.Init(HarmonyInstance);
             CombatHud.Init();
             Armory.Armory.Init();
@@ -72,6 +74,8 @@ namespace Arsenal
             Explosives.Reset();
             Missiles.Reset();
             Projectiles.Reset();
+            Flares.Reset();
+            ThreatWarning.Reset();
             Effects.Reset();
             GunnerSeat.Reset();
             ShipWeapons.ResetAll();
@@ -86,6 +90,7 @@ namespace Arsenal
                 ShipWeapons.Ensure();
                 CombatHud.Ensure();
                 LockHud.Ensure();
+                ThreatWarning.Ensure();
                 Armory.ArmoryUi.Ensure();
             }
 #if DEV

@@ -157,7 +157,7 @@ namespace Arsenal.Visual
             return m;
         }
 
-        private static Material TracerMat => _tracerMat != null ? _tracerMat : (_tracerMat = Assets.Glow(new Color(1f, 0.55f, 0.2f), 6f));
+        private static Material TracerMat => _tracerMat != null ? _tracerMat : (_tracerMat = Assets.Glow(new Color(1f, 0.6f, 0.3f), 3.5f));
         private static Material FlashMat => _flashMat != null ? _flashMat : (_flashMat = Assets.Glow(new Color(1f, 0.6f, 0.25f), 10f));
         private static Material FireMat => _fireMat != null ? _fireMat : (_fireMat = Assets.Glow(new Color(1f, 0.45f, 0.12f), 14f));
 
@@ -238,13 +238,14 @@ namespace Arsenal.Visual
             lr.sharedMaterial = TracerMat;
             lr.positionCount = 2;
             lr.useWorldSpace = true;
-            lr.startWidth = width;
-            lr.endWidth = width * 0.6f;
-            lr.numCapVertices = 2;
+            // discreet: thin, short and dim, a hint of the bullet's path rather than a laser
+            lr.startWidth = width * 0.7f;
+            lr.endWidth = width * 0.3f;
+            lr.numCapVertices = 1;
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.SetPosition(0, from);
             lr.SetPosition(1, from);
-            Instance._items.Add(new Tracer { Line = lr, From = from, To = to, Speed = speed, Length = Mathf.Min(6f, speed * 0.02f), Life = 3f });
+            Instance._items.Add(new Tracer { Line = lr, From = from, To = to, Speed = speed * 1.2f, Length = Mathf.Min(4.5f, speed * 0.012f), Life = 3f });
         }
 
         public static void MuzzleFlash(Vector3 pos, Vector3 dir, float size, Transform follow = null)

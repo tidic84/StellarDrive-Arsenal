@@ -26,12 +26,16 @@ namespace Arsenal.Weapons
         public float Progress { get; private set; }
         public Vector3 Origin { get; private set; }
 
+        public const float LosGrace = 0.5f; // a target hidden longer than this (behind a hill, a ship...) is dropped
+
         private float _nextTone;
+        private float _hiddenFor;
 
         public void Clear()
         {
             Candidate = Locked = 0;
             Progress = 0f;
+            _hiddenFor = 0f;
         }
 
         /// <summary>Runs one frame. <paramref name="excludeRoot"/>: the shooter's own ship (0 = none).</summary>
@@ -43,9 +47,15 @@ namespace Arsenal.Weapons
                 Clear();
                 return;
             }
-            // keep the current target while it stays in the wider cone
+            // keep the current target while it stays in the wider cone and in sight
             uint keep = Locked != 0 ? Locked : Candidate;
             if (keep != 0 && !Valid(keep, from, fwd, excludeRoot, Locked != 0 ? KeepCone : Cone * 1.3f)) keep = 0;
+            if (keep != 0)
+            {
+                _hiddenFor = Seen(keep, from, excludeRoot) ? 0f : _hiddenFor + dt;
+                if (_hiddenFor > LosGrace) keep = 0;
+            }
+            if (keep == 0) _hiddenFor = 0f;
             if (keep == 0)
             {
                 keep = Best(from, fwd, excludeRoot);
@@ -60,13 +70,15 @@ namespace Arsenal.Weapons
             if (Locked != keep)
             {
                 Locked = 0;
-                Progress += dt / LockTime;
+                // the lock only builds up while the target is actually visible
+                if (_hiddenFor <= 0f) Progress += dt / LockTime;
                 if (Progress >= 1f)
                 {
                     Progress = 1f;
                     Locked = keep;
                 }
             }
+            ThreatWarning.ReportLock(keep, Locked != 0, from);
             if (!sounds || Time.time < _nextTone) return;
             Sounds.LockTone(from, Locked != 0);
             _nextTone = Time.time + (Locked != 0 ? 0.11f : Mathf.Lerp(0.45f, 0.12f, Progress));
@@ -81,6 +93,9 @@ namespace Arsenal.Weapons
             float d = to.magnitude;
             return d >= MinRange && d <= Range && Vector3.Angle(fwd, to) <= cone;
         }
+
+        private static bool Seen(uint id, Vector3 from, uint excludeRoot) =>
+            Svc.ShipsClient.TryGetTrackedShip(id, out TrackedShipClient s) && s.IsRigidbodyLoaded && ShipWeapons.CanSee(from, s, excludeRoot);
 
         private uint Best(Vector3 from, Vector3 fwd, uint excludeRoot)
         {
@@ -97,7 +112,7 @@ namespace Arsenal.Weapons
                 float angle = Vector3.Angle(fwd, to);
                 if (angle > Cone) continue;
                 float score = angle * 30f + d * 0.02f;
-                if (score < bestScore)
+                if (score < bestScore && ShipWeapons.CanSee(from, s, excludeRoot))
                 {
                     bestScore = score;
                     best = s.Id;

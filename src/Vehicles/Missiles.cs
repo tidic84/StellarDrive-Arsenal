@@ -68,6 +68,7 @@ namespace Arsenal.Vehicles
             go.transform.SetPositionAndRotation(from, Quaternion.LookRotation(velocity.sqrMagnitude > 0.01f ? velocity : Vector3.forward));
             go.AddComponent<MeshFilter>().sharedMesh = Mesh;
             go.AddComponent<MeshRenderer>().sharedMaterial = Assets.ToolAtlas;
+            MissileTrail.Attach(go, 1f, 5f, 2.5f);
             var sim = go.AddComponent<MissileSim>();
             sim.Velocity = velocity;
             sim.Target = target;
@@ -108,6 +109,8 @@ namespace Arsenal.Vehicles
             Launch(from, vel, target, shooter, false, id, owner);
         }
 
+        public static bool TryGet(int owner, uint id, out MissileSim sim) => Flying.TryGetValue(Key(owner, id), out sim) && sim != null;
+
         public static void InterceptLocal(int owner, uint id)
         {
             if (Flying.TryGetValue(Key(owner, id), out MissileSim sim) && sim != null) sim.Boom();
@@ -136,24 +139,19 @@ namespace Arsenal.Vehicles
         public int OwnerClient;
 
         private float _age;
-        private float _nextPuff;
-        private Light _flame;
         private const float Thrust = 90f;
         private const float TurnRate = 75f;
         private const float Life = 14f;
         private const float Fuse = 3f;
+        private const float DecoyChance = 0.35f;
 
-        private void Start()
+        public FlareSim Decoy;
+        private readonly HashSet<uint> _seenFlares = new HashSet<uint>();
+
+        public void SetDecoy(FlareSim flare)
         {
-            var lg = new GameObject("Flame");
-            lg.transform.SetParent(transform, false);
-            lg.transform.localPosition = new Vector3(0, 0, -0.5f);
-            _flame = lg.AddComponent<Light>();
-            _flame.type = LightType.Point;
-            _flame.color = new Color(1f, 0.6f, 0.3f);
-            _flame.range = 5f;
-            _flame.intensity = 4f;
-            _flame.shadows = LightShadows.None;
+            Target = 0;
+            Decoy = flare;
         }
 
         private void Update()
@@ -166,8 +164,28 @@ namespace Arsenal.Vehicles
                 return;
             }
 
-            // guidance: lead pursuit towards the target's centre of mass
+            // guidance: lead pursuit towards the target's centre of mass, unless a flare pulled the seeker off
             Vector3 dir = Velocity.sqrMagnitude > 0.01f ? Velocity.normalized : transform.forward;
+            if (Decoy != null && Decoy.Burning)
+            {
+                Vector3 to = Decoy.transform.position - transform.position;
+                if (to.sqrMagnitude < Fuse * Fuse * 0.5f)
+                {
+                    Boom();
+                    return;
+                }
+                dir = Vector3.RotateTowards(dir, to.normalized, TurnRate * Mathf.Deg2Rad * dt, 0f);
+            }
+            else if (Decoy != null) Decoy = null;
+            if (Owner && Target != 0 && Decoy == null && _age > 0.25f)
+            {
+                FlareSim flare = Flares.Seduce(transform.position, dir, DecoyChance, _seenFlares);
+                if (flare != null)
+                {
+                    SetDecoy(flare);
+                    Flares.ReportDecoy(true, OwnerClient, Id, flare);
+                }
+            }
             TrackedShipClient target = null;
             if (Target != 0 && Svc.ShipsClient.TryGetTrackedShip(Target, out target) && target.IsRigidbodyLoaded && _age > 0.25f)
             {
@@ -205,18 +223,12 @@ namespace Arsenal.Vehicles
                 Boom();
                 return;
             }
-
-            if (_age >= _nextPuff)
-            {
-                _nextPuff = _age + 0.035f;
-                Fx.Puff(transform.position - dir * 0.5f, 0.12f + Mathf.Min(0.2f, _age * 0.05f), new Color(0.8f, 0.78f, 0.75f), 1.6f, 1, -dir * 2f);
-            }
-            if (_flame != null) _flame.intensity = 3f + Random.value * 2f;
         }
 
         Vector3 IThreat.Position => transform.position;
         Vector3 IThreat.Velocity => Velocity;
         uint IThreat.ShooterRoot => ShooterRoot;
+        uint IThreat.HomingTarget => Target;
 
         private void OnEnable() => Projectiles.Threats.Add(this);
         private void OnDisable() => Projectiles.Threats.Remove(this);

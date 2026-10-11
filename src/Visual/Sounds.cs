@@ -108,6 +108,20 @@ namespace Arsenal.Visual
         public static void LockTone(Vector3 pos, bool locked) =>
             Play(locked ? "lockon" : "acquire", () => Tone(locked ? 0.07f : 0.05f, locked ? 2350f : 1200f), pos, 0.3f, 1f, 1f, 15f);
 
+        /// <summary>Cockpit warning tones, played flat for the pilot: radar search, lock, incoming missile (two alternating pitches).</summary>
+        public static void Warning(WarningTone tone, bool alt = false)
+        {
+            Vector3 pos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
+            switch (tone)
+            {
+                case WarningTone.Search: Play("rwr_search", () => Tone(0.07f, 880f), pos, 0.3f, 1f, 50f, 60f); break;
+                case WarningTone.Locked: Play("rwr_lock", () => Tone(0.1f, 1320f), pos, 0.35f, 1f, 50f, 60f); break;
+                case WarningTone.Missile: Play(alt ? "rwr_missile2" : "rwr_missile", () => Tone(0.08f, alt ? 1650f : 2200f), pos, 0.42f, 1f, 50f, 60f); break;
+            }
+        }
+
+        public static void FlarePop(Vector3 pos) => Play("flarepop", () => Gunshot(0.18f, 2600f, 210f, 0.35f), pos, 0.55f, Jitter(0.1f), 3f, 250f);
+
         public static void MissileLaunch(Vector3 pos) => Play("missile", () => Whoosh(1.4f, true), pos, 1f, Jitter(0.05f), 4f, 500f);
 
         public static FMOD.Channel LaserLoop(Vector3 pos) => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true);
@@ -478,5 +492,10 @@ namespace Arsenal.Visual
     internal enum SoundStyle : byte
     {
         Pistol, Rifle, Smg, Heavy, ShipGun, Laser, Gauss, Plasma, Rail, Emp, Arc, Launcher, Flame, Beam, Charge,
+    }
+
+    internal enum WarningTone : byte
+    {
+        Search, Locked, Missile,
     }
 }

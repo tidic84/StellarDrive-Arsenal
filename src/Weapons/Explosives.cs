@@ -88,6 +88,7 @@ namespace Arsenal.Weapons
         public static void Init()
         {
             ArsenalNet.OnServer(Op.ExplosionRequest, ServerOnExplosionRequest);
+            ArsenalNet.OnServer(Op.ShipExplosionRequest, ServerOnShipExplosionRequest);
             ArsenalNet.OnServer(Op.PlaceCharge, ServerOnPlaceCharge);
             ArsenalNet.OnServer(Op.DetonateCharges, ServerOnDetonate);
             ArsenalNet.OnServer(Op.ConsumeItem, ServerOnConsume);
@@ -138,6 +139,33 @@ namespace Arsenal.Weapons
                 w.Write(pos);
                 w.Write((byte)kind);
             });
+        }
+
+        /// <summary>
+        /// A blast pinned to a ship (point in its local frame): the server places it on that ship's own pose,
+        /// so a hit on a ship flying at thousands of m/s still lands on it despite the network delay.
+        /// </summary>
+        public static void RequestExplosionOnShip(uint shipId, Vector3 shipLocal, Vector3 visualPos, WeaponKind kind)
+        {
+            (float radius, _, _) = BlastFor(kind);
+            DamageObjectsAround(visualPos, radius);
+            ArsenalNet.SendToServer(Op.ShipExplosionRequest, w =>
+            {
+                w.Write(shipId);
+                w.Write(shipLocal);
+                w.Write((byte)kind);
+            });
+        }
+
+        private static void ServerOnShipExplosionRequest(NetworkConnection conn, BinaryReader r)
+        {
+            uint shipId = r.ReadUInt32();
+            Vector3 local = r.ReadVector3();
+            var kind = (WeaponKind)r.ReadByte();
+            TrackedShipServer ship = Svc.ShipsServer.Ships.FirstOrDefault(s => s.Id == shipId);
+            if (ship == null || !HullDamage.TryGetServerWorldPose(ship, out Vector3 pos, out Quaternion rot, out var rootPhysics)) return;
+            (float radius, float power, float player) = BlastFor(kind);
+            ServerExplode(rootPhysics.SpaceId, pos + rot * local, radius, power, player, conn, kind);
         }
 
         /// <summary>Radius, hull power and player damage of each kind of blast (shared by clients and server).</summary>

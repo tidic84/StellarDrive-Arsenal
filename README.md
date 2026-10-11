@@ -30,6 +30,7 @@ Bullets and blasts damage hull panels for real:
 
 - **Breaking.** Every hit also wears the panel down. Once it has no strength left, or half of its area is gone, it breaks into the game's own debris.
 - **Blasts push ships.** An explosion shoves every ship in reach away from it, from the side of the hull it hits — off-centre hits also set it spinning. The bigger the warhead (grenade < rocket < SAM < torpedo), the harder the push, so a rocket or missile hit visibly knocks an aircraft off its course.
+- **Cinematic missile trails.** Rockets, missiles, SAMs and torpedoes leave a glowing exhaust core, a long vapour streak that stays visible from far away, and a thick trail of billowing smoke that hangs in the air for seconds. Bullet tracers are kept short and discreet.
 - Damage is decided by the host and synced to every player, and it is **saved with the world** (`arsenal-damage.txt` next to `world.json`).
 
 Every hull piece gets round holes and breaks — flat panels, wall and floor corners, slopes, slope corners and pivoted walls (their real outline is read from the game's meshes). A round that fits inside an existing hole passes through untouched; one that clips the rim bites into it and widens the hole, so firing at the same spot keeps chewing the piece. Doors take damage and break but keep no holes.
@@ -100,10 +101,14 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **"Longinus" ship railgun**: charges for a second, then fires a slug that goes through several ships.
 - **"Leviathan" torpedo tube**: locks a ship and launches a slow, homing, very heavy torpedo (15 s reload).
 - **"Hail" rocket pod**: 9 unguided rockets fired in a salvo while the signal is on, full reload in 12 s.
-- **"Falcon" SAM battery**: a radar turret that turns by itself towards the nearest **flying** ship, locks it automatically and fires a guided missile while its signal is on (4 missiles, reloads by itself).
+- **"Falcon" SAM battery**: a radar turret that turns by itself towards the nearest **flying** ship, locks it automatically and fires a guided missile while its signal is on (4 missiles, reloads by itself). It only locks what its radar can actually see: a ship behind a hill, a ridge or another ship is ignored, and it holds fire while its launch path is blocked.
+- **"Lightning" hypersonic missile launcher**: locks the nearest ship in front of it out to 8 km — even one flying far off in its own physics space — and fires a missile that accelerates at 6,000 m/s² up to 20,000 m/s. Proportional-navigation guidance and a proximity fuse checked along the whole path of each frame let it catch ships racing at 5,000–10,000 m/s, and its blast is pinned to the ship it hits so network lag can't make it miss. 2 missiles, 10 s reload.
+- **"Swarm" flare dispenser**: throws a salvo of 6 burning heat flares on each signal pulse (4 salvos, reloads by itself). Every guided missile, SAM or torpedo that sees a hot flare may turn away and blow up on it instead of the ship.
 - **Armory**: the weapon fabrication terminal (see above).
 
 While you pilot, the HUD shows where each weapon points, the missile and torpedo lock, the laser heat, the railgun charge and what the point defence is tracking. A ship hit by an ion bolt or an EMP can't fly or shoot until it recovers.
+
+**Radar warning**: when someone's lock-on (hand SAM launcher, SAM battery, missile pod, torpedo tube) sweeps your ship you hear a slow ping ("ENEMY RADAR"); once they are locked, a fast beep ("ENEMY LOCK"); and a guided missile coming at you sets off a two-tone alarm that speeds up as it closes in ("INCOMING MISSILE"), with markers around the screen centre showing where the threat comes from. Pop flares!
 
 ![Ship weapons](docs/models_parts.jpg)
 ![Gunship](docs/gunship.jpg)
@@ -153,7 +158,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.4.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.5.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

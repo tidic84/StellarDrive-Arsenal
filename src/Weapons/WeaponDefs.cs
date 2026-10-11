@@ -37,6 +37,7 @@ namespace Arsenal.Weapons
         Capital = 29,
         ShipRockets = 30,
         ShipSam = 31,
+        HyperMissile = 32,
     }
 
     internal enum FireMode : byte

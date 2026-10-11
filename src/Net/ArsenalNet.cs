@@ -38,6 +38,10 @@ namespace Arsenal.Net
         ProjectileDone = 16,
         InterceptRequest = 17,
         Fabricate = 18,
+        LockReport = 19,
+        FlareLaunch = 20,
+        DecoyReport = 21,
+        ShipExplosionRequest = 22,
 
         // server -> client
         PanelState = 64,
@@ -55,6 +59,9 @@ namespace Arsenal.Net
         ProjectileGone = 76,
         Intercept = 77,
         FabricateResult = 78,
+        LockWarn = 79,
+        FlareSpawn = 80,
+        Decoy = 81,
     }
 
     /// <summary>Registers the broadcast with whichever NetworkManager is running and routes packets by opcode.</summary>

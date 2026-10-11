@@ -23,6 +23,7 @@ namespace Arsenal.Damage
         private static readonly Dictionary<int, uint> BodyIds = new Dictionary<int, uint>();
 #if DEV
         public static readonly HashSet<uint> DevHover = new HashSet<uint>();
+        public static readonly Dictionary<uint, Vector3> DevFly = new Dictionary<uint, Vector3>(); // forced velocity (server physics space)
         public static bool DevNoKnock;
         private static float _devKnockedAt = -10f;
 #endif
@@ -53,7 +54,7 @@ namespace Arsenal.Damage
         private static void ApplyForcesPostfix(ShipRigidbody __instance)
         {
 #if DEV
-            if (DevHover.Count == 0 && Pending.Count == 0) return;
+            if (DevHover.Count == 0 && DevFly.Count == 0 && Pending.Count == 0) return;
 #else
             if (Pending.Count == 0) return;
 #endif
@@ -69,6 +70,11 @@ namespace Arsenal.Damage
             {
                 Rigidbody hb = RigidbodyField(__instance);
                 if (hb != null && !hb.isKinematic) { hb.linearVelocity *= 0.5f; hb.angularVelocity *= 0.5f; }
+            }
+            if (DevFly.TryGetValue(id, out Vector3 fly))
+            {
+                Rigidbody fb = RigidbodyField(__instance);
+                if (fb != null && !fb.isKinematic) { fb.linearVelocity = fly; fb.angularVelocity = Vector3.zero; }
             }
 #endif
             if (!Pending.TryGetValue(id, out var list)) return;

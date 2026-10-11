@@ -386,6 +386,116 @@ namespace Arsenal.Visual
             return root;
         }
 
+        /// <summary>
+        /// "Foudre" hypersonic missile launcher: a long armoured twin rail with two slim missiles ("Tube" points,
+        /// hidden as they leave), blast deflector at the back, cooling fins and blue capacitor bands.
+        /// </summary>
+        public static GameObject HyperLauncher()
+        {
+            var root = new GameObject("HyperLauncherModel");
+            var k = new MeshKit();
+            Mount(k, 0.5f, 0.6f);
+            // cradle and the long launch rails
+            k.ChamferBox(new Vector3(0, 0.17f, -0.02f), new Vector3(0.34f, 0.12f, 0.5f), 0.015f, Shade.HatchLight, Shade.Light);
+            k.ChamferBox(new Vector3(0, 0.25f, 0.08f), new Vector3(0.42f, 0.04f, 1.1f), 0.01f, Shade.Dark, Shade.Black);
+            foreach (float x in new[] { -0.11f, 0.11f })
+            {
+                k.ChamferBox(new Vector3(x, 0.285f, 0.08f), new Vector3(0.05f, 0.03f, 1.06f), 0.006f, Shade.Grey, Shade.Dark);
+                for (int i = 0; i < 4; i++)
+                    k.Box(new Vector3(x, 0.274f, -0.3f + i * 0.25f), new Vector3(0.09f, 0.012f, 0.03f), Shade.Black);
+            }
+            // capacitor bands and cooling fins on the cradle sides
+            foreach (float side in new[] { -1f, 1f })
+            {
+                for (int i = 0; i < 3; i++)
+                    k.Box(new Vector3(side * 0.172f, 0.17f, -0.17f + i * 0.13f), new Vector3(0.006f, 0.09f, 0.035f), Shade.Blue);
+                for (int i = 0; i < 5; i++)
+                    k.Box(new Vector3(side * 0.19f, 0.16f, 0.12f + i * 0.03f), new Vector3(0.03f, 0.07f, 0.008f), Shade.Dark);
+            }
+            // blast deflector behind the rails
+            GunParts.With(k, new Vector3(0, 0.3f, -0.5f), new Vector3(-35f, 0, 0), () =>
+                k.ChamferBox(Vector3.zero, new Vector3(0.44f, 0.16f, 0.025f), 0.008f, Shade.HatchDark, Shade.Black));
+            k.Box(new Vector3(0, 0.255f, 0.62f), new Vector3(0.3f, 0.01f, 0.03f), Shade.Yellow);
+            k.At(Vector3.zero);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.HyperLauncher"), Assets.ToolAtlas);
+            Lens(root.transform, new Vector3(0, 0.2f, 0.232f), 0.02f, new Color(0.4f, 0.75f, 1f));
+            Mesh missile = HyperMissile();
+            foreach (float x in new[] { -0.11f, 0.11f })
+            {
+                Transform t = Point(root.transform, "Tube", new Vector3(x, 0.345f, 0.1f));
+                WeaponModels.MeshChild(t, "Missile", missile, Assets.ToolAtlas);
+            }
+            return root;
+        }
+
+        /// <summary>Slim hypersonic missile, nose along +z, 1.2 m long.</summary>
+        public static Mesh HyperMissile()
+        {
+            var k = new MeshKit();
+            k.Cylinder(new Vector3(0, 0, -0.05f), 0.035f, 0.9f, 10, Shade.White, Shade.Light);
+            k.Frustum(new Vector3(0, 0, 0.4f), 0.035f, 0.0f, 0.3f, 10, Shade.Dark);
+            k.Cylinder(new Vector3(0, 0, 0.18f), 0.037f, 0.05f, 10, Shade.Blue, Shade.Blue);
+            k.Cylinder(new Vector3(0, 0, -0.2f), 0.037f, 0.03f, 10, Shade.Blue, Shade.Blue);
+            k.Frustum(new Vector3(0, 0, -0.5f), 0.025f, 0.035f, 0.05f, 10, Shade.Black);
+            for (int i = 0; i < 4; i++)
+            {
+                k.At(Vector3.zero, new Vector3(0, 0, i * 90f + 45f));
+                k.Box(new Vector3(0, 0.06f, -0.42f), new Vector3(0.006f, 0.05f, 0.12f), Shade.Dark);
+            }
+            k.At(Vector3.zero);
+            return k.Build("Arsenal.HyperMissile");
+        }
+
+        public const int FlareTubeCount = 6;
+
+        /// <summary>Mouth of flare tube i (part space) and the direction it throws: two banks of three, tilted outwards and back.</summary>
+        public static Vector3 FlareTube(int i, out Vector3 dir)
+        {
+            float side = i < 3 ? -1f : 1f;
+            float z = -0.11f + (i % 3) * 0.11f;
+            Quaternion tilt = Quaternion.Euler(0, 0, -side * 32f);
+            dir = (tilt * Quaternion.Euler(-12f, 0, 0) * Vector3.up).normalized; // a little backwards, away from the bow
+            return new Vector3(side * 0.1f, 0.25f, 0f) + tilt * new Vector3(0, 0.085f, z);
+        }
+
+        /// <summary>"Nuée" flare dispenser: armoured block with two tilted banks of three flare tubes ("Muzzle" points).</summary>
+        public static GameObject FlareDispenser()
+        {
+            var root = new GameObject("FlareDispenserModel");
+            var k = new MeshKit();
+            Mount(k, 0.5f, 0.5f);
+            // housing with hazard stripes and a rear cable box
+            k.ChamferBox(new Vector3(0, 0.17f, 0), new Vector3(0.38f, 0.14f, 0.42f), 0.02f, Shade.HatchLight, Shade.Light);
+            for (int i = 0; i < 5; i++)
+                k.Box(new Vector3(0, 0.115f, -0.17f + i * 0.085f), new Vector3(0.385f, 0.02f, 0.04f), i % 2 == 0 ? Shade.Yellow : Shade.Black);
+            k.ChamferBox(new Vector3(0, 0.14f, -0.24f), new Vector3(0.16f, 0.08f, 0.05f), 0.008f, Shade.Dark, Shade.Black);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                // tilted tube bank
+                GunParts.With(k, new Vector3(side * 0.1f, 0.25f, 0f), new Vector3(0, 0, -side * 32f), () =>
+                {
+                    k.ChamferBox(new Vector3(0, 0.02f, 0), new Vector3(0.15f, 0.13f, 0.36f), 0.012f, Shade.Dark, Shade.HatchDark);
+                    for (int i = 0; i < 3; i++)
+                        GunParts.With(k, new Vector3(0, 0.085f, -0.11f + i * 0.11f), new Vector3(-90f, 0, 0), () =>
+                        {
+                            k.Tube(Vector3.zero, 0.042f, 0.034f, 0.025f, 12, Shade.Grey, Shade.Black);
+                            k.Cylinder(new Vector3(0, 0, -0.012f), 0.034f, 0.004f, 12, Shade.Red, Shade.Red); // flare cap inside
+                        });
+                });
+                for (int i = 0; i < 3; i++)
+                    GunParts.Screw(k, side * 0.192f, 0.17f, -0.14f + i * 0.14f, 0.008f);
+            }
+            k.At(Vector3.zero);
+            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.FlareDispenser"), Assets.ToolAtlas);
+            Lens(root.transform, new Vector3(0, 0.245f, 0.212f), 0.02f, new Color(1f, 0.55f, 0.2f));
+            for (int i = 0; i < FlareTubeCount; i++)
+            {
+                Transform t = Point(root.transform, "Muzzle", FlareTube(i, out Vector3 d));
+                t.localRotation = Quaternion.LookRotation(d);
+            }
+            return root;
+        }
+
         private static Mesh SamDome()
         {
             var k = new MeshKit();

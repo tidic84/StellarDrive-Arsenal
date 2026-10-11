@@ -22,6 +22,7 @@ namespace Arsenal.Weapons
         Ion = 4,      // ship ion cannon: knocks ships out
         Torpedo = 5,  // "Leviathan": slow homing heavy warhead
         Sam = 6,      // surface-to-air missile: fast, agile, proximity fuse
+        Hyper = 7,    // "Foudre" hypersonic missile: thousands of m/s, catches the fastest ships
     }
 
     internal sealed class ProjectileSpec
@@ -34,6 +35,8 @@ namespace Arsenal.Weapons
         public bool Homing;
         public float Fuse = 4f;        // proximity fuse distance to the target (homing)
         public float GuideAfter = 0.5f; // seconds of straight flight before the seeker steers
+        public float DecoyChance;       // odds that one flare in its seeker view pulls it off (heat seekers)
+        public bool Hypersonic;         // intercept guidance on the target's real velocity, swept proximity fuse, blast pinned to the ship hit
         public float TrailEvery;
         public Color TrailColor = new Color(0.8f, 0.78f, 0.75f);
         public float TrailSize = 0.12f;
@@ -45,6 +48,7 @@ namespace Arsenal.Weapons
         Vector3 Position { get; }
         Vector3 Velocity { get; }
         uint ShooterRoot { get; }
+        uint HomingTarget { get; } // ship it is guided onto (0 = unguided, or decoyed)
         void ShootDown();
     }
 
@@ -79,12 +83,19 @@ namespace Arsenal.Weapons
             [ProjectileKind.Torpedo] = new ProjectileSpec
             {
                 Kind = ProjectileKind.Torpedo, Blast = WeaponKind.Torpedo, Speed = 25f, MaxSpeed = 60f, Accel = 12f, TurnRate = 22f, Life = 35f, Radius = 0.35f,
-                BlastRadius = 9f, BlastPower = 4200f, BlastPlayerDamage = 170f, Homing = true, TrailEvery = 0.035f, TrailSize = 0.15f,
+                BlastRadius = 9f, BlastPower = 4200f, BlastPlayerDamage = 170f, Homing = true, DecoyChance = 0.2f, TrailEvery = 0.035f, TrailSize = 0.15f,
             },
             [ProjectileKind.Sam] = new ProjectileSpec
             {
                 Kind = ProjectileKind.Sam, Blast = WeaponKind.SamLauncher, Speed = 40f, MaxSpeed = 175f, Accel = 160f, TurnRate = 150f, Life = 14f, Radius = 0.1f,
-                BlastRadius = 5f, BlastPower = 1900f, BlastPlayerDamage = 120f, Homing = true, Fuse = 6f, GuideAfter = 0.25f, TrailEvery = 0.02f, TrailSize = 0.1f,
+                BlastRadius = 5f, BlastPower = 1900f, BlastPlayerDamage = 120f, Homing = true, DecoyChance = 0.3f, Fuse = 6f, GuideAfter = 0.25f, TrailEvery = 0.02f, TrailSize = 0.1f,
+            },
+            [ProjectileKind.Hyper] = new ProjectileSpec
+            {
+                // launched at 400 m/s over the ship's own speed, then +6000 m/s every second up to 20 km/s
+                Kind = ProjectileKind.Hyper, Blast = WeaponKind.HyperMissile, Speed = 400f, MaxSpeed = 20000f, Accel = 6000f, TurnRate = 70f, Life = 10f, Radius = 0.12f,
+                BlastRadius = 6f, BlastPower = 2600f, BlastPlayerDamage = 150f, Homing = true, Hypersonic = true, DecoyChance = 0.12f, Fuse = 15f, GuideAfter = 0.15f,
+                TrailSize = 0.14f, TrailColor = new Color(0.85f, 0.88f, 0.95f),
             },
         };
 
@@ -128,6 +139,8 @@ namespace Arsenal.Weapons
         }
 
         public static uint Key(int owner, uint id) => (uint)(owner * 100000) + id;
+
+        public static bool TryGet(int owner, uint id, out ProjectileSim sim) => Flying.TryGetValue(Key(owner, id), out sim) && sim != null;
 
         public static void Launch(ProjectileKind kind, Vector3 from, Vector3 velocity, uint target, uint shooterRoot)
         {
@@ -178,13 +191,31 @@ namespace Arsenal.Weapons
             Vector3 up = Fx.Up;
             sim.GravityVector = ClientOrigin.LocalPhysicsSpace is WorldTracking.Interface.Model.Spaces.PlanetSurfaceSpace ? -up * 9.81f * spec.Gravity : Vector3.zero;
             Flying[Key(ownerClient, id)] = sim;
+            switch (kind)
+            {
+                case ProjectileKind.Rocket: MissileTrail.Attach(go, 0.75f, 2.5f, 1.2f); break;
+                case ProjectileKind.Sam: MissileTrail.Attach(go, 1f, 5f, 2.5f); break;
+                case ProjectileKind.Torpedo: MissileTrail.Attach(go, 1.8f, 6f, 3f).Nozzle = 1f; break;
+                case ProjectileKind.Hyper:
+                {
+                    // blue-white scramjet glow and a long vapour streak that shows where it went
+                    MissileTrail t = MissileTrail.Attach(go, 1.3f, 4f, 4f);
+                    t.Core = new Color(0.55f, 0.75f, 1f);
+                    t.Streak = new Color(0.85f, 0.92f, 1f);
+                    t.Nozzle = 0.55f;
+                    break;
+                }
+            }
             if (!owner)
             {
                 // the shooter plays its own launch sound; the others hear it here
-                if (kind == ProjectileKind.Torpedo) Sounds.MissileLaunch(from);
+                if (kind == ProjectileKind.Torpedo || kind == ProjectileKind.Hyper) Sounds.MissileLaunch(from);
                 else if (kind == ProjectileKind.Plasma || kind == ProjectileKind.Ion) Sounds.Shot(spec.Blast, from);
             }
         }
+
+        private static Mesh _hyperMesh;
+        private static Mesh HyperMesh => _hyperMesh != null ? _hyperMesh : (_hyperMesh = PartModels.HyperMissile());
 
         private static GameObject Visual(ProjectileKind kind)
         {
@@ -213,6 +244,9 @@ namespace Arsenal.Weapons
                 case ProjectileKind.Torpedo:
                     mf.sharedMesh = Missiles.Mesh;
                     child.localScale = new Vector3(2.4f, 2.4f, 2.2f);
+                    break;
+                case ProjectileKind.Hyper:
+                    mf.sharedMesh = HyperMesh;
                     break;
             }
             return go;
@@ -268,9 +302,20 @@ namespace Arsenal.Weapons
         private bool _hasLast;
         private bool _done;
 
+        public FlareSim Decoy;
+        private readonly HashSet<uint> _seenFlares = new HashSet<uint>();
+
         public Vector3 Position => transform.position;
         Vector3 IThreat.Velocity => Velocity;
         public uint ShooterRoot => ShooterRootId;
+        public uint HomingTarget => Spec.Homing ? Target : 0;
+
+        /// <summary>A flare pulled the seeker off its ship.</summary>
+        public void SetDecoy(FlareSim flare)
+        {
+            Target = 0;
+            Decoy = flare;
+        }
 
         private void OnEnable() => Projectiles.Threats.Add(this);
         private void OnDisable() => Projectiles.Threats.Remove(this);
@@ -292,7 +337,49 @@ namespace Arsenal.Weapons
                 return;
             }
             Vector3 dir = Velocity.sqrMagnitude > 0.01f ? Velocity.normalized : transform.forward;
-            if (Spec.Homing && Target != 0 && _age > Spec.GuideAfter && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
+            if (Decoy != null && Decoy.Burning)
+            {
+                // chasing a flare: blows up on it
+                Vector3 to = Decoy.transform.position - transform.position;
+                if (to.sqrMagnitude < Spec.Fuse * Spec.Fuse * 0.5f)
+                {
+                    Detonate();
+                    return;
+                }
+                dir = Vector3.RotateTowards(dir, to.normalized, Spec.TurnRate * Mathf.Deg2Rad * dt, 0f);
+            }
+            else if (Decoy != null) Decoy = null; // burnt out: flies on straight
+            if (Owner && Spec.DecoyChance > 0f && Target != 0 && Decoy == null && _age > Spec.GuideAfter)
+            {
+                FlareSim flare = Flares.Seduce(transform.position, dir, Spec.DecoyChance, _seenFlares);
+                if (flare != null)
+                {
+                    SetDecoy(flare);
+                    Flares.ReportDecoy(false, OwnerClient, Id, flare);
+                }
+            }
+            bool chasing = false;
+            Vector3 tCenter = Vector3.zero, tVel = Vector3.zero, tOrigin = Vector3.zero;
+            Quaternion tRot = Quaternion.identity;
+            if (Spec.Hypersonic)
+            {
+                // works on ships in other physics spaces too (far away, or racing at thousands of m/s)
+                chasing = Target != 0 && _age > Spec.GuideAfter && ShipWeapons.TryGetShipMotion(Target, out tCenter, out tVel, out tOrigin, out tRot);
+                if (chasing)
+                {
+#if DEV
+                    if (Owner && Mathf.Repeat(_age, 0.25f) < dt)
+                    {
+                        ArsenalMod.Log.Msg($"[DEV] hyper age {_age:0.00}: {Vector3.Distance(tCenter, transform.position):0} m to target, {Velocity.magnitude:0} m/s, target {tVel} ({tVel.magnitude:0} m/s), moved {(tCenter - _devLastT) / Mathf.Max(0.01f, _age - _devLastAge)}, off-axis {Vector3.Angle(dir, tCenter - transform.position):0} deg");
+                        _devLastT = tCenter;
+                        _devLastAge = _age;
+                    }
+#endif
+                    _hyperAccel = Guidance(tCenter - transform.position, tVel - Velocity, tVel);
+                }
+                else _hyperAccel = dir * Spec.Accel;
+            }
+            else if (Spec.Homing && Target != 0 && _age > Spec.GuideAfter && Svc.ShipsClient.TryGetTrackedShip(Target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
             {
                 // lead pursuit: aim where the target will be when the missile gets there
                 Vector3 tp = ShipWeapons.TargetPoint(t);
@@ -305,16 +392,27 @@ namespace Arsenal.Weapons
                 dir = Vector3.RotateTowards(dir, want, Spec.TurnRate * Mathf.Deg2Rad * dt, 0f);
             }
             float speed = Mathf.Min(Spec.MaxSpeed, Velocity.magnitude + Spec.Accel * dt);
-            Velocity = Spec.Gravity > 0f ? Velocity + GravityVector * dt : dir * speed;
+            if (Spec.Hypersonic)
+            {
+                // vectored thrust: the motor accelerates the missile in any direction (turning a 10 km/s velocity
+                // vector by rotating it would never converge)
+                Vector3 a = _hyperAccel.sqrMagnitude > 1f ? _hyperAccel : dir * Spec.Accel;
+                Velocity = Vector3.ClampMagnitude(Velocity + a * dt, Spec.MaxSpeed);
+                dir = Velocity.normalized;
+            }
+            else Velocity = Spec.Gravity > 0f ? Velocity + GravityVector * dt : dir * speed;
 
             Vector3 step = Velocity * dt;
             float dist = step.magnitude;
+            if (chasing && _age > Spec.GuideAfter + 0.1f && SweptFuse(tCenter, tVel, tOrigin, tRot, step, dt))
+                return;
             if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, Spec.Radius, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
             {
                 bool own = _age < 0.4f && ShipWeapons.IsOwnShip(hit, ShooterRootId);
                 if (!own)
                 {
                     transform.position = hit.point - step / dist * Mathf.Max(0.05f, Spec.Radius);
+                    if (Spec.Hypersonic) PinTo(hit);
                     Impact(hit);
                     return;
                 }
@@ -336,13 +434,96 @@ namespace Arsenal.Weapons
                 _nextTrail = _age + Spec.TrailEvery;
                 if (Spec.Kind == ProjectileKind.Plasma || Spec.Kind == ProjectileKind.Ion)
                     Fx.Flame(transform.position, -dir * 2f, Spec.TrailSize);
-                else
-                {
+                else if (Spec.Kind == ProjectileKind.Grenade)
                     Fx.Puff(transform.position - dir * 0.3f, Spec.TrailSize, Spec.TrailColor, 1.2f, 1, -dir);
-                    // rocket motor flame
-                    if (Spec.Kind != ProjectileKind.Grenade) Fx.Flame(transform.position - dir * 0.35f, -dir * 3f, Spec.TrailSize * 0.8f);
+                // rockets and missiles: their MissileTrail does the exhaust
+            }
+        }
+
+        /// <summary>
+        /// Acceleration command (m/s², at most the motor's thrust). Closing in: proportional navigation, which
+        /// cancels the turning of the line of sight so the missile ends on a collision course whatever the speeds,
+        /// with the spare thrust pushing along the line of sight. Not closing (the target outruns it, or it flew
+        /// past): full thrust towards the intercept point until it closes again.
+        /// </summary>
+        private Vector3 Guidance(Vector3 rel, Vector3 relVel, Vector3 targetVel)
+        {
+            float dist = rel.magnitude;
+            if (dist < 0.01f) return Vector3.zero;
+            Vector3 u = rel / dist;
+            float closing = -Vector3.Dot(relVel, u);
+            if (closing < 50f)
+            {
+                float s = Mathf.Clamp(Velocity.magnitude + Spec.Accel, targetVel.magnitude + 500f, Spec.MaxSpeed);
+                Vector3 wantVel = Intercept(rel, targetVel, s).normalized * s;
+                return (wantVel - Velocity).normalized * Spec.Accel;
+            }
+            const float N = 4f;
+            Vector3 losRate = Vector3.Cross(rel, relVel) / (dist * dist); // rad/s, axis of the line-of-sight rotation
+            Vector3 lateral = N * closing * Vector3.Cross(losRate, u);
+            lateral = Vector3.ClampMagnitude(lateral, Spec.Accel);
+            float axial = Mathf.Sqrt(Mathf.Max(0f, Spec.Accel * Spec.Accel - lateral.sqrMagnitude));
+            return lateral + u * axial;
+        }
+
+        /// <summary>Direction to fly to meet a target at <paramref name="rel"/> moving at <paramref name="v"/>, flying at <paramref name="speed"/>.</summary>
+        private static Vector3 Intercept(Vector3 rel, Vector3 v, float speed)
+        {
+            // |rel + v t| = speed t  ->  (v.v - s^2) t^2 + 2 (rel.v) t + rel.rel = 0
+            float a = Vector3.Dot(v, v) - speed * speed, b = 2f * Vector3.Dot(rel, v), c = Vector3.Dot(rel, rel);
+            float t = -1f;
+            if (Mathf.Abs(a) < 0.001f) t = b < 0f ? -c / b : -1f;
+            else
+            {
+                float disc = b * b - 4f * a * c;
+                if (disc >= 0f)
+                {
+                    float sq = Mathf.Sqrt(disc);
+                    float t1 = (-b - sq) / (2f * a), t2 = (-b + sq) / (2f * a);
+                    t = t1 > 0f && (t1 < t2 || t2 <= 0f) ? t1 : t2;
                 }
             }
+            if (t <= 0f) t = rel.magnitude / Mathf.Max(1f, speed); // can't catch it yet: aim ahead anyway, the motor keeps pushing
+            return rel + v * Mathf.Min(t, 5f);
+        }
+
+        /// <summary>
+        /// Proximity fuse over the whole frame: at thousands of m/s the missile and its target cross hundreds
+        /// of metres per frame, so check their closest approach along both paths, not just the end positions.
+        /// </summary>
+        private bool SweptFuse(Vector3 targetCenter, Vector3 targetVel, Vector3 targetOrigin, Quaternion targetRot, Vector3 step, float dt)
+        {
+            Vector3 rel0 = targetCenter - transform.position;
+            Vector3 relStep = step - targetVel * dt; // the missile's move as seen from the target
+            float k = relStep.sqrMagnitude > 0.0001f ? Mathf.Clamp01(Vector3.Dot(rel0, relStep) / relStep.sqrMagnitude) : 0f;
+            Vector3 miss = rel0 - relStep * k; // target centre minus missile, at the closest moment
+            if (miss.sqrMagnitude > Spec.Fuse * Spec.Fuse) return false;
+            // blow up on the side of the ship it came from, a little short of the centre
+            Vector3 point = targetCenter - miss.normalized * Mathf.Min(miss.magnitude, 2f);
+            transform.position = point;
+            _pinShip = Target;
+            _pinLocal = Quaternion.Inverse(targetRot) * (point - targetOrigin);
+#if DEV
+            ArsenalMod.Log.Msg($"[DEV] hypersonic fuse: missed centre by {miss.magnitude:0.0} m at {Velocity.magnitude:0} m/s (target {targetVel.magnitude:0} m/s)");
+#endif
+            Detonate();
+            return true;
+        }
+
+        private Vector3 _hyperAccel;
+#if DEV
+        private Vector3 _devLastT;
+        private float _devLastAge;
+#endif
+        private uint _pinShip;
+        private Vector3 _pinLocal;
+
+        private void PinTo(RaycastHit hit)
+        {
+            IShipPartHelper helper = hit.collider.GetComponentInParent<IShipPartHelper>();
+            if (helper == null || !Svc.ShipsClient.TryGetTrackedShip(helper.ShipId, out TrackedShipClient s) || !s.IsRigidbodyLoaded) return;
+            _pinShip = s.Id;
+            _pinLocal = s.ShipRigidBody.transform.InverseTransformPoint(transform.position);
         }
 
         private void Impact(RaycastHit hit)
@@ -390,7 +571,10 @@ namespace Arsenal.Weapons
             if (_done) return;
             _done = true;
             if (Owner && Spec.BlastRadius > 0f)
-                Explosives.RequestExplosion(transform.position, Spec.Blast);
+            {
+                if (_pinShip != 0) Explosives.RequestExplosionOnShip(_pinShip, _pinLocal, transform.position, Spec.Blast);
+                else Explosives.RequestExplosion(transform.position, Spec.Blast);
+            }
             Projectiles.Done(this);
             Destroy(gameObject);
         }

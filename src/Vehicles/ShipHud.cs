@@ -82,6 +82,15 @@ namespace Arsenal.Vehicles
                         GUI.Label(new Rect(c2.x + 12f, c2.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
                         continue;
                     }
+                    case ShipContent.FlareDispenserId:
+                    {
+                        // no aim: salvos left, under the screen centre
+                        var fc = new Vector2(Screen.width / 2f, Screen.height - 120f);
+                        GUI.color = ink;
+                        string salvos = m.Missiles > 0 ? new string('|', m.Missiles) : Loc.T("RECHARGE", "RELOADING");
+                        GUI.Label(new Rect(fc.x - 90f, fc.y, 180f, 20f), Loc.T("LEURRES ", "FLARES ") + salvos, _label);
+                        continue;
+                    }
                     case ShipContent.PdcId:
                         // point defence aims by itself: show what it is tracking
                         if (m.Tracking != null && !(m.Tracking is Object o && o == null))
@@ -92,19 +101,21 @@ namespace Arsenal.Vehicles
                         continue;
                     case ShipContent.MissilePodId:
                     case ShipContent.TorpedoId:
+                    case ShipContent.HyperLauncherId:
                         Diamond(c, 8f, ink);
                         GUI.color = ink;
                         GUI.Label(new Rect(c.x + 14f, c.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
-                        if (m.LockedTarget != 0 && Svc.ShipsClient.TryGetTrackedShip(m.LockedTarget, out TrackedShipClient t) && t.IsRigidbodyLoaded)
+                        if (m.LockedTarget != 0 && ShipWeapons.TryGetShipMotion(m.LockedTarget, out Vector3 tcenter, out _, out _, out _))
                         {
-                            Vector3 tp = cam.WorldToScreenPoint(ShipWeapons.TargetPoint(t));
+                            Vector3 tp = cam.WorldToScreenPoint(tcenter);
                             if (tp.z > 0)
                             {
                                 var tc = new Vector2(tp.x, Screen.height - tp.y);
                                 Color lockCol = new Color(1f, 0.35f, 0.25f, 0.95f);
                                 Brackets(tc, 26f, lockCol);
                                 GUI.color = lockCol;
-                                GUI.Label(new Rect(tc.x - 30f, tc.y + 28f, 120f, 20f), Loc.T("VERROUILLÉ", "LOCKED"), _label);
+                                float range = Vector3.Distance(ShipWeapons.TargetPoint(ship), tcenter);
+                                GUI.Label(new Rect(tc.x - 30f, tc.y + 28f, 200f, 20f), Loc.T("VERROUILLÉ", "LOCKED") + (range >= 1000f ? $"  {range / 1000f:0.0} km" : $"  {range:0} m"), _label);
                             }
                         }
                         break;

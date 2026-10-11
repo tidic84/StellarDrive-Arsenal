@@ -56,6 +56,8 @@ namespace Arsenal.Vehicles
             public Transform Radar;
             public LockOn Lock;           // SAM battery
             public int Rockets = -1;      // rocket pod (-1 = not loaded yet)
+            public int FlaresLeft;        // flare dispenser: flares still to throw in the current salvo
+            public float NextSalvo;
         }
 
         // muzzle offsets in part space (must match PartModels)
@@ -96,6 +98,7 @@ namespace Arsenal.Vehicles
             foreach (Mount m in _instance._mounts.Values) StopBeam(m);
             _instance._mounts.Clear();
             Claimed.Clear();
+            LastSynced.Clear();
             _beamMat = null;
         }
 
@@ -133,6 +136,8 @@ namespace Arsenal.Vehicles
                             case ShipContent.TorpedoId: UpdateTorpedo(ship, part, m, on, owner.Value); break;
                             case ShipContent.RocketPodId: UpdateRocketPod(ship, part, m, on, owner.Value); break;
                             case ShipContent.SamBatteryId: UpdateSamBattery(ship, part, m, on, owner.Value); break;
+                            case ShipContent.FlareDispenserId: UpdateFlares(ship, part, m, on, owner.Value); break;
+                            case ShipContent.HyperLauncherId: UpdateHyper(ship, part, m, on, owner.Value); break;
                         }
                     }
                     catch (System.Exception ex)
@@ -167,6 +172,9 @@ namespace Arsenal.Vehicles
             return ArsenalNet.IsServer;
         }
 
+        /// <summary>The local player is at the controls of this ship.</summary>
+        public static bool PilotedByMe(TrackedShipClient ship) => GunnerSeat.TryGetPilotedRoot(out uint r) && r == RootOf(ship.Id);
+
         /// <summary>Physics-space pose of a point of the part (from the ship rigidbody, same space as the raycasts).</summary>
         public static Vector3 PartPoint(TrackedShipClient ship, StatefulPart part, Vector3 local) =>
             ship.ShipRigidBody.transform.TransformPoint(part.LocalPosition + part.LocalRotation * local);
@@ -175,15 +183,42 @@ namespace Arsenal.Vehicles
             ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * Vector3.forward);
 
         /// <summary>Did this hit land on the shooter's own ship? (some part colliders have no rigidbody: go through the part)</summary>
-        public static bool IsOwnShip(RaycastHit hit, uint shooterRoot)
+        public static bool IsOwnShip(RaycastHit hit, uint shooterRoot) => shooterRoot != 0 && HitRoot(hit) == shooterRoot;
+
+        /// <summary>Root ship assembly a hit landed on (0 = not a ship: terrain, rocks...).</summary>
+        public static uint HitRoot(RaycastHit hit)
         {
-            if (shooterRoot == 0) return false;
             if (hit.rigidbody != null)
                 foreach (TrackedShipClient s in Svc.ShipsClient.Ships)
                     if (s.IsRigidbodyLoaded && s.ShipRigidBody == hit.rigidbody.gameObject)
-                        return RootOf(s.Id) == shooterRoot;
+                        return RootOf(s.Id);
             IShipPartHelper helper = hit.collider.GetComponentInParent<IShipPartHelper>();
-            return helper != null && RootOf(helper.ShipId) == shooterRoot;
+            return helper != null ? RootOf(helper.ShipId) : 0;
+        }
+
+        private static readonly RaycastHit[] LosHits = new RaycastHit[16];
+
+        /// <summary>Nothing but the two ships themselves between the points (terrain, rocks, other ships block).</summary>
+        public static bool ClearLine(Vector3 from, Vector3 to, uint shooterRoot, uint targetRoot)
+        {
+            Vector3 d = to - from;
+            float len = d.magnitude;
+            if (len < 0.01f) return true;
+            int n = ClientScene.PhysicsScene.Raycast(from, d / len, LosHits, len, Ballistics.Mask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                uint r = HitRoot(LosHits[i]);
+                if (r == 0 || (r != shooterRoot && r != targetRoot)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Can a sensor at <paramref name="from"/> see this ship? Its centre, or a point above it (a ship half behind a ridge still shows).</summary>
+        public static bool CanSee(Vector3 from, TrackedShipClient target, uint shooterRoot)
+        {
+            uint root = RootOf(target.Id);
+            Vector3 p = TargetPoint(target);
+            return ClearLine(from, p, shooterRoot, root) || ClearLine(from, p + Fx.Up * 1.5f, shooterRoot, root);
         }
 
         public static Rigidbody RootBody(TrackedShipClient ship)
@@ -199,7 +234,7 @@ namespace Arsenal.Vehicles
             if (m.Visual != null) return;
             if (!Svc.ShipsClient.TryGetVisualPart(m.Ctx, out IShipPartVisual v) || !(v is Component c)) return;
             m.Visual = c.transform;
-            string pointName = m.Kind == ShipContent.MissilePodId || m.Kind == ShipContent.RocketPodId || m.Kind == ShipContent.SamBatteryId ? "Tube" : "Muzzle";
+            string pointName = m.Kind == ShipContent.MissilePodId || m.Kind == ShipContent.RocketPodId || m.Kind == ShipContent.SamBatteryId || m.Kind == ShipContent.HyperLauncherId ? "Tube" : "Muzzle";
             m.Points = c.GetComponentsInChildren<Transform>(true).Where(t => t.name == pointName).ToArray();
             m.Lens = c.GetComponentsInChildren<Renderer>(true).FirstOrDefault(r => r.name == "Lens");
             Transform[] all = c.GetComponentsInChildren<Transform>(true);
@@ -258,6 +293,7 @@ namespace Arsenal.Vehicles
             Vector3 fwd = PartForward(ship, part);
             Vector3 center = PartPoint(ship, part, new Vector3(0, 0.33f, 0.4f));
             m.LockedTarget = owner ? FindTarget(ship, center, fwd) : 0;
+            if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, center);
             if (!owner || !on || m.LastSignal) return; // fires on the rising edge of the signal
             if (m.Missiles <= 0 || Time.time < m.NextShot) return;
             m.NextShot = Time.time + 0.3f;
@@ -269,8 +305,8 @@ namespace Arsenal.Vehicles
             Missiles.Launch(from, vel, m.LockedTarget, RootOf(ship.Id), true, 0);
         }
 
-        /// <summary>Nearest other ship inside a 25 degree cone in front of the pod (up to 1.5 km).</summary>
-        public static uint FindTarget(TrackedShipClient self, Vector3 from, Vector3 fwd)
+        /// <summary>Nearest visible ship inside a cone in front of the launcher (missile pod: 25 degrees, 1.5 km).</summary>
+        public static uint FindTarget(TrackedShipClient self, Vector3 from, Vector3 fwd, float cone = 25f, float range = 1500f)
         {
             uint myRoot = RootOf(self.Id);
             uint best = 0;
@@ -280,15 +316,92 @@ namespace Arsenal.Vehicles
                 if (!s.IsRigidbodyLoaded || RootOf(s.Id) == myRoot || RootOf(s.Id) != s.Id) continue;
                 Vector3 to = TargetPoint(s) - from;
                 float d = to.magnitude;
-                if (d < 5f || d > 1500f) continue;
+                if (d < 5f || d > range) continue;
                 float angle = Vector3.Angle(fwd, to);
-                if (angle > 25f) continue;
+                if (angle > cone) continue;
                 float score = angle * 20f + d * 0.05f;
-                if (score < bestScore)
+                if (score < bestScore && CanSee(from, s, myRoot))
                 {
                     bestScore = score;
                     best = s.Id;
                 }
+            }
+            return best;
+        }
+
+        private struct SyncedPose
+        {
+            public uint Space;
+            public Vector3 Position;
+            public float ChangedAt;
+        }
+
+        private static readonly Dictionary<uint, SyncedPose> LastSynced = new Dictionary<uint, SyncedPose>();
+
+        /// <summary>
+        /// Where a ship is and how it moves, in our physics space. A ship more than ~2 km away (or racing off)
+        /// is moved by the game into a physics space of its own and its rigidbody unloads here, so it is then
+        /// read from its synced state, carried over from its space and pushed forward by its velocity since the
+        /// last update (at thousands of m/s the raw updates jump hundreds of metres).
+        /// </summary>
+        public static bool TryGetShipMotion(uint id, out Vector3 center, out Vector3 velocity, out Vector3 origin, out Quaternion rotation)
+        {
+            center = velocity = origin = Vector3.zero;
+            rotation = Quaternion.identity;
+            if (Svc.ShipsClient == null || !Svc.ShipsClient.TryGetTrackedShip(id, out TrackedShipClient s)) return false;
+            ShipPhysicsState st = s.PhysicsState;
+            uint local = ClientOrigin.LocalPhysicsSpaceId;
+            if (s.IsRigidbodyLoaded)
+            {
+                // the client rigidbody is driven from synced states and can read 0 m/s: the synced velocity is the truth
+                Rigidbody rb = s.ShipRigidBody.GetComponent<Rigidbody>();
+                center = TargetPoint(s);
+                velocity = st.SpaceId == local && st.Velocity.sqrMagnitude > 0.0001f ? st.Velocity : rb != null ? rb.velocity : Vector3.zero;
+                origin = s.ShipRigidBody.transform.position;
+                rotation = s.ShipRigidBody.transform.rotation;
+                return true;
+            }
+            try
+            {
+                Quaternion turn = st.SpaceId == local ? Quaternion.identity : Svc.TransposeClient.Rotation(st.SpaceId, local, Quaternion.identity);
+                origin = st.SpaceId == local ? st.Position : Svc.TransposeClient.Position(st.SpaceId, local, st.Position);
+                rotation = turn * st.Rotation;
+                velocity = turn * st.Velocity;
+            }
+            catch (System.Exception)
+            {
+                return false;
+            }
+            if (!LastSynced.TryGetValue(id, out SyncedPose last) || last.Space != st.SpaceId || last.Position != st.Position)
+                LastSynced[id] = last = new SyncedPose { Space = st.SpaceId, Position = st.Position, ChangedAt = Time.time };
+            origin += velocity * Mathf.Min(Time.time - last.ChangedAt, 0.5f);
+            center = origin + rotation * s.CenterOfMass;
+            return true;
+        }
+
+        /// <summary>
+        /// Nearest ship in a cone in front of the launcher, out to long range: also sees ships flying in other
+        /// physics spaces (far or very fast). Terrain is still checked along the line of sight.
+        /// </summary>
+        public static uint FindFarTarget(TrackedShipClient self, Vector3 from, Vector3 fwd, float cone, float range)
+        {
+            uint myRoot = RootOf(self.Id);
+            uint best = 0;
+            float bestScore = float.MaxValue;
+            foreach (TrackedShipClient s in Svc.ShipsClient.Ships)
+            {
+                if (RootOf(s.Id) == myRoot || RootOf(s.Id) != s.Id) continue;
+                if (!TryGetShipMotion(s.Id, out Vector3 c, out _, out _, out _)) continue;
+                Vector3 to = c - from;
+                float d = to.magnitude;
+                if (d < 10f || d > range) continue;
+                float angle = Vector3.Angle(fwd, to);
+                if (angle > cone) continue;
+                float score = angle * 20f + d * 0.004f;
+                if (score >= bestScore) continue;
+                if (s.IsRigidbodyLoaded ? !CanSee(from, s, myRoot) : !ClearLine(from, c, myRoot, s.Id)) continue;
+                bestScore = score;
+                best = s.Id;
             }
             return best;
         }
@@ -375,7 +488,8 @@ namespace Arsenal.Vehicles
             }
             Vector3 to = t.Position - basePos;
             float d = to.magnitude;
-            return d > (DevPdcSelf ? 25f : 2f) && d < PdcRange && Vector3.Dot(to / d, up) > -0.2f; // the hull is in the way below the mount
+            return d > (DevPdcSelf ? 25f : 2f) && d < PdcRange && Vector3.Dot(to / d, up) > -0.2f // the hull is in the way below the mount
+                   && ClearLine(basePos, t.Position, myRoot, 0);
         }
 
         /// <summary>Turns the turret head and gun towards a world direction. True once the gun points there.</summary>
@@ -475,6 +589,7 @@ namespace Arsenal.Vehicles
             Vector3 fwd = PartForward(ship, part);
             Vector3 from = PartPoint(ship, part, new Vector3(0, 0.38f, 0.9f));
             m.LockedTarget = owner ? FindTarget(ship, from, fwd) : 0;
+            if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, from);
             if (!owner || !on || m.LastSignal || m.Missiles <= 0) return;
             m.Missiles = 0;
             Rigidbody body = RootBody(ship);
@@ -482,6 +597,46 @@ namespace Arsenal.Vehicles
             Projectiles.Launch(ProjectileKind.Torpedo, from, vel, m.LockedTarget, RootOf(ship.Id));
             Sounds.MissileLaunch(from);
             Fx.Puff(from, 0.5f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 4, fwd * 2f);
+        }
+
+        // ------------------------------------------------------------------ hypersonic launcher
+
+        private const int HyperRounds = 2;
+
+        private void UpdateHyper(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            if (m.Missiles > HyperRounds) m.Missiles = HyperRounds;
+            if (m.Missiles < HyperRounds)
+            {
+                if (m.ReloadAt <= 0f) m.ReloadAt = Time.time + 10f;
+                else if (Time.time >= m.ReloadAt)
+                {
+                    m.Missiles++;
+                    m.ReloadAt = m.Missiles < HyperRounds ? Time.time + 10f : 0f;
+                }
+            }
+            if (m.Points != null)
+                for (int i = 0; i < m.Points.Length; i++)
+                    if (m.Points[i] != null) m.Points[i].gameObject.SetActive(!owner || i < m.Missiles);
+            if (m.Lens != null)
+                m.Lens.material.SetColor("_EmissionColor", new Color(0.4f, 0.75f, 1f) * (m.LockedTarget != 0 ? 3f + Mathf.PingPong(Time.time * 16f, 6f) : 1.5f));
+
+            Vector3 fwd = PartForward(ship, part);
+            Vector3 center = PartPoint(ship, part, new Vector3(0, 0.345f, 0.7f));
+            m.LockedTarget = owner ? FindFarTarget(ship, center, fwd, 30f, 8000f) : 0;
+            if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, center);
+            if (!owner || !on || m.LastSignal || m.Missiles <= 0 || Time.time < m.NextShot) return; // rising edge of the signal
+            m.NextShot = Time.time + 0.4f;
+            m.Missiles--;
+            float x = m.Missiles == 1 ? 0.11f : -0.11f; // right rail first (the model hides missiles from the end of the list)
+            Vector3 from = PartPoint(ship, part, new Vector3(x, 0.345f, 0.75f));
+            Rigidbody body = RootBody(ship);
+            Vector3 vel = (body != null ? body.velocity : Vector3.zero) + fwd * Projectiles.Specs[ProjectileKind.Hyper].Speed;
+            Projectiles.Launch(ProjectileKind.Hyper, from, vel, m.LockedTarget, RootOf(ship.Id));
+            Sounds.MissileLaunch(from);
+            Sounds.Shot(SoundStyle.Rail, from);
+            Fx.MuzzleFlash(from, fwd, 0.7f);
+            Fx.Puff(PartPoint(ship, part, new Vector3(x, 0.4f, -0.55f)), 0.35f, new Color(0.8f, 0.78f, 0.75f), 1.8f, 5, -fwd * 6f); // back-blast on the deflector
         }
 
         // ------------------------------------------------------------------ rocket pod
@@ -575,15 +730,78 @@ namespace Arsenal.Vehicles
             if (owner && GunnerSeat.TryGetPilotedRoot(out uint me) && me == root) LockHud.Show(m.Lock);
 
             if (!owner || !on || m.Lock.Locked == 0 || m.Missiles <= 0 || Time.time < m.NextShot) return;
-            m.NextShot = Time.time + 1.2f;
             int tube = Mathf.Clamp(4 - m.Missiles, 0, 3);
-            m.Missiles--;
             Vector3 from = m.Points != null && tube < m.Points.Length && m.Points[tube] != null ? m.Points[tube].position + gunFwd * 0.15f : basePos + gunFwd * 0.6f;
+            // hold fire while the launcher is not on target yet, or the first stretch of the flight is blocked (ridge, rocks...)
+            if (!Svc.ShipsClient.TryGetTrackedShip(m.Lock.Locked, out TrackedShipClient locked) || !locked.IsRigidbodyLoaded) return;
+            Vector3 toLocked = TargetPoint(locked) - from;
+            if (Vector3.Angle(gunFwd, toLocked) > 12f || !ClearLine(from, from + gunFwd * Mathf.Min(30f, toLocked.magnitude), root, RootOf(locked.Id)))
+            {
+#if DEV
+                ArsenalMod.Log.Msg($"[DEV] SAM holds fire: off-axis {Vector3.Angle(gunFwd, toLocked):0} deg or launch path blocked");
+                int nh = ClientScene.PhysicsScene.Raycast(from, gunFwd, LosHits, Mathf.Min(30f, toLocked.magnitude), Ballistics.Mask, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < nh; i++)
+                    ArsenalMod.Log.Msg($"[DEV]   hit {LosHits[i].collider.name} layer {LosHits[i].collider.gameObject.layer} at {LosHits[i].distance:0.0} root {HitRoot(LosHits[i])} (me {root}, target {RootOf(locked.Id)})");
+#endif
+                m.NextShot = Time.time + 0.5f;
+                return;
+            }
+            m.NextShot = Time.time + 1.2f;
+            m.Missiles--;
             Rigidbody body = RootBody(ship);
             Vector3 vel = (body != null ? body.velocity : Vector3.zero) + gunFwd * Projectiles.Specs[ProjectileKind.Sam].Speed;
             Projectiles.Launch(ProjectileKind.Sam, from, vel, m.Lock.Locked, root);
             Sounds.MissileLaunch(from);
             Fx.Puff(from - gunFwd * 0.7f, 0.3f, new Color(0.8f, 0.78f, 0.75f), 1.6f, 4, -gunFwd * 4f);
+        }
+
+        // ------------------------------------------------------------------ flare dispenser
+
+        private const int FlareSalvos = 4;
+
+        private void UpdateFlares(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
+        {
+            if (m.Missiles > FlareSalvos) m.Missiles = FlareSalvos;
+            // reload one salvo at a time
+            if (m.Missiles < FlareSalvos)
+            {
+                if (m.ReloadAt <= 0f) m.ReloadAt = Time.time + 10f;
+                else if (Time.time >= m.ReloadAt)
+                {
+                    m.Missiles++;
+                    m.ReloadAt = m.Missiles < FlareSalvos ? Time.time + 10f : 0f;
+                }
+            }
+            if (m.Lens != null)
+                m.Lens.material.SetColor("_EmissionColor", new Color(1f, 0.55f, 0.2f) * (m.FlaresLeft > 0 ? 9f : m.Missiles > 0 ? 2.5f : 0.4f));
+            if (!owner) return;
+
+            // a salvo goes out in pairs, one from each bank
+            if (m.FlaresLeft > 0)
+            {
+                if (Time.time < m.NextShot) return;
+                m.NextShot = Time.time + 0.12f;
+                Rigidbody body = RootBody(ship);
+                Vector3 shipVel = body != null ? body.velocity : Vector3.zero;
+                var batch = new List<(Vector3, Vector3)>(2);
+                for (int k = 0; k < 2 && m.FlaresLeft > 0; k++)
+                {
+                    int tube = (PartModels.FlareTubeCount - m.FlaresLeft) / 2 + (k == 0 ? 0 : 3);
+                    m.FlaresLeft--;
+                    Vector3 local = PartModels.FlareTube(tube, out Vector3 localDir);
+                    Vector3 dir = ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * localDir);
+                    dir = (dir + Random.insideUnitSphere * 0.15f).normalized;
+                    batch.Add((PartPoint(ship, part, local + localDir * 0.1f), shipVel + dir * Random.Range(20f, 26f)));
+                }
+                Flares.Launch(batch);
+                return;
+            }
+            // one salvo per pulse, or every 1.5 s while the signal stays on
+            if (!on || m.Missiles <= 0 || (m.LastSignal && Time.time < m.NextSalvo) || Time.time < m.NextShot) return;
+            m.Missiles--;
+            m.FlaresLeft = PartModels.FlareTubeCount;
+            m.NextSalvo = Time.time + 1.5f;
+            m.NextShot = Time.time;
         }
 
         /// <summary>Flying, not sitting on the ground: nothing solid within a few metres under its centre of mass.</summary>
@@ -608,7 +826,7 @@ namespace Arsenal.Vehicles
                 if (!s.IsRigidbodyLoaded || RootOf(s.Id) != s.Id || s.Id == myRoot) continue;
                 Vector3 to = TargetPoint(s) - from;
                 float d = to.magnitude;
-                if (d < 25f || d >= bestD || Vector3.Dot(to / d, up) < -0.15f || !Airborne(s)) continue;
+                if (d < 25f || d >= bestD || Vector3.Dot(to / d, up) < -0.15f || !Airborne(s) || !CanSee(from, s, myRoot)) continue;
                 bestD = d;
                 best = s.Id;
             }

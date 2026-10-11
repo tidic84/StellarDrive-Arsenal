@@ -33,14 +33,15 @@ namespace Arsenal.Content
     {
         public const ushort GunnerSeatId = 9201, MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
         public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217, RocketPodId = 9218, SamBatteryId = 9219;
-        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId };
+        public const ushort FlareDispenserId = 9221, HyperLauncherId = 9222;
+        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId };
         public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
         public static readonly byte[] FireSockets = { 6, 7, 8 };
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
 
-        public static bool IsWeapon(ushort settingsId) => settingsId >= MachineGunId && settingsId <= SamBatteryId;
+        public static bool IsWeapon(ushort settingsId) => (settingsId >= MachineGunId && settingsId <= SamBatteryId) || settingsId == FlareDispenserId || settingsId == HyperLauncherId;
 
         public static void Patch(HarmonyLib.Harmony h)
         {
@@ -239,6 +240,24 @@ namespace Arsenal.Content
                     boundsCenter = new Vector3(0, 0.3f, 0.05f);
                     boundsSize = new Vector3(0.6f, 0.6f, 0.8f);
                     break;
+                case HyperLauncherId:
+                    p = Clone(display, id, "Lance-missiles hypersonique « Foudre »", "\"Lightning\" hypersonic missile launcher",
+                        "Verrouille le vaisseau le plus proche dans son axe (jusqu'à 8 km) et tire, à chaque impulsion de signal, un missile qui accélère jusqu'à 20 000 m/s : il rattrape même les vaisseaux lancés à 10 000 m/s. 2 missiles, rechargement en 10 s.",
+                        "Locks the nearest ship in front of it (up to 8 km) and, on each signal pulse, fires a missile that accelerates up to 20,000 m/s: it catches even ships flying at 10,000 m/s. 2 missiles, 10 s reload.",
+                        130f, items, (101, 30), (112, 16), (103, 5), (102, 6));
+                    model = PartModels.HyperLauncher();
+                    boundsCenter = new Vector3(0, 0.2f, 0.06f);
+                    boundsSize = new Vector3(0.56f, 0.42f, 1.2f);
+                    break;
+                case FlareDispenserId:
+                    p = Clone(display, id, "Lance-leurres « Nuée »", "\"Swarm\" flare dispenser",
+                        "Éjecte une salve de 6 leurres thermiques à chaque impulsion de signal (une salve toutes les 1,5 s si le signal reste actif). Les missiles guidés qui les voient peuvent se détourner du vaisseau. 4 salves, rechargement automatique.",
+                        "Throws a salvo of 6 heat flares on each signal pulse (one salvo every 1.5 s while the signal stays on). Guided missiles that see them may turn away from the ship. 4 salvos, reloads by itself.",
+                        45f, items, (101, 10), (112, 6), (100, 3));
+                    model = PartModels.FlareDispenser();
+                    boundsCenter = new Vector3(0, 0.18f, 0f);
+                    boundsSize = new Vector3(0.56f, 0.38f, 0.5f);
+                    break;
                 default:
                     p = Clone(display, id, "Canon laser", "Laser cannon",
                         "Rayon continu tant que le signal est actif. Fait fondre la coque et perce des trous. Surchauffe après quelques secondes.",
@@ -312,7 +331,7 @@ namespace Arsenal.Content
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[GunnerSeatId], Parts[ArmoryId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
-                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId], Parts[FlareDispenserId], Parts[HyperLauncherId] } },
                 },
             };
             Traverse.Create(__instance).Field("tabsConfig").SetValue(tabs.Concat(new[] { tab }).ToArray());
@@ -330,9 +349,9 @@ namespace Arsenal.Content
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
                     new[] { Parts[GunnerSeatId], Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
-                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId], Parts[RocketPodId] }, items, (101, 30), (112, 15), (103, 2));
+                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId] }, items, (101, 30), (112, 15), (103, 2));
                 ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },
-                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
+                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId], Parts[HyperLauncherId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
                 list.list.Add(light);
                 list.list.Add(heavy);
                 list.list.Add(advanced);

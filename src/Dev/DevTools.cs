@@ -133,6 +133,14 @@ namespace Arsenal
                     ScreenCapture.CaptureScreenshot(path);
                     LoggerInstance.Msg($"[DEV] screenshot {path}");
                     break;
+                case "shots":
+                {
+                    // shots <name> <delay> [<delay>...]: screenshots at those times from now (for things in motion)
+                    string name = a[1];
+                    for (int i = 2; i < a.Length; i++)
+                        MelonLoader.MelonCoroutines.Start(ShotAfter(Path.Combine(MelonEnvironment.UserDataDirectory, $"shot_{name}{i - 1}.png"), float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture)));
+                    break;
+                }
                 case "quit":
                     Application.Quit();
                     break;
@@ -143,6 +151,13 @@ namespace Arsenal
         }
 
         partial void DevCommandExtra(string[] a);
+
+        private static System.Collections.IEnumerator ShotAfter(string path, float secs)
+        {
+            float end = Time.realtimeSinceStartup + secs;
+            while (Time.realtimeSinceStartup < end) yield return null;
+            ScreenCapture.CaptureScreenshot(path);
+        }
     }
 }
 #endif

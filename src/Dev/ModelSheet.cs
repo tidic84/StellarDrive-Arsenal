@@ -38,7 +38,7 @@ namespace Arsenal.Dev
             else
             {
                 var provider = new PartSettingsProvider();
-                foreach (ushort id in new ushort[] { 9201, 9210, 9211, 9212, 9213, 9214, 9215, 9216, 9217, 9218, 9219, 9220 })
+                foreach (ushort id in new ushort[] { 9201, 9210, 9211, 9212, 9213, 9214, 9215, 9216, 9217, 9218, 9219, 9220, 9221, 9222 })
                 {
                     PartSettings ps;
                     try { ps = provider.GetPartSettingById(id); } catch { continue; }

@@ -134,6 +134,7 @@ namespace Arsenal.Weapons
             WeaponKind.PlasmaCannon => "P-400",
             WeaponKind.ShipRailgun => "Longinus",
             WeaponKind.Torpedo => "Leviathan",
+            WeaponKind.HyperMissile => Loc.T("Foudre", "Lightning"),
             WeaponKind.IonCannon => "Disruptor",
             WeaponKind.Pdc => "Guardian",
             WeaponKind.Capital => "Oblivion",

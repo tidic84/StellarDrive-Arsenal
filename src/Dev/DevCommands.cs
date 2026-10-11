@@ -272,6 +272,74 @@ namespace Arsenal
                     if (a[1] == "off") Vehicles.ShipWeapons.DevForceOn.Clear();
                     else Vehicles.ShipWeapons.DevForceOn.Add(ushort.Parse(a[1]));
                     break;
+                case "los":
+                {
+                    // what lies between the gunship's SAM battery and the test ship
+                    if (!Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient lt) || !lt.IsRigidbodyLoaded) break;
+                    var sam = Vehicles.ShipWeapons.Mounts.FirstOrDefault(mm => mm.Kind == Content.ShipContent.SamBatteryId && mm.Pitch != null);
+                    if (sam == null) break;
+                    Vector3 lf = sam.Pitch.position, lto = Vehicles.ShipWeapons.TargetPoint(lt);
+                    uint me = Vehicles.ShipWeapons.RootOf(sam.Ctx.ShipId);
+                    LoggerInstance.Msg($"[DEV] los from {lf} to {lto} ({Vector3.Distance(lf, lto):0} m, angle to aim {Vector3.Angle(sam.Pitch.forward, lto - lf):0}): canSee {Vehicles.ShipWeapons.CanSee(lf, lt, me)} airborne {Vehicles.ShipWeapons.Airborne(lt)} candidate {sam.Lock?.Candidate} locked {sam.Lock?.Locked}");
+                    var hits = new RaycastHit[16];
+                    int nh = WorldTracking.Interface.Values.ClientScene.PhysicsScene.Raycast(lf, (lto - lf).normalized, hits, Vector3.Distance(lf, lto), Weapons.Ballistics.Mask, QueryTriggerInteraction.Ignore);
+                    for (int i = 0; i < nh; i++)
+                        LoggerInstance.Msg($"[DEV]   hit {hits[i].collider.name} layer {hits[i].collider.gameObject.layer} at {hits[i].distance:0.0} root {Vehicles.ShipWeapons.HitRoot(hits[i])}");
+                    break;
+                }
+                case "track":
+                {
+                    // is the test ship still tracked / loaded on this client, and how far is it
+                    bool tracked = Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient tk);
+                    var gps = Svc.ShipsServer.GetShip(_gunshipId).PhysicsState;
+                    var ts = Svc.ShipsServer.GetShip(_testShipId).PhysicsState;
+                    LoggerInstance.Msg($"[DEV] track {_testShipId}: tracked {tracked} loaded {(tracked && tk.IsRigidbodyLoaded)} spaces {gps.SpaceId}/{ts.SpaceId} dist {(gps.SpaceId == ts.SpaceId ? Vector3.Distance(gps.Position, ts.Position) : -1f):0} m");
+                    if (Vehicles.ShipWeapons.TryGetShipMotion(_testShipId, out Vector3 mc, out Vector3 mv, out _, out _) && Svc.ShipsClient.TryGetTrackedShip(_gunshipId, out TrackedShipClient gk) && gk.IsRigidbodyLoaded)
+                        LoggerInstance.Msg($"[DEV]   seen from the gunship: {Vector3.Distance(Vehicles.ShipWeapons.TargetPoint(gk), mc):0} m, {mv.magnitude:0} m/s");
+                    {
+                        var tr = Svc.Get<WorldTracking.Interface.Services.IWorldTransposeServer>();
+                        Vector3 sp = gps.SpaceId == ts.SpaceId ? ts.Position : tr.Position(ts.SpaceId, gps.SpaceId, ts.Position);
+                        var csp = Svc.Get<WorldTracking.Interface.Services.ISpacesClientProvider>();
+                        if (csp != null && csp.TryGetSpace(tk.PhysicsState.SpaceId, out var spc)) LoggerInstance.Msg($"[DEV]   space {tk.PhysicsState.SpaceId}: {spc.GetType().Name} {spc}");
+                        LoggerInstance.Msg($"[DEV]   server: raw {ts.Position} vel {ts.Velocity.magnitude:0}, in gunship space {Vector3.Distance(gps.Position, sp):0} m; client raw {tk.PhysicsState.Position} space {tk.PhysicsState.SpaceId}");
+                    }
+                    break;
+                }
+                case "flyfire":
+                    // flyfire <speed> [side|away]: the test ship starts racing and the heavy ship's hypersonic launcher (part 10) fires in the same frame
+                    Vehicles.ShipWeapons.DevForceOn.Add(10);
+                    goto case "fly";
+                case "fly":
+                {
+                    // fly <speed> [side|away]: the test ship cruises at a fixed speed, across the player's view or away from it ("fly 0" stops)
+                    float spd = float.Parse(a[1], CultureInfo.InvariantCulture);
+                    if (spd <= 0f) { Damage.ShipKnockback.DevFly.Remove(_testShipId); break; }
+                    var srv = Svc.ShipsServer.GetShip(_testShipId);
+                    var tp = Svc.PlayersServer.ActivePlayers.First().PhysicsState;
+                    Vector3 pu = tp.Rotation * Vector3.up, pf = Vector3.ProjectOnPlane(tp.Rotation * Vector3.forward, pu).normalized;
+                    Vector3 flyDir = a.Length > 2 && a[2] == "away" ? pf : Vector3.Cross(pu, pf).normalized;
+                    Damage.ShipKnockback.DevFly[_testShipId] = flyDir * spd;
+                    LoggerInstance.Msg($"[DEV] test ship {_testShipId} flies at {spd:0} m/s, now at {srv.PhysicsState.Position}");
+                    break;
+                }
+                case "rwr":
+                    // warn as if piloting the test ship (rwr off = back to normal)
+                    Vehicles.ThreatWarning.DevWatch = a.Length > 1 && a[1] == "off" ? 0 : _testShipId;
+                    break;
+                case "flares":
+                {
+                    // a flare salvo thrown from the test ship
+                    if (!Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient fs) || !fs.IsRigidbodyLoaded) break;
+                    Vector3 fp = Vehicles.ShipWeapons.TargetPoint(fs);
+                    var batch = new System.Collections.Generic.List<(Vector3, Vector3)>();
+                    for (int i = 0; i < 6; i++)
+                    {
+                        Vector3 d = (Visual.Fx.Up + Random.insideUnitSphere * 0.8f).normalized;
+                        batch.Add((fp + d * 2.5f, d * 22f));
+                    }
+                    Vehicles.Flares.Launch(batch);
+                    break;
+                }
                 case "pdcself":
                     Vehicles.ShipWeapons.DevPdcSelf = !Vehicles.ShipWeapons.DevPdcSelf;
                     break;
@@ -436,6 +504,7 @@ namespace Arsenal
                 new StatefulPart(7, settings.GetPartSettingById(Content.ShipContent.PdcId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
                 new StatefulPart(8, settings.GetPartSettingById(Content.ShipContent.RocketPodId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 2.6f), PartOrientation.Forward)),
                 new StatefulPart(9, settings.GetPartSettingById(Content.ShipContent.SamBatteryId), new FloatingPartPlacement(new Vector3(2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
+                new StatefulPart(10, settings.GetPartSettingById(Content.ShipContent.HyperLauncherId), new FloatingPartPlacement(new Vector3(0f, -0.46f, -1.6f), PartOrientation.Forward)),
             } : new[]
             {
                 new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
@@ -443,6 +512,7 @@ namespace Arsenal
                 new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.MissilePodId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 3.2f), PartOrientation.Forward)),
                 new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.LaserCannonId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
                 new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ArmoryId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+                new StatefulPart(6, settings.GetPartSettingById(Content.ShipContent.FlareDispenserId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
             };
             var phys = p.PhysicsState;
             Quaternion rot = phys.Rotation;
