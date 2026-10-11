@@ -24,6 +24,7 @@ namespace Arsenal.Weapons
         Tesla = 17,
         Disintegrator = 18,
         SamLauncher = 19,
+        HyperLauncher = 33,
         // ship-mounted
         ShipGun = 20,
         ShipLaser = 21,
@@ -146,7 +147,8 @@ namespace Arsenal.Weapons
         // Item ids far from the game's (0-3, 100-112).
         public const uint PistolId = 9101, RifleId = 9102, MarksmanId = 9103, GrenadeId = 9104, ChargeId = 9105;
         public const uint LaserPistolId = 9110, GaussId = 9111, SmgId = 9112, PlasmaShotgunId = 9113, RailgunId = 9114, MinigunId = 9115,
-            EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121, SamLauncherId = 9122;
+            EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121, SamLauncherId = 9122,
+            HyperLauncherId = 9123;
 
         private const uint Iron = 101, Glass = 102, Shard = 103, Aluminium = 104, Fuel = 100, Wood = 110, Copper = 112;
 
@@ -364,10 +366,24 @@ namespace Arsenal.Weapons
             Model = GunModels.SamLauncher, HoldPosition = new Vector3(-0.12f, -0.03f, 0.0f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.24f,
         };
 
+        public static readonly HandWeaponDef HyperLauncher = new HandWeaponDef
+        {
+            Kind = WeaponKind.HyperLauncher, ItemId = HyperLauncherId, Category = ArmoryCategory.Explosives, Rarity = Rarity.Legendary,
+            NameFr = "Lance-missiles hypersonique « Foudre »", NameEn = "\"Lightning\" hypersonic launcher",
+            DescFr = "La version portable du « Foudre ». Visez un vaisseau pour le verrouiller : le missile accélère jusqu'à 20 000 m/s, rattrape les vaisseaux les plus rapides et explose avec une puissance énorme.",
+            DescEn = "The shoulder-fired \"Lightning\". Point it at a ship to lock on: the missile accelerates up to 20,000 m/s, catches the fastest ships and blows up with enormous power.",
+            Cost = new[] { (Iron, (byte)20), (Copper, (byte)14), (Shard, (byte)5), (Glass, (byte)4) },
+            Mode = FireMode.Projectile, Projectile = ProjectileKind.Hyper,
+            Automatic = false, RoundsPerMinute = 20, Magazine = 1, ReloadTime = 6f,
+            SpreadDegrees = 0.2f, AimSpreadDegrees = 0f, RecoilKick = 0.14f, AimFov = 30f, Mass = 16f,
+            Tracer = TracerStyle.None, Sound = SoundStyle.Launcher, MuzzleSize = 0.5f,
+            Model = GunModels.HyperLauncher, HoldPosition = new Vector3(-0.12f, -0.03f, -0.02f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.24f,
+        };
+
         public static readonly HandWeaponDef[] Guns =
         {
             Pistol, LaserPistol, Gauss, Smg, Rifle, PlasmaShotgun, Marksman, Railgun, Minigun, Flamethrower,
-            GrenadeLauncher, RocketLauncher, SamLauncher, EmpCarbine, Tesla, Disintegrator,
+            GrenadeLauncher, RocketLauncher, SamLauncher, HyperLauncher, EmpCarbine, Tesla, Disintegrator,
         };
 
         public static HandWeaponDef ByItem(uint itemId)

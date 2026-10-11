@@ -264,6 +264,14 @@ namespace Arsenal
                     LoggerInstance.Msg($"[DEV] model {model.name} at {model.localPosition} {model.localEulerAngles}; visuals fp={tool.Visuals.firstPersonPosition} rot={tool.Visuals.firstPersonRotation.eulerAngles}");
                     break;
                 }
+                case "partlist":
+                    foreach (PartSettings ps in Resources.FindObjectsOfTypeAll<PartSettings>().OrderBy(s => s.id))
+                        if (a.Length < 2 || ps.name.IndexOf(a[1], System.StringComparison.OrdinalIgnoreCase) >= 0)
+                            LoggerInstance.Msg($"[DEV] part settings {ps.id} {ps.name}");
+                    break;
+                case "tgt":
+                    TargetTest(a);
+                    break;
                 case "heavyship":
                     SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f, true);
                     break;
@@ -544,6 +552,72 @@ namespace Arsenal
                     PlugB = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, part, 0) },
                 });
             LoggerInstance.Msg($"[DEV] gunship {id}");
+        }
+
+        private static uint _tgtShooter, _tgtBeaconShip;
+
+        /// <summary>
+        /// tgt spawn &lt;targeterSettings&gt; &lt;beaconSettings&gt; | tgt state | tgt killbeacon | tgt killship:
+        /// a targeting computer on one ship aimed at a beacon on another, then the beacon or its ship goes away.
+        /// </summary>
+        private void TargetTest(string[] a)
+        {
+            switch (a[1])
+            {
+                case "spawn":
+                {
+                    var settings = new PartSettingsProvider();
+                    TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
+                    HullPartSettings floor = (HullPartSettings)settings.GetPartSettingById(1);
+                    uint Spawn(ushort settingsId, float side)
+                    {
+                        var hull = new System.Collections.Generic.List<HullPart>();
+                        for (int x = -1; x <= 1; x++)
+                            for (int z = -1; z <= 1; z++)
+                                hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+                        var phys = p.PhysicsState;
+                        Quaternion rot = phys.Rotation;
+                        Vector3 up = rot * Vector3.up;
+                        Quaternion shipRot = Quaternion.LookRotation(Vector3.ProjectOnPlane(rot * Vector3.forward, up).normalized, up);
+                        uint id = Svc.Get<IWorldObjectsIdsServerProvider>().CreateUniqueIdForObject();
+                        Svc.ShipsServer.LoadShip(new ShipStateSnapshot
+                        {
+                            Id = id,
+                            RelativeSpaceId = Svc.Get<ISpacesServerProvider>().GetOrCreateShipRelativeSpace(id),
+                            SpaceId = phys.SpaceId,
+                            Position = phys.Position + shipRot * new Vector3(side, 0.7f, 3f),
+                            Rotation = shipRot,
+                            Velocity = Vector3.zero,
+                            RoomGasState = new RoomGasState[0],
+                            HullParts = hull.ToArray(),
+                            StatefulParts = new[] { new StatefulPart(1, settings.GetPartSettingById(settingsId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)) },
+                        });
+                        return id;
+                    }
+                    _tgtShooter = Spawn(ushort.Parse(a[2]), -4f);
+                    _tgtBeaconShip = Spawn(ushort.Parse(a[3]), 4f);
+                    Svc.ShipsServer.TryGetTrackedShip(_tgtShooter, out TrackedShipServer shooter);
+                    shooter.SelectTarget(1, new Target { TargetType = TargetType.Beacon, Beacon = new PartContext(_tgtBeaconShip, 1) });
+                    LoggerInstance.Msg($"[DEV] tgt shooter {_tgtShooter} aims at beacon 1 of ship {_tgtBeaconShip}");
+                    goto case "state";
+                }
+                case "state":
+                    foreach (TrackedShipServer ship in Svc.ShipsServer.Ships)
+                        foreach (StatefulPart part in ship.GetAllStatefulParts<Ships.Interface.Model.Parts.State.TargetingComputerState>())
+                        {
+                            var s = (Ships.Interface.Model.Parts.State.TargetingComputerState)part.State;
+                            LoggerInstance.Msg($"[DEV] tgt ship {ship.Id} targeter {part.Id}: hasTarget={s.HasTarget}{(s.HasTarget ? $" {s.Target.TargetType} {s.Target.Beacon}" : "")}");
+                        }
+                    break;
+                case "killbeacon":
+                    Svc.ShipsServer.TryGetTrackedShip(_tgtBeaconShip, out TrackedShipServer bs);
+                    bs.DestroyStatefulPart(1);
+                    goto case "state";
+                case "killship":
+                    Svc.ShipsServer.TryGetTrackedShip(_tgtBeaconShip, out TrackedShipServer ks);
+                    Svc.ShipsServer.RemoveShip(ks.State);
+                    goto case "state";
+            }
         }
 
         private void LookAtShip(uint shipId, Vector3 local)

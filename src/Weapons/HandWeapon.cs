@@ -59,6 +59,7 @@ namespace Arsenal.Weapons
         private bool Reloading => _reloadDone > 0f;
         private bool UsesHeat => _def.Ammo == AmmoMode.Heat;
         private bool UsesFuel => _def.Mode == FireMode.Flame;
+        private bool Homing => _def.Projectile == ProjectileKind.Sam || _def.Projectile == ProjectileKind.Hyper;
 
         protected override void AfterAwake()
         {
@@ -184,7 +185,7 @@ namespace Arsenal.Weapons
             }
             _recoil = Mathf.MoveTowards(_recoil, 0f, dt * Mathf.Max(0.02f, _def.RecoilKick) * 12f);
             _aimBlend = Mathf.MoveTowards(_aimBlend, _aiming ? 1f : 0f, dt * 6f);
-            if (_def.Projectile == ProjectileKind.Sam && _camera != null)
+            if (Homing && _camera != null)
             {
                 // seeker: locks automatically on the ship it is pointed at (tighter cone when aiming)
                 _lock.Cone = _aiming ? 6f : 9f;
@@ -377,12 +378,12 @@ namespace Arsenal.Weapons
             ProjectileSpec spec = Projectiles.Specs[_def.Projectile];
             Vector3 lob = _def.Projectile == ProjectileKind.Grenade ? Vector3.ProjectOnPlane(Fx.Up, dir).normalized * 0.12f : Vector3.zero;
             Vector3 v = (dir + lob).normalized * spec.Speed;
-            uint target = _def.Projectile == ProjectileKind.Sam ? _lock.Locked : 0;
+            uint target = Homing ? _lock.Locked : 0;
             Projectiles.Launch(_def.Projectile, cam.CameraPos + dir * 0.7f, v, target, 0);
             Vector3 muzzle = MuzzlePos(cam.CameraPos);
             Fx.MuzzleFlash(muzzle, dir, _def.MuzzleSize, _muzzle);
             Fx.Puff(muzzle, 0.15f, new Color(0.8f, 0.78f, 0.75f), 1.2f, 3, dir * 2f);
-            if (_def.Projectile == ProjectileKind.Rocket || _def.Projectile == ProjectileKind.Sam)
+            if (_def.Projectile == ProjectileKind.Rocket || Homing)
                 Fx.Puff(muzzle - dir * 1.1f, 0.3f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 5, -dir * 4f); // back-blast
             Sounds.Shot(_def.Kind, muzzle);
             NotifyFiring();

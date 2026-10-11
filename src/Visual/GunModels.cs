@@ -340,6 +340,59 @@ namespace Arsenal.Visual
             return m;
         }
 
+        /// <summary>
+        /// "Lightning" hypersonic launcher (legendary): dark slim tube wrapped in glowing blue capacitor rings,
+        /// long-range seeker with a blue lens, finned heat sink, the slim hypersonic missile's nose showing.
+        /// </summary>
+        public static Model HyperLauncher()
+        {
+            var k = new MeshKit();
+            var g = new MeshKit();
+            LauncherTube(k, 0.085f, 0.05f, -0.42f, 0.8f, Shade.HatchDark, Shade.Blue);
+            // capacitor rings: dark collars with a glowing core band
+            for (int i = 0; i < 4; i++)
+            {
+                float z = -0.08f + i * 0.09f;
+                k.Lathe(new Vector2(0, 0.085f), new[] { P(0.062f, z - 0.016f), P(0.064f, z - 0.01f), P(0.064f, z + 0.01f), P(0.062f, z + 0.016f) }, 18, Shade.Dark, Shade.Black, Shade.Black);
+                g.Lathe(new Vector2(0, 0.085f), new[] { P(0.0645f, z - 0.004f), P(0.0645f, z + 0.004f) }, 18, Shade.White, Shade.White, Shade.White);
+            }
+            // glowing rails along both sides of the tube
+            foreach (float x in new[] { -0.051f, 0.051f })
+                g.Box(new Vector3(x, 0.085f, 0.45f), new Vector3(0.003f, 0.006f, 0.22f), Shade.White);
+            // heat sink fins under the front
+            for (int i = 0; i < 6; i++)
+                k.ChamferBox(new Vector3(0, 0.03f, 0.36f + i * 0.03f), new Vector3(0.05f, 0.02f, 0.008f), 0.002f, Shade.Grey, Shade.Dark);
+            // long-range seeker on the left: angular housing, blue lens, antenna strip
+            k.ChamferBox(new Vector3(-0.08f, 0.14f, 0.24f), new Vector3(0.046f, 0.06f, 0.2f), 0.008f, Shade.Black, Shade.HatchDark);
+            k.Tube(new Vector3(-0.08f, 0.145f, 0.343f), 0.019f, 0.013f, 0.008f, 14, Shade.Dark, Shade.Black);
+            g.Lathe(new Vector2(-0.08f, 0.145f), new[] { P(0.013f, 0.34f), P(0.013f, 0.342f) }, 14, Shade.White, Shade.White, Shade.White);
+            g.Box(new Vector3(-0.1035f, 0.14f, 0.24f), new Vector3(0.002f, 0.006f, 0.15f), Shade.White);
+            k.Tube(new Vector3(-0.08f, 0.15f, 0.136f), 0.012f, 0.007f, 0.012f, 12, Shade.Black, Shade.Black); // eyepiece
+            // holographic sight on top: base, two posts, ring with a glowing reticle
+            k.ChamferBox(new Vector3(0, 0.16f, 0.03f), new Vector3(0.034f, 0.02f, 0.05f), 0.004f, Shade.Dark, Shade.Black);
+            foreach (float x in new[] { -0.021f, 0.021f })
+                k.Box(new Vector3(x, 0.182f, 0.04f), new Vector3(0.005f, 0.028f, 0.008f), Shade.Black);
+            k.Tube(new Vector3(0, 0.205f, 0.04f), 0.024f, 0.02f, 0.006f, 18, Shade.Dark, Shade.Black);
+            g.Box(new Vector3(0, 0.205f, 0.04f), new Vector3(0.003f, 0.003f, 0.001f), Shade.White);
+            // power cell behind it, shoulder rest, grips
+            k.ChamferBox(new Vector3(0, 0.155f, -0.12f), new Vector3(0.05f, 0.03f, 0.14f), 0.006f, Shade.Dark, Shade.Black);
+            g.Box(new Vector3(0, 0.171f, -0.12f), new Vector3(0.03f, 0.002f, 0.1f), Shade.White);
+            Side(k, new[] { P(-0.32f, -0.012f), P(-0.12f, -0.012f), P(-0.12f, 0.03f), P(-0.32f, 0.03f) }, 0.055f, Shade.Black, Shade.HatchDark, 0.007f);
+            k.ChamferBox(new Vector3(0, 0.0f, 0.15f), new Vector3(0.03f, 0.06f, 0.04f), 0.006f, Shade.Dark, Shade.Black);
+            Side(k, new[] { P(-0.03f, 0.03f), P(0.04f, 0.03f), P(0.04f, 0.0f), P(-0.03f, 0.0f) }, 0.036f, Shade.Dark, Shade.Black, 0.004f);
+            TriggerGroup(k, 0.01f, 0.0f, 0.05f);
+            Grip(k, -0.004f, 0.0f, Shade.Black, 12f, 0.088f, 0.03f, Shade.HatchDark);
+            Screws(k, 0.0255f, P(0.25f, 0.025f), P(-0.25f, 0.01f));
+            var m = Finish("HyperLauncherModel", k, g, new Color(0.4f, 0.75f, 1f), new Vector3(0, 0.085f, 0.82f), new Vector3(0, 0.205f, -0.02f), new Vector3(0.012f, -0.04f, -0.045f), new Vector3(-0.025f, -0.05f, 0.15f));
+            // the missile's needle nose in the tube
+            var r = new MeshKit();
+            r.Lathe(Vector2.zero, new[] { P(0.04f, -0.05f), P(0.04f, 0.0f), P(0.028f, 0.05f), P(0.012f, 0.1f), P(0.0f, 0.12f) }, 14, Shade.Dark, Shade.Dark);
+            r.Lathe(Vector2.zero, new[] { P(0.041f, -0.035f), P(0.041f, -0.02f) }, 14, Shade.Blue, Shade.Blue, Shade.Blue);
+            GameObject nose = WeaponModels.MeshChild(m.Root.transform, "Ammo", r.Build("Arsenal.HyperNose"), Assets.ToolAtlas);
+            nose.transform.localPosition = new Vector3(0, 0.085f, 0.7f);
+            return m;
+        }
+
         // ------------------------------------------------------------------ energy
 
         public static Model EmpCarbine()

@@ -62,11 +62,13 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 | "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
 | "Titan" rocket launcher | explosive | accelerating rocket, big blast |
 | "Eagle" SAM launcher | explosive | **locks on by itself** to the ship you point at (blips, then a steady tone and red brackets); the missile leads its target and has a proximity fuse |
+| "Lightning" hypersonic launcher (legendary) | explosive | the shoulder-fired "Lightning": same automatic lock-on through a holographic sight, then a missile that accelerates up to 20,000 m/s and hits with an enormous blast |
 | Grenade | explosive | left click throws (3 s fuse, bounces) |
 | Breaching charge | explosive | left click sticks it to a surface, right click detonates all yours |
 
 ![All hand weapons](docs/models_weapons.jpg)
 ![SAM lock-on](docs/sam_lock.jpg)
+![Hypersonic launcher hit through its holographic sight](docs/hyper_launcher.jpg)
 ![Breaching charge through an iron wall](docs/breaching_charge.jpg)
 ![Scope](docs/scope.jpg)
 ![Laser minigun](docs/minigun.jpg)
@@ -124,6 +126,8 @@ While you pilot, the HUD shows where each weapon points, the missile and torpedo
 
 Works in multiplayer; **every player needs the mod** (the items, parts and research only exist with it). The player who fires does the aiming and hit detection, like the game's own tools; the host owns the damage (holes, health, explosions) and syncs it to everyone. Ship weapons are fired by whoever pilots that ship, or by the host when nobody does.
 
+Targeting computers are cleared when the beacon they aim at is destroyed or its ship is wrecked, and a world saved with a target on a beacon that no longer exists is cleaned up when it loads (such a save used to crash the game).
+
 ## Settings
 
 `UserData/MelonPreferences.cfg`, section `[Arsenal]`:
@@ -158,7 +162,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.5.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.6.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json
