@@ -504,6 +504,7 @@ namespace Arsenal.Weapons
             // where the missile is at that moment: the server moves the blast onto the nearest piece of hull
             _pinShip = Target;
             _pinLocal = Quaternion.Inverse(targetRot) * (targetCenter - miss - targetOrigin);
+            _pinDir = Quaternion.Inverse(targetRot) * (Velocity - targetVel).normalized;
 #if DEV
             ArsenalMod.Log.Msg($"[DEV] hypersonic fuse: missed centre by {miss.magnitude:0.0} m at {Velocity.magnitude:0} m/s (target {targetVel.magnitude:0} m/s)");
 #endif
@@ -517,7 +518,7 @@ namespace Arsenal.Weapons
         private float _devLastAge;
 #endif
         private uint _pinShip;
-        private Vector3 _pinLocal;
+        private Vector3 _pinLocal, _pinDir; // where it went off and which way it was flying, in the ship's frame
 
         private void PinTo(RaycastHit hit)
         {
@@ -525,6 +526,7 @@ namespace Arsenal.Weapons
             if (helper == null || !Svc.ShipsClient.TryGetTrackedShip(helper.ShipId, out TrackedShipClient s) || !s.IsRigidbodyLoaded) return;
             _pinShip = s.Id;
             _pinLocal = s.ShipRigidBody.transform.InverseTransformPoint(transform.position);
+            _pinDir = s.ShipRigidBody.transform.InverseTransformDirection(Velocity.normalized);
         }
 
         private void Impact(RaycastHit hit)
@@ -573,7 +575,7 @@ namespace Arsenal.Weapons
             _done = true;
             if (Owner && Spec.BlastRadius > 0f)
             {
-                if (_pinShip != 0) Explosives.RequestExplosionOnShip(_pinShip, _pinLocal, transform.position, Spec.Blast);
+                if (_pinShip != 0) Explosives.RequestExplosionOnShip(_pinShip, _pinLocal, _pinDir, transform.position, Spec.Blast);
                 else Explosives.RequestExplosion(transform.position, Spec.Blast);
             }
             Projectiles.Done(this);

@@ -243,8 +243,8 @@ namespace Arsenal.Content
                     break;
                 case HyperLauncherId:
                     p = Clone(display, id, "Lance-missiles hypersonique « Foudre »", "\"Lightning\" hypersonic missile launcher",
-                        "Verrouille le vaisseau le plus proche dans son axe (jusqu'à 8 km) et tire, à chaque impulsion de signal, un missile qui accélère jusqu'à 20 000 m/s : il rattrape même les vaisseaux lancés à 10 000 m/s. 2 missiles, rechargement en 10 s.",
-                        "Locks the nearest ship in front of it (up to 8 km) and, on each signal pulse, fires a missile that accelerates up to 20,000 m/s: it catches even ships flying at 10,000 m/s. 2 missiles, 10 s reload.",
+                        "Verrouille le vaisseau le plus proche dans son axe (jusqu'à 8 km) et tire, à chaque impulsion de signal, un missile qui accélère jusqu'à 20 000 m/s : il rattrape même les vaisseaux lancés à 10 000 m/s et les projette violemment, sans les abîmer. 2 missiles, rechargement en 10 s.",
+                        "Locks the nearest ship in front of it (up to 8 km) and, on each signal pulse, fires a missile that accelerates up to 20,000 m/s: it catches even ships flying at 10,000 m/s and sends them flying, without damaging them. 2 missiles, 10 s reload.",
                         130f, items, (101, 30), (112, 16), (103, 5), (102, 6));
                     model = PartModels.HyperLauncher();
                     boundsCenter = new Vector3(0, 0.2f, 0.06f);

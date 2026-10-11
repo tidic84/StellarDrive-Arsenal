@@ -269,9 +269,18 @@ namespace Arsenal
                         if (a.Length < 2 || ps.name.IndexOf(a[1], System.StringComparison.OrdinalIgnoreCase) >= 0)
                             LoggerInstance.Msg($"[DEV] part settings {ps.id} {ps.name}");
                     break;
+                case "physset":
+                    foreach (var ps in Resources.FindObjectsOfTypeAll<Ships.Values.ShipPhysicsSettings>())
+                        foreach (var fi in ps.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
+                            LoggerInstance.Msg($"[DEV] physics {ps.name}.{fi.Name} = {fi.GetValue(ps)}");
+                    break;
+                case "shipvel":
+                    // shipvel <seconds>: logs the test ship's synced speed every 0.1 s
+                    MelonLoader.MelonCoroutines.Start(LogShipVel(float.Parse(a[1], CultureInfo.InvariantCulture)));
+                    break;
                 case "shipblast":
-                    // shipblast <x> <y> <z>: a hypersonic blast pinned at that point of the test ship (its own frame)
-                    Weapons.Explosives.ServerExplodeOnShip(_testShipId, new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture)), Weapons.WeaponKind.HyperMissile);
+                    // shipblast <x> <y> <z> [rocket]: a hypersonic (or rocket) blast pinned at that point of the test ship (its own frame), flying along +z
+                    Weapons.Explosives.ServerExplodeOnShip(_testShipId, new Vector3(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture)), Vector3.forward, a.Length > 4 && a[4] == "rocket" ? Weapons.WeaponKind.RocketLauncher : Weapons.WeaponKind.HyperMissile);
                     break;
                 case "tgt":
                     TargetTest(a);
@@ -562,6 +571,20 @@ namespace Arsenal
                     PlugB = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, part, 0) },
                 });
             LoggerInstance.Msg($"[DEV] gunship {id}");
+        }
+
+        private System.Collections.IEnumerator LogShipVel(float secs)
+        {
+            float end = Time.time + secs, next = 0f;
+            while (Time.time < end)
+            {
+                if (Time.time >= next && Svc.ShipsServer.TryGetTrackedShip(_testShipId, out TrackedShipServer s))
+                {
+                    next = Time.time + 0.1f;
+                    LoggerInstance.Msg($"[DEV] ship {_testShipId} speed {s.PhysicsState.Velocity.magnitude:0.0} m/s");
+                }
+                yield return null;
+            }
         }
 
         private static uint _tgtShooter, _tgtBeaconShip;

@@ -19,7 +19,7 @@ namespace Arsenal.Damage
         private const float MaxDeltaV = 28f;
         private const float MaxSpin = 1.1f; // rad/s added
 
-        private static readonly Dictionary<uint, List<(Vector3 impulse, Vector3 point)>> Pending = new Dictionary<uint, List<(Vector3, Vector3)>>();
+        private static readonly Dictionary<uint, List<(Vector3 v, Vector3 point, bool kinetic)>> Pending = new Dictionary<uint, List<(Vector3, Vector3, bool)>>();
         private static readonly Dictionary<int, uint> BodyIds = new Dictionary<int, uint>();
 #if DEV
         public static readonly HashSet<uint> DevHover = new HashSet<uint>();
@@ -42,13 +42,25 @@ namespace Arsenal.Damage
         }
 
         /// <summary>Server: push the root ship <paramref name="rootId"/> (impulse and point in its space).</summary>
-        public static void Queue(uint rootId, Vector3 impulse, Vector3 point)
+        public static void Queue(uint rootId, Vector3 impulse, Vector3 point) => Add(rootId, impulse, point, false);
+
+        /// <summary>
+        /// Server: a kinetic hit (hypersonic missile) that changes the ship's speed by <paramref name="deltaV"/>
+        /// whatever its mass, up to <see cref="KineticRefMass"/>; heavier ships move less. A fixed impulse barely
+        /// moved a real ship in flight: its pilot's stabiliser soaked up the spin, and the speed change was tiny.
+        /// </summary>
+        public static void QueueKinetic(uint rootId, Vector3 deltaV, Vector3 point) => Add(rootId, deltaV, point, true);
+
+        public const float KineticRefMass = 4000f;
+        private const float KineticMaxSpin = 0.5f;
+
+        private static void Add(uint rootId, Vector3 v, Vector3 point, bool kinetic)
         {
 #if DEV
             if (DevNoKnock) return;
 #endif
-            if (!Pending.TryGetValue(rootId, out var list)) Pending[rootId] = list = new List<(Vector3, Vector3)>();
-            list.Add((impulse, point));
+            if (!Pending.TryGetValue(rootId, out var list)) Pending[rootId] = list = new List<(Vector3, Vector3, bool)>();
+            list.Add((v, point, kinetic));
         }
 
         private static void ApplyForcesPostfix(ShipRigidbody __instance)
@@ -86,9 +98,11 @@ namespace Arsenal.Damage
             if (rb == null || rb.isKinematic) return;
             float mass = Mathf.Max(1f, rb.mass);
             Vector3 dvBefore = rb.linearVelocity, spinBefore = rb.angularVelocity;
-            foreach (var (impulse, point) in list)
+            foreach (var (v, point, kinetic) in list)
             {
-                Vector3 j = Vector3.ClampMagnitude(impulse, mass * MaxDeltaV);
+                Vector3 j = kinetic
+                    ? v * mass * Mathf.Min(1f, Mathf.Sqrt(KineticRefMass / mass))
+                    : Vector3.ClampMagnitude(v, mass * MaxDeltaV);
                 // velocity change applied now (forces would only act inside the step)
                 rb.linearVelocity += j / mass;
                 Vector3 arm = point - rb.worldCenterOfMass;
@@ -97,7 +111,7 @@ namespace Arsenal.Damage
                 Vector3 local = Quaternion.Inverse(q) * torque;
                 Vector3 inertia = Vector3.Max(rb.inertiaTensor, Vector3.one * 0.01f);
                 Vector3 dw = q * new Vector3(local.x / inertia.x, local.y / inertia.y, local.z / inertia.z);
-                rb.angularVelocity += Vector3.ClampMagnitude(dw, MaxSpin);
+                rb.angularVelocity += Vector3.ClampMagnitude(dw, kinetic ? KineticMaxSpin : MaxSpin);
             }
 #if DEV
             ArsenalMod.Log.Msg($"[DEV] knockback ship {id}: mass {mass:0} dv {(rb.linearVelocity - dvBefore).magnitude:0.0} m/s, spin {(rb.angularVelocity - spinBefore).magnitude:0.00} rad/s");

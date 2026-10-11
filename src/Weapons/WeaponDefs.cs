@@ -370,8 +370,8 @@ namespace Arsenal.Weapons
         {
             Kind = WeaponKind.HyperLauncher, ItemId = HyperLauncherId, Category = ArmoryCategory.Explosives, Rarity = Rarity.Legendary,
             NameFr = "Lance-missiles hypersonique « Foudre »", NameEn = "\"Lightning\" hypersonic launcher",
-            DescFr = "La version portable du « Foudre ». Visez un vaisseau pour le verrouiller : le missile accélère jusqu'à 20 000 m/s, rattrape les vaisseaux les plus rapides et explose avec une puissance énorme.",
-            DescEn = "The shoulder-fired \"Lightning\". Point it at a ship to lock on: the missile accelerates up to 20,000 m/s, catches the fastest ships and blows up with enormous power.",
+            DescFr = "La version portable du « Foudre ». Visez un vaisseau pour le verrouiller : le missile accélère jusqu'à 20 000 m/s, rattrape les vaisseaux les plus rapides et les projette violemment sans les abîmer.",
+            DescEn = "The shoulder-fired \"Lightning\". Point it at a ship to lock on: the missile accelerates up to 20,000 m/s, catches the fastest ships and sends them flying without damaging them.",
             Cost = new[] { (Iron, (byte)20), (Copper, (byte)14), (Shard, (byte)5), (Glass, (byte)4) },
             Mode = FireMode.Projectile, Projectile = ProjectileKind.Hyper,
             Automatic = false, RoundsPerMinute = 20, Magazine = 1, ReloadTime = 6f,

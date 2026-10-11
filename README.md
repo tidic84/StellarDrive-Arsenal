@@ -62,7 +62,7 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 | "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
 | "Titan" rocket launcher | explosive | accelerating rocket, big blast |
 | "Eagle" SAM launcher | explosive | **locks on by itself** to the ship you point at (blips, then a steady tone and red brackets); the missile leads its target and has a proximity fuse |
-| "Lightning" hypersonic launcher (legendary) | explosive | the shoulder-fired "Lightning": same automatic lock-on through a holographic sight, then a missile that accelerates up to 20,000 m/s and hits with an enormous blast |
+| "Lightning" hypersonic launcher (legendary) | explosive | the shoulder-fired "Lightning": same automatic lock-on through a holographic sight, then a missile that accelerates up to 20,000 m/s and sends the ship it hits flying, without damaging it |
 | Grenade | explosive | left click throws (3 s fuse, bounces) |
 | Breaching charge | explosive | left click sticks it to a surface, right click detonates all yours |
 
@@ -104,7 +104,7 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **"Leviathan" torpedo tube**: locks a ship and launches a slow, homing, very heavy torpedo (15 s reload).
 - **"Hail" rocket pod**: 9 unguided rockets fired in a salvo while the signal is on, full reload in 12 s.
 - **"Falcon" SAM battery**: a radar turret that turns by itself towards the nearest **flying** ship, locks it automatically and fires a guided missile while its signal is on (4 missiles, reloads by itself). It only locks what its radar can actually see: a ship behind a hill, a ridge or another ship is ignored, and it holds fire while its launch path is blocked.
-- **"Lightning" hypersonic missile launcher**: locks the nearest ship in front of it out to 8 km — even one flying far off in its own physics space — and fires a missile that accelerates at 6,000 m/s² up to 20,000 m/s. Proportional-navigation guidance and a proximity fuse checked along the whole path of each frame let it catch ships racing at 5,000–10,000 m/s, and its blast is pinned to the ship it hits so network lag can't make it miss. 2 missiles, 10 s reload.
+- **"Lightning" hypersonic missile launcher**: locks the nearest ship in front of it out to 8 km — even one flying far off in its own physics space — and fires a missile that accelerates at 6,000 m/s² up to 20,000 m/s. Proportional-navigation guidance and a proximity fuse checked along the whole path of each frame let it catch ships racing at 5,000–10,000 m/s, and its hit is pinned to the ship so network lag can't make it miss. It is a **kinetic** weapon: no holes and no wrecked machinery, but the ship it hits is sent flying along the missile's path (about 40 m/s for an average ship, less for very heavy ones). 2 missiles, 10 s reload.
 - **"Swarm" flare dispenser**: throws a salvo of 6 burning heat flares on each signal pulse (4 salvos, reloads by itself). Every guided missile, SAM or torpedo that sees a hot flare may turn away and blow up on it instead of the ship.
 - **Armory**: the weapon fabrication terminal (see above).
 
@@ -162,7 +162,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.6.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.7.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

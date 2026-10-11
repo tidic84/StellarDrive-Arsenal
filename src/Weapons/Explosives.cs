@@ -145,7 +145,7 @@ namespace Arsenal.Weapons
         /// A blast pinned to a ship (point in its local frame): the server places it on that ship's own pose,
         /// so a hit on a ship flying at thousands of m/s still lands on it despite the network delay.
         /// </summary>
-        public static void RequestExplosionOnShip(uint shipId, Vector3 shipLocal, Vector3 visualPos, WeaponKind kind)
+        public static void RequestExplosionOnShip(uint shipId, Vector3 shipLocal, Vector3 shipLocalDir, Vector3 visualPos, WeaponKind kind)
         {
             (float radius, _, _) = BlastFor(kind);
             DamageObjectsAround(visualPos, radius);
@@ -153,6 +153,7 @@ namespace Arsenal.Weapons
             {
                 w.Write(shipId);
                 w.Write(shipLocal);
+                w.Write(shipLocalDir);
                 w.Write((byte)kind);
             });
         }
@@ -161,16 +162,26 @@ namespace Arsenal.Weapons
         {
             uint shipId = r.ReadUInt32();
             Vector3 local = r.ReadVector3();
+            Vector3 dir = r.ReadVector3();
             var kind = (WeaponKind)r.ReadByte();
-            ServerExplodeOnShip(shipId, local, kind, conn);
+            ServerExplodeOnShip(shipId, local, dir, kind, conn);
         }
 
-        public static void ServerExplodeOnShip(uint shipId, Vector3 local, WeaponKind kind, NetworkConnection conn = null)
+        /// <summary>Hypersonic missiles hit by sheer speed: they shove the ship hard but do not damage it.</summary>
+        public static bool IsKinetic(WeaponKind kind) => kind == WeaponKind.HyperMissile;
+
+        /// <summary>Speed (m/s) a kinetic hit gives a ship of up to <see cref="ShipKnockback.KineticRefMass"/>.</summary>
+        public const float KineticDeltaV = 40f;
+
+        public static void ServerExplodeOnShip(uint shipId, Vector3 local, Vector3 dir, WeaponKind kind, NetworkConnection conn = null)
         {
             TrackedShipServer ship = Svc.ShipsServer.Ships.FirstOrDefault(s => s.Id == shipId);
             if (ship == null || !HullDamage.TryGetServerWorldPose(ship, out Vector3 pos, out Quaternion rot, out var rootPhysics)) return;
             (float radius, float power, float player) = BlastFor(kind);
-            ServerExplode(rootPhysics.SpaceId, pos + rot * OnHull(ship, local), radius, power, player, conn, kind);
+            if (IsKinetic(kind))
+                ServerExplode(rootPhysics.SpaceId, pos + rot * local, radius, power, player, conn, kind, shipId, rot * dir);
+            else
+                ServerExplode(rootPhysics.SpaceId, pos + rot * OnHull(ship, local), radius, power, player, conn, kind);
         }
 
         /// <summary>
@@ -250,8 +261,11 @@ namespace Arsenal.Weapons
         /// Damages every hull panel within the radius of every loaded ship (holes scale with proximity), hurts
         /// players, and tells everyone to show the blast.
         /// </summary>
-        public static void ServerExplode(uint space, Vector3 pos, float radius, float power, float playerDamage, NetworkConnection attacker = null, WeaponKind weapon = WeaponKind.Grenade)
+        /// <param name="pinnedShip">Ship a kinetic hit was aimed at: shoved at full force along <paramref name="pinnedDir"/>.</param>
+        public static void ServerExplode(uint space, Vector3 pos, float radius, float power, float playerDamage, NetworkConnection attacker = null, WeaponKind weapon = WeaponKind.Grenade,
+            uint pinnedShip = 0, Vector3 pinnedDir = default)
         {
+            bool kinetic = IsKinetic(weapon);
             IWorldTransposeServer transpose = Svc.Get<IWorldTransposeServer>();
             var rng = new System.Random();
             int blastSeed = rng.Next();
@@ -265,8 +279,9 @@ namespace Arsenal.Weapons
                 catch { continue; }
                 Vector3 local = Quaternion.Inverse(shipRot) * (p - shipPos);
                 CoordBounds b = ship.GetHullCoordBounds();
-                if (local.x < b.LowerCoord.x - radius - 1 || local.y < b.LowerCoord.y - radius - 1 || local.z < b.LowerCoord.z - radius - 1 ||
-                    local.x > b.UpperCoord.x + radius + 1 || local.y > b.UpperCoord.y + radius + 1 || local.z > b.UpperCoord.z + radius + 1)
+                bool pinned = ship.Id == pinnedShip;
+                if (!pinned && (local.x < b.LowerCoord.x - radius - 1 || local.y < b.LowerCoord.y - radius - 1 || local.z < b.LowerCoord.z - radius - 1 ||
+                    local.x > b.UpperCoord.x + radius + 1 || local.y > b.UpperCoord.y + radius + 1 || local.z > b.UpperCoord.z + radius + 1))
                     continue;
 
                 // push the ship away from the blast, from the side of the hull that faces it
@@ -274,10 +289,10 @@ namespace Arsenal.Weapons
                     Vector3 lo = (Vector3)b.LowerCoord - Vector3.one * 0.5f, hi = (Vector3)b.UpperCoord + Vector3.one * 0.5f;
                     Vector3 closest = Vector3.Max(lo, Vector3.Min(hi, local));
                     float dist = Vector3.Distance(local, closest);
-                    float reach = radius * 1.5f;
-                    if (dist < reach)
+                    float reach = radius * (kinetic ? 3f : 1.5f);
+                    if (dist < reach || pinned)
                     {
-                        float k = 1f - dist / reach;
+                        float k = pinned ? 1f : 1f - dist / reach;
                         Vector3 center = (lo + hi) * 0.5f;
                         Vector3 away = closest - local;
                         if (away.sqrMagnitude < 0.0001f) away = center - local; // went off inside the hull
@@ -285,9 +300,17 @@ namespace Arsenal.Weapons
                         Vector3 dirWorld = shipRot * away.normalized;
                         Vector3 pointWorld = shipPos + shipRot * closest;
                         uint rootId = Svc.ShipsServer.TryGetTrackedRootShip(ship.Id, out TrackedShipServer root) && root != null ? root.Id : ship.Id;
-                        ShipKnockback.Queue(rootId, dirWorld * (power * ShipKnockback.ImpulsePerPower * k * k), pointWorld);
+                        if (!kinetic)
+                            ShipKnockback.Queue(rootId, dirWorld * (power * ShipKnockback.ImpulsePerPower * k * k), pointWorld);
+                        else
+                        {
+                            // the ship it was aimed at goes along the missile's flight; others away from the blast
+                            if (pinned && pinnedDir.sqrMagnitude > 0.0001f) dirWorld = pinnedDir.normalized;
+                            ShipKnockback.QueueKinetic(rootId, dirWorld * (KineticDeltaV * k), pointWorld);
+                        }
                     }
                 }
+                if (kinetic) continue; // no holes, no wrecked machinery
 
                 // machinery on this ship (thrusters, tanks, seats...)
                 PartDamage.ApplyBlast(ship, local, radius, power);
