@@ -128,7 +128,9 @@ namespace Arsenal.Vehicles
                         {
                             case ShipContent.MachineGunId: UpdateGun(ship, part, m, on, owner.Value); break;
                             case ShipContent.MissilePodId: UpdatePod(ship, part, m, on, owner.Value); break;
-                            case ShipContent.LaserCannonId: UpdateLaser(ship, part, m, on, owner.Value); break;
+                            case ShipContent.LaserCannonId:
+                            case ShipContent.LaserGreenId:
+                            case ShipContent.LaserBlueId: UpdateLaser(ship, part, m, on, owner.Value); break;
                             case ShipContent.PdcId: UpdatePdc(ship, part, m, on, owner.Value); break;
                             case ShipContent.PlasmaCannonId: UpdateBolt(ship, part, m, on, owner.Value, ProjectileKind.Plasma, 0.75f, WeaponKind.PlasmaCannon); break;
                             case ShipContent.IonCannonId: UpdateBolt(ship, part, m, on, owner.Value, ProjectileKind.Ion, 2.2f, WeaponKind.IonCannon); break;
@@ -837,42 +839,35 @@ namespace Arsenal.Vehicles
 
         private void UpdateLaser(TrackedShipClient ship, StatefulPart part, Mount m, bool on, bool owner)
         {
+            // blaster bolts while the signal is on; every shot heats the coils, a cool-down stops it when they glow red
             float dt = Time.deltaTime;
+            byte style = Laser.StyleOf(m.Kind);
+            LaserStyle s = Laser.Style(style);
             bool firing = owner && on && !m.Overheated;
-            if (firing)
-            {
-                m.Heat += dt / 6f;
-                if (m.Heat >= 1f)
-                {
-                    m.Heat = 1f;
-                    m.Overheated = true;
-                }
-            }
-            else
-            {
-                m.Heat = Mathf.Max(0f, m.Heat - dt / 4f);
-                if (m.Overheated && m.Heat < 0.25f) m.Overheated = false;
-            }
+            m.Heat = Mathf.Max(0f, m.Heat - dt / 5f);
+            if (m.Overheated && m.Heat < 0.25f) m.Overheated = false;
+            // the lens flares at each shot and settles back
+            m.Charge = Mathf.Max(0f, m.Charge - dt * 8f);
             if (m.Lens != null)
-                m.Lens.material.SetColor("_EmissionColor", Color.Lerp(new Color(0.3f, 0.8f, 1f), new Color(1f, 0.35f, 0.15f), m.Heat) * (firing ? 8f : 2f));
+                m.Lens.material.SetColor("_EmissionColor", Color.Lerp(s.Lens, new Color(1f, 0.55f, 0.2f), m.Heat) * (2f + m.Charge * 14f));
 
-            if (!firing)
+            if (!firing || Time.time < m.NextShot) return;
+            m.NextShot = Mathf.Max(m.NextShot + s.Interval, Time.time - 0.05f);
+            m.Heat += s.Heat;
+            if (m.Heat >= 1f)
             {
-                StopBeam(m);
-                return;
+                m.Heat = 1f;
+                m.Overheated = true;
             }
+            m.Charge = 1f;
             Vector3 origin = PartPoint(ship, part, LaserMuzzle);
             Vector3 fwd = PartForward(ship, part);
-            Vector3 end = Laser.Trace(origin, fwd, RootBody(ship), m);
+            uint root = RootOf(ship.Id);
+            TryGetShipMotion(root, out _, out Vector3 shipVel, out _, out _);
+            Vector3 vel = shipVel + fwd * s.Speed;
             Vector3 from = VisualPoint(m, 0, origin);
-            DrawBeam(m, from, end);
-            if (!m.Loop.hasHandle()) m.Loop = Sounds.LaserLoop(from);
-            else Sounds.Move(m.Loop, from);
-            if (Time.time >= m.NextRelay)
-            {
-                m.NextRelay = Time.time + 0.1f;
-                FxNet.RelayBeam(from, end, 0);
-            }
+            Laser.Fire(from, vel, root, true, style);
+            FxNet.RelayBolt(from, vel, root, style);
         }
 
         public static Material BeamMaterial
@@ -883,32 +878,6 @@ namespace Arsenal.Vehicles
                 _beamMat = Assets.Glow(new Color(1f, 0.25f, 0.12f), 12f);
                 return _beamMat;
             }
-        }
-
-        private static void DrawBeam(Mount m, Vector3 from, Vector3 to)
-        {
-            if (m.Beam == null)
-            {
-                var go = new GameObject("Arsenal.LaserBeam");
-                m.Beam = go.AddComponent<LineRenderer>();
-                m.Beam.sharedMaterial = BeamMaterial;
-                m.Beam.positionCount = 2;
-                m.Beam.useWorldSpace = true;
-                m.Beam.numCapVertices = 3;
-                m.Beam.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                m.BeamLight = new GameObject("Arsenal.LaserLight").AddComponent<Light>();
-                m.BeamLight.type = LightType.Point;
-                m.BeamLight.color = new Color(1f, 0.4f, 0.2f);
-                m.BeamLight.range = 3f;
-                m.BeamLight.intensity = 3f;
-                m.BeamLight.shadows = LightShadows.None;
-            }
-            float w = 0.09f + Mathf.Sin(Time.time * 60f) * 0.015f;
-            m.Beam.startWidth = w;
-            m.Beam.endWidth = w * 0.8f;
-            m.Beam.SetPosition(0, from);
-            m.Beam.SetPosition(1, to);
-            m.BeamLight.transform.position = to - (to - from).normalized * 0.2f;
         }
 
         public static void StopBeam(Mount m)

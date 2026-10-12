@@ -52,6 +52,8 @@ namespace Arsenal.Vehicles
                         Cross(c, 9f, 4f, ink);
                         break;
                     case ShipContent.LaserCannonId:
+                    case ShipContent.LaserGreenId:
+                    case ShipContent.LaserBlueId:
                         Ring(c, 10f, ink);
                         Bar(new Rect(c.x + 16f, c.y - 10f, 5f, 20f), m.Heat, m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f));
                         break;

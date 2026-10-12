@@ -525,6 +525,44 @@ namespace Arsenal.Visual
             return go;
         }
 
+        /// <summary>A glowing ball that swells and dies at once, with a light pulse (blaster muzzles and hits).</summary>
+        public static void GlowFlash(Vector3 pos, Color color, float size, float life, float lightRange = 0f, float lightIntensity = 0f, float glow = 10f)
+        {
+            GameObject go = MeshObject("Arsenal.GlowFlash", IcoMesh, GlowMat(color, glow), pos, Random.rotation, Vector3.one * 0.01f);
+            Light l = null;
+            if (lightRange > 0f)
+            {
+                l = go.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.color = color;
+                l.range = lightRange;
+                l.intensity = lightIntensity;
+                l.shadows = LightShadows.None;
+            }
+            Instance._items.Add(new Body { T = go.transform, Life = life, BaseScale = Vector3.one * size, Puff = true, Spin = Random.insideUnitSphere * 300f, Light = l, LightIntensity = lightIntensity });
+        }
+
+        /// <summary>Molten droplets: glowing chips thrown off a surface that fall and fade.</summary>
+        public static void Embers(Vector3 pos, Vector3 normal, Color color, int count, float size, float speed)
+        {
+            Material m = GlowMat(color, 8f);
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 s = Vector3.one * size * Random.Range(0.6f, 1.4f);
+                GameObject go = MeshObject("Arsenal.Ember", CubeMesh, m, pos, Random.rotation, s);
+                Instance._items.Add(new Body
+                {
+                    T = go.transform,
+                    Velocity = (normal + Random.insideUnitSphere * 0.9f).normalized * speed * Random.Range(0.4f, 1.2f),
+                    Spin = Random.insideUnitSphere * 500f,
+                    Gravity = 9.81f,
+                    Drag = 0.8f,
+                    Life = Random.Range(0.4f, 0.9f),
+                    BaseScale = s,
+                });
+            }
+        }
+
         /// <summary>A continuous beam segment that lives one frame (the laser cannon redraws it every frame).</summary>
         public static void Beam(Vector3 from, Vector3 to, float width, Material mat, float life = 0.001f)
         {

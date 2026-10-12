@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Arsenal.Core;
 using Arsenal.Net;
+using Arsenal.Vehicles;
 using Arsenal.Visual;
 using FishNet.Connection;
 using UnityEngine;
@@ -16,6 +17,7 @@ namespace Arsenal.Weapons
         Beam = 3,
         Flame = 4,
         Arc = 5,
+        Bolt = 6,
     }
 
     /// <summary>Cosmetic effects shown to the other players. Positions travel in the sender's physics space.</summary>
@@ -56,6 +58,21 @@ namespace Arsenal.Weapons
                 w.Write(space);
                 w.Write(from);
                 w.Write(to);
+                w.Write(style);
+            }, FishNet.Transporting.Channel.Unreliable);
+        }
+
+        /// <summary>A blaster bolt: the others fly their own copy of it (for the eyes only).</summary>
+        public static void RelayBolt(Vector3 from, Vector3 velocity, uint shooterRoot, byte style)
+        {
+            uint space = ClientOrigin.LocalPhysicsSpaceId;
+            ArsenalNet.SendToServer(Op.FxRelay, w =>
+            {
+                w.Write((byte)FxType.Bolt);
+                w.Write(space);
+                w.Write(from);
+                w.Write(velocity);
+                w.Write(shooterRoot);
                 w.Write(style);
             }, FishNet.Transporting.Channel.Unreliable);
         }
@@ -133,6 +150,15 @@ namespace Arsenal.Weapons
                     Vector3 to = ToLocal(space, r.ReadVector3());
                     byte style = r.ReadByte();
                     LaserFx.RemoteBeam(from, to, style);
+                    break;
+                }
+                case FxType.Bolt:
+                {
+                    Vector3 from = ToLocal(space, r.ReadVector3());
+                    Vector3 v = r.ReadVector3();
+                    uint shooter = r.ReadUInt32();
+                    byte style = r.ReadByte();
+                    if (v.sqrMagnitude > 0.01f) Laser.Fire(from, ToLocalDir(space, v.normalized) * v.magnitude, shooter, false, style);
                     break;
                 }
                 case FxType.Flame:

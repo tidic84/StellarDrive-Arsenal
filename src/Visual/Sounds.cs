@@ -124,6 +124,12 @@ namespace Arsenal.Visual
 
         public static void MissileLaunch(Vector3 pos) => Play("missile", () => Whoosh(1.4f, true), pos, 1f, Jitter(0.05f), 4f, 500f);
 
+        /// <summary>Ship blaster cannon: the "pew" of a struck steel cable, heavy enough for a starfighter.</summary>
+        public static void Blaster(Vector3 pos, float pitch = 1f) => Play("blaster", BlasterShot, pos, 1f, pitch * Jitter(0.05f), 6f, 700f);
+
+        /// <summary>A blaster bolt splashing on something: a sizzling crack.</summary>
+        public static void BlasterHit(Vector3 pos) => Play("blasterhit", () => Gunshot(0.3f, 3200f, 160f, 0.5f), pos, 0.6f, Jitter(0.1f), 3f, 250f);
+
         public static FMOD.Channel LaserLoop(Vector3 pos) => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true);
 
         public static void Move(FMOD.Channel ch, Vector3 pos)
@@ -375,6 +381,43 @@ namespace Arsenal.Visual
                 s[i] = (Mathf.Sin(phase) * 0.7f + Mathf.Sign(Mathf.Sin(phase * 0.5f)) * 0.15f + lp * noise) * env;
             }
             return Normalise(s, 0.85f);
+        }
+
+        /// <summary>
+        /// Blaster: a sharp transient, then several partials whose pitch dives at different rates (a wave
+        /// dispersing along a taut cable: highs arrive first), a little ringing and a short low body.
+        /// </summary>
+        private static float[] BlasterShot()
+        {
+            const float length = 0.55f;
+            int n = (int)(length * Rate);
+            var s = new float[n];
+            float[] start = { 3400f, 2500f, 1700f, 5200f };
+            float[] end = { 260f, 190f, 140f, 420f };
+            float[] rate = { 9f, 7f, 5.5f, 14f };
+            float[] gain = { 0.55f, 0.45f, 0.35f, 0.2f };
+            var phase = new float[4];
+            float lp = 0f, body = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, k = t / length;
+                float v = 0f;
+                for (int p = 0; p < 4; p++)
+                {
+                    float f = end[p] + (start[p] - end[p]) * Mathf.Exp(-t * rate[p]);
+                    phase[p] += 2f * Mathf.PI * f / Rate;
+                    v += Mathf.Sin(phase[p] + 0.6f * Mathf.Sin(phase[p] * 2.01f)) * gain[p];
+                }
+                // metallic shimmer
+                v *= 1f + 0.25f * Mathf.Sin(2f * Mathf.PI * 38f * t);
+                lp += 0.35f * (Noise() - lp);
+                float crack = lp * Mathf.Exp(-t * 90f) * 0.9f;
+                body += 2f * Mathf.PI * (90f + 120f * Mathf.Exp(-t * 30f)) / Rate;
+                float thump = Mathf.Sin(body) * Mathf.Exp(-t * 22f) * 0.5f;
+                float env = Mathf.Clamp01(i / 20f) * Mathf.Exp(-t * 5.5f) * (1f - k * k);
+                s[i] = v * env + crack + thump;
+            }
+            return Normalise(s, 0.9f);
         }
 
         private static float[] Gauss()

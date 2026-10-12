@@ -84,7 +84,7 @@ Place an **Armory** (build menu, *Arsenal* tab) and open it like a chest: a fabr
 
 ## PvP
 
-Weapons hurt other players (headshots × 1.6). You get the feedback you expect from a shooter: hit markers (white, red for a headshot, with a tick sound), a red arc showing where damage comes from, a kill confirmation, a kill feed with the weapon used, and burn / jam overlays when you are on fire or hit by an EMP.
+Weapons hurt other players (headshots × 1.6). Hits are tested against the player as you see them on screen, so moving players and laggy connections are hit where they are drawn; ship weapons and projectiles hurt players too. You get the feedback you expect from a shooter: hit markers (white, red for a headshot, with a tick sound), a red arc showing where damage comes from, a kill confirmation, a kill feed with the weapon used, and burn / jam overlays when you are on fire or hit by an EMP.
 
 ![Kill feed](docs/pvp_killfeed.jpg)
 ![Damage direction](docs/pvp_hurt.jpg)
@@ -96,7 +96,10 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **Gunner seat**: an advanced pilot seat with three more signal outputs that follow the pilot's buttons: *Fire 1* (left click), *Fire 2* (right click), *Fire 3* (middle click). Wire them with signal cables to the weapons — or to any logic, as with the game's other signals.
 - **Heavy machine gun**: twin barrels, fires while its input signal is on, armour-piercing rounds.
 - **Air-to-air missile pod**: locks the nearest ship in front of it, fires a homing missile on each signal pulse, 4 missiles that reload by themselves, proximity fuse.
-- **Laser cannon**: a continuous beam that melts holes through hulls, overheats after a few seconds.
+- **Laser cannons**: fire starfighter-style blaster bolts (white-hot core, coloured glow, lighting up whatever they pass), each one melting into the hull; they overheat after a long burst. Three colours:
+  - **red**: the all-rounder;
+  - **green "Hunter"**: lighter, faster bolts and a quicker rate of fire;
+  - **blue "Turbo"**: big, slow, spaced-out bolts that hit hard and open wide breaches (Advanced weaponry).
 - **"Guardian" point defence**: a gatling turret that turns by itself and shoots down incoming missiles, rockets, torpedoes and plasma while its signal is on.
 - **P-400 plasma cannon**: slow glowing plasma balls that explode on impact.
 - **"Disruptor" ion cannon**: ion bolts that knock out the controls of the ship they hit for 8 seconds.
@@ -162,7 +165,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.7.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.8.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

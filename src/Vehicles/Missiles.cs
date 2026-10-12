@@ -204,8 +204,14 @@ namespace Arsenal.Vehicles
 
             Vector3 step = Velocity * dt;
             float dist = step.magnitude;
-            if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, 0.12f, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            if (dist > 0.0001f && Ballistics.Raycast(transform.position, step / dist, dist, out RaycastHit hit, out uint hitPlayer, 0.12f))
             {
+                if (hitPlayer != 0)
+                {
+                    transform.position = hit.point;
+                    Boom();
+                    return;
+                }
                 bool own = _age < 0.6f && ShipWeapons.IsOwnShip(hit, ShooterRoot);
                 if (!own)
                 {

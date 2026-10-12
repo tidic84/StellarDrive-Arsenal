@@ -485,15 +485,24 @@ namespace Arsenal.Weapons
         /// <summary>The disintegrator: damage ramps up while the beam stays on the same thing.</summary>
         private Vector3 HandBeam(Vector3 origin, Vector3 dir, bool tick)
         {
-            PhysicsScene scene = ClientScene.PhysicsScene;
             Vector3 pos = origin;
             for (int i = 0; i < 8; i++)
             {
-                if (!scene.Raycast(pos, dir, out RaycastHit hit, _def.Reach, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+                if (!Ballistics.Raycast(pos, dir, _def.Reach, out RaycastHit hit, out uint player))
                 {
                     _rampTarget = null;
                     _ramp = 1f;
                     return pos + dir * _def.Reach;
+                }
+                if (player != 0)
+                {
+                    if (tick)
+                    {
+                        Ramp(player);
+                        PlayerDamage.Report(player, _def.Bullet.PlayerDamage * _ramp * 4f, _def.Kind, false);
+                        Fx.EmitSparks(hit.point, hit.normal, 4);
+                    }
+                    return hit.point;
                 }
                 Collider col = hit.collider;
                 object target = col;
@@ -520,18 +529,10 @@ namespace Arsenal.Weapons
                 }
                 if (tick)
                 {
-                    if (Ballistics.TryGetOtherPlayer(hit, out uint player))
-                    {
-                        Ramp(player);
-                        PlayerDamage.Report(player, _def.Bullet.PlayerDamage * _ramp * 4f, _def.Kind, false);
-                    }
-                    else
-                    {
-                        Ramp(target);
-                        IMinableObject m = col.GetComponentInParent<IMinableObject>();
-                        if (m != null)
-                            try { m.ReduceHealth(_def.Bullet.ObjectDamage * _ramp); } catch { }
-                    }
+                    Ramp(target);
+                    IMinableObject m = col.GetComponentInParent<IMinableObject>();
+                    if (m != null)
+                        try { m.ReduceHealth(_def.Bullet.ObjectDamage * _ramp); } catch { }
                     Fx.EmitSparks(hit.point, hit.normal, 4);
                 }
                 return hit.point;
@@ -587,10 +588,9 @@ namespace Arsenal.Weapons
 
         private void FlameDamage(Vector3 origin, Vector3 dir)
         {
-            PhysicsScene scene = ClientScene.PhysicsScene;
             float reach = _def.Reach;
-            // the stream stops at the first wall
-            if (scene.Raycast(origin, dir, out RaycastHit wall, reach, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            // the stream stops at the first wall (and flows round the players, burnt below)
+            if (Ballistics.Raycast(origin, dir, reach, out RaycastHit wall, out _, players: false))
             {
                 reach = wall.distance;
                 if (ShipPartsTagDetection.ColliderIsHull(wall.collider) && Ballistics.TryResolvePanel(wall, out PanelKey key, out HullPart part, out Vector2 local))
@@ -606,19 +606,12 @@ namespace Arsenal.Weapons
                     try { m.ReduceHealth(_def.Bullet.ObjectDamage); } catch { }
             }
             var hit = new HashSet<uint>();
-            var cols = new Collider[16];
             for (float d = 1f; d <= reach; d += 1.5f)
             {
                 float r = Mathf.Lerp(0.3f, 1.3f, d / _def.Reach);
-                int n = scene.OverlapSphere(origin + dir * d, r, cols, ~0, QueryTriggerInteraction.Ignore);
-                for (int i = 0; i < n; i++)
-                {
-                    Rigidbody rb = cols[i].attachedRigidbody;
-                    if (rb == null || Svc.PlayersClient == null) continue;
-                    foreach (TrackedPlayerOtherClient other in Svc.PlayersClient.OtherPlayers)
-                        if (other.IsPhysicsLoaded && other.ClientRigidbody == rb && hit.Add(other.Id))
-                            PlayerDamage.Report(other.Id, _def.Bullet.PlayerDamage * 4f, _def.Kind, false, _def.Bullet.BurnSeconds);
-                }
+                foreach (uint id in Ballistics.PlayersNear(origin + dir * d, r))
+                    if (hit.Add(id))
+                        PlayerDamage.Report(id, _def.Bullet.PlayerDamage * 4f, _def.Kind, false, _def.Bullet.BurnSeconds);
             }
         }
 
@@ -630,12 +623,11 @@ namespace Arsenal.Weapons
             var points = new List<Vector3> { from };
             var done = new HashSet<uint>();
             BulletSpec spec = _def.Bullet;
-            PhysicsScene scene = ClientScene.PhysicsScene;
             Vector3 current;
-            if (scene.Raycast(cam.CameraPos, cam.Direction, out RaycastHit hit, _def.Reach, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            if (Ballistics.Raycast(cam.CameraPos, cam.Direction, _def.Reach, out RaycastHit hit, out uint pid))
             {
                 current = hit.point;
-                if (Ballistics.TryGetOtherPlayer(hit, out uint pid))
+                if (pid != 0)
                 {
                     done.Add(pid);
                     PlayerDamage.Report(pid, spec.PlayerDamage, _def.Kind, false, 0f, 1f);

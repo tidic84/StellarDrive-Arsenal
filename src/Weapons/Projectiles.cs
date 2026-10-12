@@ -406,8 +406,14 @@ namespace Arsenal.Weapons
             float dist = step.magnitude;
             if (chasing && _age > Spec.GuideAfter + 0.1f && SweptFuse(tCenter, tVel, tOrigin, tRot, step, dt))
                 return;
-            if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, Spec.Radius, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            if (dist > 0.0001f && Ballistics.Raycast(transform.position, step / dist, dist, out RaycastHit hit, out uint hitPlayer, Spec.Radius))
             {
+                if (hitPlayer != 0)
+                {
+                    transform.position = hit.point;
+                    ImpactPlayer(hitPlayer);
+                    return;
+                }
                 bool own = _age < 0.4f && ShipWeapons.IsOwnShip(hit, ShooterRootId);
                 if (!own)
                 {
@@ -529,6 +535,19 @@ namespace Arsenal.Weapons
             _pinDir = s.ShipRigidBody.transform.InverseTransformDirection(Velocity.normalized);
         }
 
+        /// <summary>Flew into another player: the bolt's own damage, then the blast (the server works out who it reaches).</summary>
+        private void ImpactPlayer(uint playerId)
+        {
+            if (Owner && (Spec.EmpSeconds > 0f || Spec.DirectPlayerDamage > 0f))
+                PlayerDamage.Report(playerId, Spec.DirectPlayerDamage, Spec.Blast, false, 0f, Spec.EmpSeconds * 0.5f);
+            if (Spec.Kind == ProjectileKind.Ion)
+            {
+                Fx.ElectricArc(transform.position, transform.position + Random.insideUnitSphere * 1.2f, new Color(0.4f, 0.65f, 1f), 0.3f, 0.05f);
+                Sounds.Zapped(transform.position);
+            }
+            Detonate();
+        }
+
         private void Impact(RaycastHit hit)
         {
 #if DEV
@@ -541,8 +560,6 @@ namespace Arsenal.Weapons
                 {
                     IShipPartHelper helper = hit.collider.GetComponentInParent<IShipPartHelper>();
                     if (helper != null) Effects.RequestShipEmp(helper.ShipId, Spec.EmpSeconds);
-                    if (Ballistics.TryGetOtherPlayer(hit, out uint pid))
-                        PlayerDamage.Report(pid, Spec.DirectPlayerDamage, Spec.Blast, false, 0f, Spec.EmpSeconds * 0.5f);
                 }
                 if (Spec.DirectPanelDamage > 0f && ShipPartsTagDetection.ColliderIsHull(hit.collider) && Ballistics.TryResolvePanel(hit, out PanelKey key, out HullPart part, out Vector2 local))
                 {

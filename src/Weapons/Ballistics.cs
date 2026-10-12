@@ -48,7 +48,6 @@ namespace Arsenal.Weapons
         /// <summary>Fires one bullet in the client physics scene. Returns where it ended for the tracer.</summary>
         public static Vector3 Fire(Vector3 origin, Vector3 dir, BulletSpec spec, List<ImpactFx> impacts, Rigidbody ignore = null, WeaponKind weapon = WeaponKind.Rifle)
         {
-            PhysicsScene scene = ClientScene.PhysicsScene;
             float penetration = spec.Penetration;
             float panelDamage = spec.PanelDamage;
             float playerDamage = spec.PlayerDamage;
@@ -59,9 +58,23 @@ namespace Arsenal.Weapons
             {
                 float left = spec.Range - travelled;
                 if (left <= 0f) break;
-                if (!scene.Raycast(pos, dir, out RaycastHit hit, left, Mask, QueryTriggerInteraction.Ignore))
+                if (!Raycast(pos, dir, left, out RaycastHit hit, out uint playerId))
                     return pos + dir * left;
                 travelled += hit.distance;
+                if (playerId != 0)
+                {
+                    bool head = IsHeadshot(playerId, hit.point);
+                    impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ImpactKind.Flesh });
+                    PlayerDamage.Report(playerId, playerDamage * (head ? 1.6f : 1f), weapon, head, spec.BurnSeconds, spec.EmpSeconds);
+                    if (spec.ThroughPlayers)
+                    {
+                        pos = hit.point + dir * 0.8f;
+                        travelled += 0.8f;
+                        playerDamage *= 0.8f;
+                        continue;
+                    }
+                    return hit.point;
+                }
                 if (ignore != null && hit.rigidbody == ignore)
                 {
                     // our own ship: the round leaves through the barrel clearance
@@ -163,21 +176,6 @@ namespace Arsenal.Weapons
                     return hit.point;
                 }
 
-                if (TryGetOtherPlayer(hit, out uint playerId))
-                {
-                    bool head = IsHeadshot(hit);
-                    impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ImpactKind.Flesh });
-                    PlayerDamage.Report(playerId, playerDamage * (head ? 1.6f : 1f), weapon, head, spec.BurnSeconds, spec.EmpSeconds);
-                    if (spec.ThroughPlayers)
-                    {
-                        pos = hit.point + dir * 0.8f;
-                        travelled += 0.8f;
-                        playerDamage *= 0.8f;
-                        continue;
-                    }
-                    return hit.point;
-                }
-
                 IMinableObject minable = col.GetComponentInParent<IMinableObject>();
                 if (minable != null)
                 {
@@ -264,27 +262,155 @@ namespace Arsenal.Weapons
         }
 
 
-        /// <summary>Top of another player's body (along the local up).</summary>
-        public static bool IsHeadshot(RaycastHit hit)
-        {
-            if (hit.rigidbody == null) return false;
-            float h = Vector3.Dot(hit.point - hit.rigidbody.worldCenterOfMass, Fx.Up);
-            return h > 0.5f;
-        }
+        // ------------------------------------------------------------------ other players
 
-        public static bool TryGetOtherPlayer(RaycastHit hit, out uint playerId)
+        // The game keeps a physics body for each other player, but parks it on the last raw network state
+        // (and switches it off while they pilot), while the body we see is drawn at an interpolated position:
+        // over a real connection the two drift apart and shots aimed at the player go through. So weapons skip
+        // those bodies and test a capsule around the player as drawn.
+        private const float BodyRadius = 0.38f, BodyBottom = 0.35f, BodyTop = 1.5f, HeadHeight = 1.42f;
+
+        /// <summary>Feet and up axis of another player as drawn, in the local physics space.</summary>
+        private static bool TryGetBody(TrackedPlayerOtherClient p, out Vector3 feet, out Vector3 up)
         {
-            playerId = 0;
-            if (hit.rigidbody == null || Svc.PlayersClient == null) return false;
-            foreach (TrackedPlayerOtherClient other in Svc.PlayersClient.OtherPlayers)
+            feet = up = Vector3.zero;
+            // the dead lie there until they respawn: shots go through
+            if (!p.IsVisualLoaded || p.State.Type == Players.Interface.Model.PlayerStateType.Dead || p.State.Type == Players.Interface.Model.PlayerStateType.Unset) return false;
+            feet = p.VisualPos;
+            up = p.VisualRotation * Vector3.up;
+            uint vis = ClientOrigin.LocalVisualSpaceId, phys = ClientOrigin.LocalPhysicsSpaceId;
+            if (vis != phys)
             {
-                if (other.IsPhysicsLoaded && other.ClientRigidbody == hit.rigidbody)
+                try
                 {
-                    playerId = other.Id;
-                    return true;
+                    feet = Svc.TransposeClient.Position(vis, phys, feet);
+                    up = Svc.TransposeClient.Rotation(vis, phys, Quaternion.identity) * up;
+                }
+                catch (System.Exception)
+                {
+                    return false;
                 }
             }
+            return true;
+        }
+
+        /// <summary>
+        /// First other player along a ray (a sphere of <paramref name="radius"/> for fat projectiles).
+        /// Returns the distance to their surface.
+        /// </summary>
+        public static bool PlayerRay(Vector3 origin, Vector3 dir, float maxDist, out uint playerId, out float dist, float radius = 0f)
+        {
+            playerId = 0;
+            dist = maxDist;
+            if (Svc.PlayersClient == null) return false;
+            foreach (TrackedPlayerOtherClient p in Svc.PlayersClient.OtherPlayers)
+            {
+                if (!TryGetBody(p, out Vector3 feet, out Vector3 up)) continue;
+                float r = BodyRadius + radius;
+                if (!ClosestOnSegments(origin, origin + dir * maxDist, feet + up * BodyBottom, feet + up * BodyTop, out float s, out float miss)) continue;
+                if (miss > r) continue;
+                // back off from the closest approach to where the ray enters the capsule
+                float t = Mathf.Max(0f, s * maxDist - Mathf.Sqrt(r * r - miss * miss));
+                if (t < dist)
+                {
+                    dist = t;
+                    playerId = p.Id;
+                }
+            }
+            return playerId != 0;
+        }
+
+        /// <summary>Other players whose body comes within <paramref name="radius"/> of a point.</summary>
+        public static IEnumerable<uint> PlayersNear(Vector3 point, float radius)
+        {
+            if (Svc.PlayersClient == null) yield break;
+            foreach (TrackedPlayerOtherClient p in Svc.PlayersClient.OtherPlayers)
+            {
+                if (!TryGetBody(p, out Vector3 feet, out Vector3 up)) continue;
+                Vector3 a = feet + up * BodyBottom, b = feet + up * BodyTop;
+                Vector3 ab = b - a;
+                float k = Mathf.Clamp01(Vector3.Dot(point - a, ab) / ab.sqrMagnitude);
+                if (Vector3.Distance(point, a + ab * k) <= radius + BodyRadius) yield return p.Id;
+            }
+        }
+
+        /// <summary>A hit high on the body, by the player's height above their feet.</summary>
+        public static bool IsHeadshot(uint playerId, Vector3 point)
+        {
+            if (Svc.PlayersClient == null) return false;
+            foreach (TrackedPlayerOtherClient p in Svc.PlayersClient.OtherPlayers)
+                if (p.Id == playerId && TryGetBody(p, out Vector3 feet, out Vector3 up))
+                    return Vector3.Dot(point - feet, up) > HeadHeight;
             return false;
+        }
+
+        /// <summary>Is this collider another player's (stale) physics body? Shots go through it.</summary>
+        public static bool IsOtherPlayerBody(RaycastHit hit)
+        {
+            if (hit.rigidbody == null || Svc.PlayersClient == null) return false;
+            foreach (TrackedPlayerOtherClient other in Svc.PlayersClient.OtherPlayers)
+                if (other.IsPhysicsLoaded && other.ClientRigidbody == hit.rigidbody) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The weapons' raycast: the world, ignoring other players' physics bodies, plus the other players as drawn.
+        /// When a player is hit first, <paramref name="player"/> is set and only hit.point/normal/distance are valid.
+        /// </summary>
+        public static bool Raycast(Vector3 origin, Vector3 dir, float maxDist, out RaycastHit hit, out uint player, float radius = 0f, bool players = true)
+        {
+            PhysicsScene scene = ClientScene.PhysicsScene;
+            player = 0;
+            Vector3 pos = origin;
+            float travelled = 0f;
+            bool found = false;
+            hit = default;
+            for (int i = 0; i < 4; i++)
+            {
+                bool any = radius > 0f
+                    ? scene.SphereCast(pos, radius, dir, out hit, maxDist - travelled, Mask, QueryTriggerInteraction.Ignore)
+                    : scene.Raycast(pos, dir, out hit, maxDist - travelled, Mask, QueryTriggerInteraction.Ignore);
+                if (!any) break;
+                if (IsOtherPlayerBody(hit))
+                {
+                    float step = hit.distance + 0.05f;
+                    travelled += step;
+                    pos += dir * step;
+                    continue;
+                }
+                hit.distance += travelled;
+                found = true;
+                break;
+            }
+            float worldDist = found ? hit.distance : maxDist;
+            if (players && PlayerRay(origin, dir, worldDist, out uint id, out float pd, radius))
+            {
+                player = id;
+                hit = default;
+                hit.point = origin + dir * pd;
+                hit.normal = -dir;
+                hit.distance = pd;
+                return true;
+            }
+            return found;
+        }
+
+        /// <summary>Closest approach of segment p0-p1 to segment q0-q1: fraction along the first and the gap.</summary>
+        private static bool ClosestOnSegments(Vector3 p0, Vector3 p1, Vector3 q0, Vector3 q1, out float s, out float gap)
+        {
+            Vector3 d1 = p1 - p0, d2 = q1 - q0, r = p0 - q0;
+            float a = Vector3.Dot(d1, d1), e = Vector3.Dot(d2, d2), f = Vector3.Dot(d2, r);
+            s = 0f;
+            gap = float.MaxValue;
+            if (a < 1e-6f) return false;
+            float c = Vector3.Dot(d1, r), t;
+            float b = Vector3.Dot(d1, d2), denom = a * e - b * b;
+            s = denom > 1e-6f ? Mathf.Clamp01((b * f - c * e) / denom) : 0f;
+            t = (b * s + f) / e;
+            if (t < 0f) { t = 0f; s = Mathf.Clamp01(-c / a); }
+            else if (t > 1f) { t = 1f; s = Mathf.Clamp01((b - c) / a); }
+            gap = Vector3.Distance(p0 + d1 * s, q0 + d2 * t);
+            return true;
         }
 
         // ------------------------------------------------------------------ effects, local and relayed

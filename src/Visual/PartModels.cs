@@ -120,7 +120,7 @@ namespace Arsenal.Visual
         }
 
         /// <summary>Laser cannon: coil body, cooling fins, glowing lens.</summary>
-        public static GameObject LaserCannon(out Transform muzzle, out Renderer lens)
+        public static GameObject LaserCannon(out Transform muzzle, out Renderer lens, Color lensColor)
         {
             var k = new MeshKit();
             Mount(k, 0.5f, 0.5f);
@@ -140,7 +140,7 @@ namespace Arsenal.Visual
             WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.LaserCannon"), Assets.ToolAtlas);
             var lk = new MeshKit();
             lk.Cylinder(Vector3.zero, 0.05f, 0.01f, 10, Shade.White, Shade.White);
-            GameObject lensGo = WeaponModels.MeshChild(root.transform, "Lens", lk.Build("Arsenal.Lens"), Assets.Glow(new Color(0.3f, 0.8f, 1f), 3f));
+            GameObject lensGo = WeaponModels.MeshChild(root.transform, "Lens", lk.Build("Arsenal.Lens"), Assets.Glow(lensColor, 3f));
             lensGo.transform.localPosition = new Vector3(0, 0.27f, 0.652f);
             lens = lensGo.GetComponent<Renderer>();
             muzzle = Point(root.transform, "Muzzle", new Vector3(0, 0.27f, 0.67f));

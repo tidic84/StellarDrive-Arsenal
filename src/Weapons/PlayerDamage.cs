@@ -25,6 +25,9 @@ namespace Arsenal.Weapons
         /// <summary>Client: report a hit on another player.</summary>
         public static void Report(uint playerId, float damage, WeaponKind weapon, bool headshot = false, float burnSeconds = 0f, float empSeconds = 0f)
         {
+#if DEV
+            ArsenalMod.Log.Msg($"[DEV] player hit {playerId} {damage:0.0} {weapon}{(headshot ? " head" : "")}");
+#endif
             uint space = ClientOrigin.LocalPhysicsSpaceId;
             Vector3 from = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
             ArsenalNet.SendToServer(Op.PlayerHit, w =>

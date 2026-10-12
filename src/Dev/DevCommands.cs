@@ -243,6 +243,54 @@ namespace Arsenal
                     MelonLoader.MelonCoroutines.Start(ReleaseAfter(tool, secs));
                     break;
                 }
+                case "tp":
+                {
+                    // host only: tp <right> <forward> [other]: move a player (physics is server-authoritative), along the host camera
+                    TrackedPlayerServer sp = a.Length > 3 && a[3] == "other"
+                        ? Svc.PlayersServer?.ActivePlayers.FirstOrDefault(p => p.Id != Svc.PlayersClient.LocalPlayer.Id)
+                        : Svc.PlayersServer?.ActivePlayers.FirstOrDefault(p => p.Id == Svc.PlayersClient.LocalPlayer.Id);
+                    if (sp == null) { LoggerInstance.Msg("[DEV] tp: no such player on this server"); break; }
+                    Vector3 upv = Visual.Fx.Up;
+                    Vector3 fwd = Vector3.ProjectOnPlane(Camera.main.transform.forward, upv).normalized;
+                    Vector3 right = Vector3.Cross(upv, fwd);
+                    Vector3 offset = right * float.Parse(a[1], CultureInfo.InvariantCulture) + fwd * float.Parse(a[2], CultureInfo.InvariantCulture);
+                    var st = sp.PhysicsState;
+                    st.Position += offset;
+                    st.Velocity = Vector3.zero;
+                    var ns = HarmonyLib.Traverse.Create(sp).Property("NetworkState").GetValue();
+                    HarmonyLib.Traverse.Create(ns).Method("ServerSetPhysicsState", st).GetValue();
+                    sp.ServerRigidbody.position += offset;
+                    LoggerInstance.Msg($"[DEV] moved player {sp.Id} to {st.Position}");
+                    break;
+                }
+                case "tpship":
+                {
+                    // host only: tpship <x> <y> <z>: put the other player at that point of the test gunship (ship coordinates)
+                    TrackedPlayerServer sp = Svc.PlayersServer?.ActivePlayers.FirstOrDefault(p => p.Id != Svc.PlayersClient.LocalPlayer.Id);
+                    if (sp == null || !Svc.ShipsClient.TryGetTrackedShip(_gunshipId, out TrackedShipClient tship) || !tship.IsRigidbodyLoaded) { LoggerInstance.Msg("[DEV] tpship: no player or ship"); break; }
+                    float G(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    var st = sp.PhysicsState;
+                    st.Position = tship.ShipRigidBody.transform.TransformPoint(new Vector3(G(1), G(2), G(3)));
+                    st.Velocity = Vector3.zero;
+                    var ns = HarmonyLib.Traverse.Create(sp).Property("NetworkState").GetValue();
+                    HarmonyLib.Traverse.Create(ns).Method("ServerSetPhysicsState", st).GetValue();
+                    sp.ServerRigidbody.position = st.Position;
+                    LoggerInstance.Msg($"[DEV] moved player {sp.Id} to {st.Position}");
+                    break;
+                }
+                case "lookplayer":
+                {
+                    // lookplayer [height]: aim at the other player as drawn (feet + height along their up)
+                    var o = Svc.PlayersClient.OtherPlayers.FirstOrDefault(p => p.IsVisualLoaded);
+                    if (o == null) { LoggerInstance.Msg("[DEV] no other player visible"); break; }
+                    float h = a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 1f;
+                    Vector3 target = o.VisualPos + o.VisualRotation * Vector3.up * h;
+                    var look = Object.FindObjectsByType<PlayerLookControls>(FindObjectsSortMode.None).First();
+                    Camera cam = Camera.main;
+                    look.Rotation = Quaternion.LookRotation(target - cam.transform.position, look.Rotation * Vector3.up);
+                    LoggerInstance.Msg($"[DEV] looking at player {o.Id} visual {o.VisualPos} raw {o.Position} rb {(o.IsPhysicsLoaded && o.ClientRigidbody ? o.ClientRigidbody.position.ToString() : "-")} dist {Vector3.Distance(cam.transform.position, target):0.0}");
+                    break;
+                }
                 case "aim":
                     Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool?.SecondaryActionBegin();
                     break;
@@ -540,6 +588,8 @@ namespace Arsenal
                 new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.LaserCannonId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
                 new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ArmoryId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
                 new StatefulPart(6, settings.GetPartSettingById(Content.ShipContent.FlareDispenserId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, -1.5f), PartOrientation.Forward)),
+                new StatefulPart(7, settings.GetPartSettingById(Content.ShipContent.LaserGreenId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
+                new StatefulPart(8, settings.GetPartSettingById(Content.ShipContent.LaserBlueId), new FloatingPartPlacement(new Vector3(2.2f, -0.46f, 0.8f), PartOrientation.Forward)),
             };
             var phys = p.PhysicsState;
             Quaternion rot = phys.Rotation;

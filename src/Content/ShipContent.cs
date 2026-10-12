@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Arsenal.Core;
+using Arsenal.Vehicles;
 using Arsenal.Visual;
 using Arsenal.Weapons;
 using HarmonyLib;
@@ -33,8 +34,9 @@ namespace Arsenal.Content
     {
         public const ushort GunnerSeatId = 9201, MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
         public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217, RocketPodId = 9218, SamBatteryId = 9219;
-        public const ushort FlareDispenserId = 9221, HyperLauncherId = 9222;
-        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId };
+        public const ushort FlareDispenserId = 9221, HyperLauncherId = 9222, LaserGreenId = 9223, LaserBlueId = 9224;
+        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId, LaserGreenId, LaserBlueId };
+        public static bool IsLaser(ushort settingsId) => settingsId == LaserCannonId || settingsId == LaserGreenId || settingsId == LaserBlueId;
         public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
         public static readonly byte[] FireSockets = { 6, 7, 8 };
         private const float SocketZ = -0.37f; // weapons' signal input, at the back of the base
@@ -42,7 +44,7 @@ namespace Arsenal.Content
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
 
-        public static bool IsWeapon(ushort settingsId) => (settingsId >= MachineGunId && settingsId <= SamBatteryId) || settingsId == FlareDispenserId || settingsId == HyperLauncherId;
+        public static bool IsWeapon(ushort settingsId) => (settingsId >= MachineGunId && settingsId <= SamBatteryId) || (settingsId >= FlareDispenserId && settingsId <= LaserBlueId);
 
         public static void Patch(HarmonyLib.Harmony h)
         {
@@ -260,14 +262,17 @@ namespace Arsenal.Content
                     boundsSize = new Vector3(0.56f, 0.38f, 0.5f);
                     break;
                 default:
-                    p = Clone(display, id, "Canon laser", "Laser cannon",
-                        "Rayon continu tant que le signal est actif. Fait fondre la coque et perce des trous. Surchauffe après quelques secondes.",
-                        "Continuous beam while the signal is on. Melts through hulls. Overheats after a few seconds.",
-                        80f, items, (101, 12), (112, 10), (102, 6), (103, 2));
-                    model = PartModels.LaserCannon(out _, out _);
+                {
+                    // laser cannons, one per bolt colour
+                    LaserStyle ls = Laser.Style(Laser.StyleOf(id));
+                    p = id == LaserBlueId
+                        ? Clone(display, id, ls.NameFr, ls.NameEn, ls.DescFr, ls.DescEn, 110f, items, (101, 18), (112, 14), (102, 10), (103, 4))
+                        : Clone(display, id, ls.NameFr, ls.NameEn, ls.DescFr, ls.DescEn, 80f, items, (101, 12), (112, 10), (102, 6), (103, 2));
+                    model = PartModels.LaserCannon(out _, out _, ls.Lens);
                     boundsCenter = new Vector3(0, 0.2f, 0.18f);
                     boundsSize = new Vector3(0.6f, 0.45f, 0.98f);
                     break;
+                }
             }
             p.size = Vector3.one;
             // the part's box stops in front of the cable socket, or it swallows the clicks meant for it
@@ -337,6 +342,7 @@ namespace Arsenal.Content
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId], Parts[FlareDispenserId], Parts[HyperLauncherId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[LaserGreenId], Parts[LaserBlueId] } },
                 },
             };
             Traverse.Create(__instance).Field("tabsConfig").SetValue(tabs.Concat(new[] { tab }).ToArray());
@@ -354,9 +360,9 @@ namespace Arsenal.Content
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
                     new[] { Parts[GunnerSeatId], Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
-                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId] }, items, (101, 30), (112, 15), (103, 2));
+                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[LaserGreenId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId] }, items, (101, 30), (112, 15), (103, 2));
                 ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },
-                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId], Parts[HyperLauncherId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
+                    new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId], Parts[HyperLauncherId], Parts[LaserBlueId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
                 list.list.Add(light);
                 list.list.Add(heavy);
                 list.list.Add(advanced);
