@@ -39,6 +39,11 @@ namespace Arsenal.Weapons
         ShipRockets = 30,
         ShipSam = 31,
         HyperMissile = 32,
+        // hand blasters (bolts like the laser cannons')
+        BlasterPistol = 34,
+        BlasterRifle = 35,
+        BlasterCarbine = 36,
+        HeavyBlaster = 37,
     }
 
     internal enum FireMode : byte
@@ -49,6 +54,7 @@ namespace Arsenal.Weapons
         Projectile,  // flying projectile (grenades, rockets)
         Arc,         // electric arc that jumps between targets
         Flame,       // short cone of fire
+        Bolt,        // blaster bolts: glowing bolts you see fly (the laser cannons' kind), style in BoltStyle
     }
 
     internal enum AmmoMode : byte
@@ -137,6 +143,7 @@ namespace Arsenal.Weapons
         public Vector3 HoldPosition;   // model offset in the tool visuals
         public Vector3 HoldEuler = new Vector3(5f, 18f, 0f);
         public float AimDistance = 0.28f;
+        public byte BoltStyle;          // Bolt mode: the bolt's look and damage (Laser.Styles)
 
         public string Name => Loc.T(NameFr, NameEn);
         public string Description => Loc.T(DescFr, DescEn);
@@ -148,7 +155,7 @@ namespace Arsenal.Weapons
         public const uint PistolId = 9101, RifleId = 9102, MarksmanId = 9103, GrenadeId = 9104, ChargeId = 9105;
         public const uint LaserPistolId = 9110, GaussId = 9111, SmgId = 9112, PlasmaShotgunId = 9113, RailgunId = 9114, MinigunId = 9115,
             EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121, SamLauncherId = 9122,
-            HyperLauncherId = 9123;
+            HyperLauncherId = 9123, BlasterPistolId = 9124, BlasterRifleId = 9125, BlasterCarbineId = 9126, HeavyBlasterId = 9127;
 
         private const uint Iron = 101, Glass = 102, Shard = 103, Aluminium = 104, Fuel = 100, Wood = 110, Copper = 112;
 
@@ -380,10 +387,79 @@ namespace Arsenal.Weapons
             Model = GunModels.HyperLauncher, HoldPosition = new Vector3(-0.12f, -0.03f, -0.02f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.24f,
         };
 
+        // Blasters: they fire glowing bolts you see fly, like the laser cannons, with the films' struck-wire "pew".
+        // A bolt melts a hole wherever it lands, wrecks machinery around it and pushes the ship a little.
+        private static BulletSpec BoltSpec(byte style)
+        {
+            var s = Arsenal.Vehicles.Laser.Style(style);
+            return new BulletSpec { PlayerDamage = s.PlayerDamage, PanelDamage = s.PanelDamage, Penetration = 0f, HoleRadius = s.HoleRadius, Range = Arsenal.Vehicles.Laser.Range, ObjectDamage = s.ObjectDamage };
+        }
+
+        public static readonly HandWeaponDef BlasterPistol = new HandWeaponDef
+        {
+            Kind = WeaponKind.BlasterPistol, ItemId = BlasterPistolId, Category = ArmoryCategory.Sidearms, Rarity = Rarity.Uncommon,
+            NameFr = "Blaster lourd « Contrebandier »", NameEn = "\"Smuggler\" heavy blaster",
+            DescFr = "Pistolet blaster lourd à lunette. Ses traits rouges frappent fort et font fondre la coque. Chauffe à chaque tir.",
+            DescEn = "Scoped heavy blaster pistol. Its red bolts hit hard and melt through hulls. Heats up with each shot.",
+            Cost = new[] { (Iron, (byte)6), (Copper, (byte)3), (Glass, (byte)1) },
+            Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.PistolBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.16f, CoolPerSecond = 0.3f,
+            Automatic = false, RoundsPerMinute = 200,
+            SpreadDegrees = 0.5f, AimSpreadDegrees = 0.1f, RecoilKick = 0.06f, AimFov = 45f, Mass = 1.6f,
+            Bullet = BoltSpec(Arsenal.Vehicles.Laser.PistolBolt),
+            Tracer = TracerStyle.None, TracerColor = new Color(1f, 0.15f, 0.08f), Sound = SoundStyle.Blaster, MuzzleSize = 0.12f,
+            Model = GunModels.BlasterPistol, HoldPosition = Sidearm, HoldEuler = SidearmRot, AimDistance = 0.3f,
+        };
+
+        public static readonly HandWeaponDef BlasterRifle = new HandWeaponDef
+        {
+            Kind = WeaponKind.BlasterRifle, ItemId = BlasterRifleId, Category = ArmoryCategory.Rifles, Rarity = Rarity.Uncommon,
+            NameFr = "Fusil blaster « Légion »", NameEn = "\"Legion\" blaster rifle",
+            DescFr = "Fusil blaster automatique à crosse pliante. Rafales de traits rouges. Chauffe vite en rafale.",
+            DescEn = "Automatic blaster rifle with a folding stock. Bursts of red bolts. Heats up fast on full auto.",
+            Cost = new[] { (Iron, (byte)8), (Copper, (byte)4), (Glass, (byte)1) },
+            Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.RifleBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.06f, CoolPerSecond = 0.2f,
+            Automatic = true, RoundsPerMinute = 420,
+            SpreadDegrees = 1.4f, AimSpreadDegrees = 0.45f, RecoilKick = 0.03f, AimFov = 48f, Mass = 3.2f,
+            Bullet = BoltSpec(Arsenal.Vehicles.Laser.RifleBolt),
+            Tracer = TracerStyle.None, TracerColor = new Color(1f, 0.15f, 0.08f), Sound = SoundStyle.Blaster, MuzzleSize = 0.14f,
+            Model = GunModels.BlasterRifle, HoldPosition = Long,
+        };
+
+        public static readonly HandWeaponDef BlasterCarbine = new HandWeaponDef
+        {
+            Kind = WeaponKind.BlasterCarbine, ItemId = BlasterCarbineId, Category = ArmoryCategory.Energy, Rarity = Rarity.Rare,
+            NameFr = "Carabine blaster « Éclaireur »", NameEn = "\"Scout\" blaster carbine",
+            DescFr = "Carabine légère d'éclaireur : traits verts rapides, cadence élevée, chauffe lentement.",
+            DescEn = "Light scout carbine: fast green bolts, high rate of fire, slow to heat up.",
+            Cost = new[] { (Iron, (byte)6), (Copper, (byte)4), (Glass, (byte)2) },
+            Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.CarbineBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.045f, CoolPerSecond = 0.25f,
+            Automatic = true, RoundsPerMinute = 540,
+            SpreadDegrees = 1.2f, AimSpreadDegrees = 0.35f, RecoilKick = 0.022f, AimFov = 50f, Mass = 2.5f,
+            Bullet = BoltSpec(Arsenal.Vehicles.Laser.CarbineBolt),
+            Tracer = TracerStyle.None, TracerColor = new Color(0.2f, 1f, 0.15f), Sound = SoundStyle.Blaster, MuzzleSize = 0.12f,
+            Model = GunModels.BlasterCarbine, HoldPosition = Long,
+        };
+
+        public static readonly HandWeaponDef HeavyBlaster = new HandWeaponDef
+        {
+            Kind = WeaponKind.HeavyBlaster, ItemId = HeavyBlasterId, Category = ArmoryCategory.Heavy, Rarity = Rarity.Epic,
+            NameFr = "Blaster lourd à répétition « Tonnerre »", NameEn = "\"Thunder\" heavy repeating blaster",
+            DescFr = "Blaster d'appui à répétition : un déluge de gros traits bleus qui percent et secouent les vaisseaux. Surchauffe après une longue rafale.",
+            DescEn = "Repeating support blaster: a torrent of big blue bolts that burn through and rock ships. Overheats after a long burst.",
+            Cost = new[] { (Iron, (byte)16), (Copper, (byte)8), (Glass, (byte)3), (Shard, (byte)1) },
+            Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.HeavyBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.05f, CoolPerSecond = 0.2f,
+            Automatic = true, RoundsPerMinute = 600,
+            SpreadDegrees = 2f, AimSpreadDegrees = 1.4f, RecoilKick = 0.02f, AimFov = 0f, Mass = 13f,
+            Bullet = BoltSpec(Arsenal.Vehicles.Laser.HeavyBolt),
+            Tracer = TracerStyle.None, TracerColor = new Color(0.15f, 0.45f, 1f), Sound = SoundStyle.HeavyBlaster, MuzzleSize = 0.18f,
+            Model = GunModels.HeavyBlaster, HoldPosition = new Vector3(-0.06f, 0.0f, 0.02f), HoldEuler = new Vector3(4f, 14f, 0f),
+        };
+
         public static readonly HandWeaponDef[] Guns =
         {
             Pistol, LaserPistol, Gauss, Smg, Rifle, PlasmaShotgun, Marksman, Railgun, Minigun, Flamethrower,
             GrenadeLauncher, RocketLauncher, SamLauncher, HyperLauncher, EmpCarbine, Tesla, Disintegrator,
+            BlasterPistol, BlasterRifle, BlasterCarbine, HeavyBlaster,
         };
 
         public static HandWeaponDef ByItem(uint itemId)

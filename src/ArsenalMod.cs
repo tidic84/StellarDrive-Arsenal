@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.8.0", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.9.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 9;
+        internal const int ProtocolVersion = 10;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -56,6 +56,8 @@ namespace Arsenal
             GunnerSeat.Init(prefs);
             DamageSaves.Init(HarmonyInstance);
             TargetCleanup.Patch(HarmonyInstance);
+            Compat.ForceFields.Init();
+            Laser.Init();
 #if DEV
             DevInit();
 #endif
@@ -79,6 +81,7 @@ namespace Arsenal
             ThreatWarning.Reset();
             Effects.Reset();
             GunnerSeat.Reset();
+            Compat.ForceFields.Reset();
             ShipWeapons.ResetAll();
             CombatHud.Reset();
             WeaponHud.Reset();
@@ -93,6 +96,7 @@ namespace Arsenal
                 LockHud.Ensure();
                 ThreatWarning.Ensure();
                 Armory.ArmoryUi.Ensure();
+                _ = Compat.ForceFields.Present; // logs whether the TF Advanced force fields are there
             }
 #if DEV
             DevSceneLoaded(buildIndex, sceneName);

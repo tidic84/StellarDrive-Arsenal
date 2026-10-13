@@ -59,6 +59,10 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 | "Blackout" EMP carbine | energy | ion bolts that jam weapons and knock ships out |
 | "Tesla" arc | energy | electric arc jumping from target to target |
 | "Néant" disintegrator | energy | continuous beam that ramps up and burns through walls |
+| "Contrebandier" blaster pistol | energy | semi-auto red blaster bolts, runs on heat
+| "Légion" blaster rifle | rifle | full-auto red blaster bolts, runs on heat
+| "Éclaireur" blaster carbine | energy | fast green bolts, runs on heat
+| "Tonnerre" heavy blaster | heavy | rapid blue bolts that open wide breaches
 | "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
 | "Titan" rocket launcher | explosive | accelerating rocket, big blast |
 | "Eagle" SAM launcher | explosive | **locks on by itself** to the ship you point at (blips, then a steady tone and red brackets); the missile leads its target and has a proximity fuse |
@@ -75,6 +79,8 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 ![Flamethrower](docs/flamethrower.jpg)
 ![Tesla arc](docs/tesla.jpg)
 ![Disintegrator](docs/disintegrator.jpg)
+
+**Blasters** fire thin, glowing bolts in the Star Wars spirit. Every bolt melts a hole into any hull material, damages the machinery it hits and hurts players. Their sound is synthesised like the films' (a struck steel cable: a fast descending chirp, a metallic ring and echoes).
 
 ## Armory
 
@@ -96,7 +102,7 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **Gunner seat**: an advanced pilot seat with three more signal outputs that follow the pilot's buttons: *Fire 1* (left click), *Fire 2* (right click), *Fire 3* (middle click). Wire them with signal cables to the weapons — or to any logic, as with the game's other signals.
 - **Heavy machine gun**: twin barrels, fires while its input signal is on, armour-piercing rounds.
 - **Air-to-air missile pod**: locks the nearest ship in front of it, fires a homing missile on each signal pulse, 4 missiles that reload by themselves, proximity fuse.
-- **Laser cannons**: fire starfighter-style blaster bolts (white-hot core, coloured glow, lighting up whatever they pass), each one melting into the hull; they overheat after a long burst. Three colours:
+- **Laser cannons**: fire thin starfighter-style blaster bolts (white-hot core, coloured glow, lighting up whatever they pass) with the films' "pew" sound. Each bolt melts into the hull, damages the machinery near where it lands, pushes the ship it hits and burns players; they overheat after a long burst. Three colours:
   - **red**: the all-rounder;
   - **green "Hunter"**: lighter, faster bolts and a quicker rate of fire;
   - **blue "Turbo"**: big, slow, spaced-out bolts that hit hard and open wide breaches (Advanced weaponry).
@@ -124,6 +130,10 @@ While you pilot, the HUD shows where each weapon points, the missile and torpedo
 ![Plasma, railgun, torpedo and ion cannon](docs/heavy_ship.jpg)
 ![Ship railgun](docs/ship_railgun.jpg)
 ![Point defence shooting a torpedo](docs/point_defence.jpg)
+
+## Force fields (TF Advanced)
+
+Works with [StellarDrive demo TF advanced](https://github.com/Romalaure/StellarDrive-demo-TF-advanced/releases) and its force fields. While a ship's field is up, nothing fired from outside goes through it: bullets, blaster bolts, laser cannons, beams, the arc, the flamethrower, rockets, missiles and torpedoes stop on the bubble (a ripple and a flash show the impact), and grenades bounce off it. A shielded ship gets **no holes, no wrecked machinery and no push**; instead, each hit drains its field's charge. Breaching charges can't be stuck through it, and players inside are protected from blasts outside. Fire from inside the bubble goes out normally. Nothing to set up: Arsenal finds the mod by itself (the log says "TF Advanced force fields found").
 
 ## Multiplayer
 
@@ -165,7 +175,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.8.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.9.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

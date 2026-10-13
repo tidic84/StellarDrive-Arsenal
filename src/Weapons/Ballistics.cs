@@ -61,6 +61,13 @@ namespace Arsenal.Weapons
                 if (!Raycast(pos, dir, left, out RaycastHit hit, out uint playerId))
                     return pos + dir * left;
                 travelled += hit.distance;
+                if (HitShield)
+                {
+                    // stopped by a force field: nothing behind it is holed or hurt; the field takes the hit
+                    impacts.Add(new ImpactFx { Pos = hit.point, Normal = hit.normal, Kind = ImpactKind.Shield, Tint = Compat.ForceFields.Glow(Shield) });
+                    Compat.ForceFields.Drain(Shield, panelDamage);
+                    return hit.point;
+                }
                 if (playerId != 0)
                 {
                     bool head = IsHeadshot(playerId, hit.point);
@@ -383,7 +390,22 @@ namespace Arsenal.Weapons
                 break;
             }
             float worldDist = found ? hit.distance : maxDist;
-            if (players && PlayerRay(origin, dir, worldDist, out uint id, out float pd, radius))
+            uint id = 0; float pd = 0f;
+            bool onPlayer = players && PlayerRay(origin, dir, worldDist, out id, out pd, radius);
+            // a force field in the way stops the shot before the wall or the player behind it
+            HitShield = false;
+            if (Compat.ForceFields.Entry(origin, dir, onPlayer ? pd : worldDist, out float sd, out Vector3 sn, out Compat.ForceFields.Bubble bubble))
+            {
+                HitShield = true;
+                Shield = bubble;
+                player = 0;
+                hit = default;
+                hit.point = origin + dir * sd;
+                hit.normal = sn;
+                hit.distance = sd;
+                return true;
+            }
+            if (onPlayer)
             {
                 player = id;
                 hit = default;
@@ -394,6 +416,13 @@ namespace Arsenal.Weapons
             }
             return found;
         }
+
+        /// <summary>
+        /// Set by the last <see cref="Raycast"/> when it stopped on a force field (TF Advanced): hit.point, normal and
+        /// distance are valid, hit.collider is not. The bubble is in <see cref="Shield"/>.
+        /// </summary>
+        public static bool HitShield { get; private set; }
+        public static Compat.ForceFields.Bubble Shield;
 
         /// <summary>Closest approach of segment p0-p1 to segment q0-q1: fraction along the first and the gap.</summary>
         private static bool ClosestOnSegments(Vector3 p0, Vector3 p1, Vector3 q0, Vector3 q1, out float s, out float gap)

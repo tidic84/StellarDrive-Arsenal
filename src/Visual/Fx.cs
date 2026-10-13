@@ -10,6 +10,7 @@ namespace Arsenal.Visual
         Glass,
         Ground,
         Flesh,
+        Shield,   // a force field (TF Advanced) took the hit
     }
 
     /// <summary>
@@ -264,6 +265,7 @@ namespace Arsenal.Visual
 
         public static void Impact(Vector3 pos, Vector3 normal, ImpactKind kind, Color tint, float scale = 1f)
         {
+            if (kind == ImpactKind.Shield) { Compat.ForceFields.Effect(pos, normal, tint, scale); return; }
             int sparks = kind == ImpactKind.Metal ? 14 : kind == ImpactKind.Glass ? 6 : 3;
             EmitSparks(pos, normal, (int)(sparks * scale));
             switch (kind)

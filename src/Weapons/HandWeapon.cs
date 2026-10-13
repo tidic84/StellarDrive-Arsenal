@@ -300,6 +300,7 @@ namespace Arsenal.Weapons
             {
                 case FireMode.Projectile: FireProjectile(cam); break;
                 case FireMode.Arc: FireArc(cam); break;
+                case FireMode.Bolt: FireBolt(cam); break;
                 default: FireBullets(cam, 1f); break;
             }
             Kick();
@@ -386,6 +387,25 @@ namespace Arsenal.Weapons
             if (_def.Projectile == ProjectileKind.Rocket || Homing)
                 Fx.Puff(muzzle - dir * 1.1f, 0.3f, new Color(0.8f, 0.78f, 0.75f), 1.5f, 5, -dir * 4f); // back-blast
             Sounds.Shot(_def.Kind, muzzle);
+            NotifyFiring();
+        }
+
+        /// <summary>
+        /// A blaster bolt, seen flying from the muzzle to where the crosshair points (it starts at the gun, not the
+        /// eye, but still lands on the aim). The others fly their own copy for the eyes.
+        /// </summary>
+        private void FireBolt(CameraPhysicsData cam)
+        {
+            Vector3 dir = Spread(cam.Direction, Mathf.Lerp(_def.SpreadDegrees, _def.AimSpreadDegrees, _aimBlend)).normalized;
+            Arsenal.Vehicles.LaserStyle s = Arsenal.Vehicles.Laser.Style(_def.BoltStyle);
+            Vector3 muzzle = MuzzlePos(cam.CameraPos + dir * 0.4f);
+            Vector3 aim = Ballistics.Raycast(cam.CameraPos, dir, Arsenal.Vehicles.Laser.Range, out RaycastHit hit, out _) ? hit.point : cam.CameraPos + dir * Arsenal.Vehicles.Laser.Range;
+            Vector3 boltDir = aim - muzzle;
+            // very close: straight down the aim, so a bolt never leaves the barrel sideways
+            boltDir = boltDir.sqrMagnitude > 1f && Vector3.Dot(boltDir.normalized, dir) > 0.8f ? boltDir.normalized : dir;
+            Vector3 velocity = boltDir * s.Speed;
+            Arsenal.Vehicles.Laser.Fire(muzzle, velocity, 0, true, _def.BoltStyle);
+            FxNet.RelayBolt(muzzle, velocity, 0, _def.BoltStyle);
             NotifyFiring();
         }
 
@@ -494,6 +514,14 @@ namespace Arsenal.Weapons
                     _ramp = 1f;
                     return pos + dir * _def.Reach;
                 }
+                if (Ballistics.HitShield)
+                {
+                    // a force field soaks the beam up: it splashes on the shell and drains it
+                    _rampTarget = null;
+                    _ramp = 1f;
+                    if (tick) Compat.ForceFields.Struck(Ballistics.Shield, hit.point, hit.normal, 0.6f, true, _def.Bullet.PanelDamage * 3f);
+                    return hit.point;
+                }
                 if (player != 0)
                 {
                     if (tick)
@@ -590,7 +618,14 @@ namespace Arsenal.Weapons
         {
             float reach = _def.Reach;
             // the stream stops at the first wall (and flows round the players, burnt below)
-            if (Ballistics.Raycast(origin, dir, reach, out RaycastHit wall, out _, players: false))
+            if (Ballistics.Raycast(origin, dir, reach, out RaycastHit wall, out _, players: false) && Ballistics.HitShield)
+            {
+                // the flames lick the force field and go no further
+                reach = wall.distance;
+                Compat.ForceFields.Drain(Ballistics.Shield, _def.Bullet.PanelDamage);
+                if (Random.value < 0.15f) Compat.ForceFields.Effect(wall.point, wall.normal, Compat.ForceFields.Glow(Ballistics.Shield), 0.5f);
+            }
+            else if (wall.collider != null)
             {
                 reach = wall.distance;
                 if (ShipPartsTagDetection.ColliderIsHull(wall.collider) && Ballistics.TryResolvePanel(wall, out PanelKey key, out HullPart part, out Vector2 local))
@@ -624,7 +659,20 @@ namespace Arsenal.Weapons
             var done = new HashSet<uint>();
             BulletSpec spec = _def.Bullet;
             Vector3 current;
-            if (Ballistics.Raycast(cam.CameraPos, cam.Direction, _def.Reach, out RaycastHit hit, out uint pid))
+            bool struck = Ballistics.Raycast(cam.CameraPos, cam.Direction, _def.Reach, out RaycastHit hit, out uint pid);
+            if (struck && Ballistics.HitShield)
+            {
+                // the discharge crawls over the force field instead of reaching anyone
+                current = hit.point;
+                Compat.ForceFields.Struck(Ballistics.Shield, hit.point, hit.normal, 0.9f, true, spec.PanelDamage);
+                points.Add(current);
+                Fx.ElectricArc(from, current, new Color(0.55f, 0.8f, 1f), 0.18f, 0.04f);
+                FxNet.RelayArc(points);
+                Sounds.Shot(_def.Kind, from);
+                NotifyFiring();
+                return;
+            }
+            if (struck)
             {
                 current = hit.point;
                 if (pid != 0)
@@ -682,6 +730,8 @@ namespace Arsenal.Weapons
             foreach (TrackedPlayerOtherClient p in Svc.PlayersClient.OtherPlayers)
             {
                 if (!p.IsVisualLoaded || skip.Contains(p.Id)) continue;
+                // the arc cannot jump into a force field it is not already in
+                if (Compat.ForceFields.Entry(around, (p.VisualPos + Fx.Up - around).normalized, Vector3.Distance(p.VisualPos + Fx.Up, around), out _, out _, out _)) continue;
                 float d = Vector3.Distance(p.VisualPos + Fx.Up, around);
                 if (d < bestD)
                 {

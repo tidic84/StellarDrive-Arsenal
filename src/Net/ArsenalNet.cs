@@ -42,6 +42,8 @@ namespace Arsenal.Net
         FlareLaunch = 20,
         DecoyReport = 21,
         ShipExplosionRequest = 22,
+        ShieldHit = 23,
+        BoltImpact = 24,
 
         // server -> client
         PanelState = 64,

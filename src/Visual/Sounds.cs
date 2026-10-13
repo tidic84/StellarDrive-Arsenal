@@ -51,7 +51,9 @@ namespace Arsenal.Visual
                 case SoundStyle.Smg: Play("smg", () => Gunshot(0.16f, 2800f, 140f, 0.6f), pos, 0.8f, Jitter(0.07f), 3f, 220f); break;
                 case SoundStyle.Heavy: Play("marksman", () => Gunshot(0.75f, 1300f, 60f, 1.6f), pos, 1.15f, Jitter(0.03f), 5f, 700f); break;
                 case SoundStyle.ShipGun: Play("shipgun", () => Gunshot(0.32f, 1500f, 70f, 1.3f), pos, 1f, Jitter(0.05f), 5f, 600f); break;
-                case SoundStyle.Laser: Play("pew", () => Zap(0.16f, 2200f, 380f, 0.15f), pos, 0.7f, Jitter(0.08f), 3f, 250f); break;
+                case SoundStyle.Laser: { int v = Rng.Next(3); Play("pew" + v, () => Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, v + 20), pos, 0.7f, Jitter(0.04f), 3f, 250f); break; }
+                case SoundStyle.Blaster: HandBlaster(pos); break;
+                case SoundStyle.HeavyBlaster: HandBlaster(pos, 0.78f); break;
                 case SoundStyle.Gauss: Play("gauss", Gauss, pos, 1f, Jitter(0.04f), 4f, 400f); break;
                 case SoundStyle.Plasma: Play("plasma", () => Zap(0.35f, 700f, 90f, 0.6f), pos, 1f, Jitter(0.06f), 4f, 350f); break;
                 case SoundStyle.Rail: Play("rail", Rail, pos, 1.2f, Jitter(0.03f), 6f, 900f); break;
@@ -124,11 +126,33 @@ namespace Arsenal.Visual
 
         public static void MissileLaunch(Vector3 pos) => Play("missile", () => Whoosh(1.4f, true), pos, 1f, Jitter(0.05f), 4f, 500f);
 
-        /// <summary>Ship blaster cannon: the "pew" of a struck steel cable, heavy enough for a starfighter.</summary>
-        public static void Blaster(Vector3 pos, float pitch = 1f) => Play("blaster", BlasterShot, pos, 1f, pitch * Jitter(0.05f), 6f, 700f);
+        /// <summary>
+        /// Starfighter laser cannon, as in the films: the struck-wire "pew" (see <see cref="Dispersion"/>), deep and
+        /// long, with the electric buzz and low punch of a ship's gun. Three takes, so a burst never repeats itself.
+        /// </summary>
+        public static void Blaster(Vector3 pos, float pitch = 1f)
+        {
+            int v = Rng.Next(3);
+            Play("blaster" + v, () => Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, v), pos, 1f, pitch * Jitter(0.03f), 6f, 700f);
+        }
 
-        /// <summary>A blaster bolt splashing on something: a sizzling crack.</summary>
-        public static void BlasterHit(Vector3 pos) => Play("blasterhit", () => Gunshot(0.3f, 3200f, 160f, 0.5f), pos, 0.6f, Jitter(0.1f), 3f, 250f);
+        /// <summary>Hand blaster: a brighter, snappier struck-wire "pew"; heavy ones (pitch below 1) sound fuller.</summary>
+        public static void HandBlaster(Vector3 pos, float pitch = 1f)
+        {
+            int v = Rng.Next(3);
+            Play("handblaster" + v, () => Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, v + 10), pos, 0.95f, pitch * Jitter(0.03f), 3f, 320f);
+        }
+
+        /// <summary>A blaster bolt splashing on something: the sharp sizzle and small "tchew" of the films' impacts.</summary>
+        public static void BlasterHit(Vector3 pos)
+        {
+            int v = Rng.Next(2);
+            Play("blasterhit" + v, () => BoltImpact(v), pos, 0.7f, Jitter(0.08f), 3f, 250f);
+        }
+
+        /// <summary>Fire deflected by a force field: a crackle on the shell over a low electric "whom".</summary>
+        public static void ShieldHit(Vector3 pos, float size = 1f) =>
+            Play("shieldhit", ShieldStrike, pos, Mathf.Clamp(0.45f + 0.25f * size, 0.4f, 1f), Jitter(0.08f) / Mathf.Sqrt(Mathf.Max(0.5f, size)), 4f, 300f);
 
         public static FMOD.Channel LaserLoop(Vector3 pos) => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true);
 
@@ -145,6 +169,42 @@ namespace Arsenal.Visual
             if (ch.hasHandle()) ch.stop();
             ch = default;
         }
+
+#if DEV
+        /// <summary>Dev: writes a synthesised sound as a WAV and its spectrogram (0-10 kHz, log-magnitude) as a PNG.</summary>
+        public static void DevDump(string name, string dir)
+        {
+            float[] s = name switch
+            {
+                "ship" => Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, 0),
+                "hand" => Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, 10),
+                "pew" => Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, 20),
+                "hit" => BoltImpact(0),
+                "shield" => ShieldStrike(),
+                _ => new float[Rate / 10],
+            };
+            File.WriteAllBytes(Path.Combine(dir, "sound_" + name + ".wav"), ToWav(s));
+            const int W = 512, H = 256, Win = 1024;
+            var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
+            for (int x = 0; x < W; x++)
+            {
+                int start = (int)((long)x * Mathf.Max(1, s.Length - Win) / W);
+                for (int y = 0; y < H; y++)
+                {
+                    float f = 10000f * y / H, re = 0f, im = 0f;
+                    for (int i = 0; i < Win && start + i < s.Length; i += 2)
+                    {
+                        float w = 0.5f - 0.5f * Mathf.Cos(2f * Mathf.PI * i / Win);
+                        float ph = 2f * Mathf.PI * f * i / Rate;
+                        re += s[start + i] * w * Mathf.Cos(ph); im += s[start + i] * w * Mathf.Sin(ph);
+                    }
+                    float db = Mathf.Clamp01((Mathf.Log10(re * re + im * im + 1e-6f) + 2f) / 6f);
+                    tex.SetPixel(x, y, new Color(db, db * db, db * 0.4f));
+                }
+            }
+            File.WriteAllBytes(Path.Combine(dir, "sound_" + name + ".png"), tex.EncodeToPNG());
+        }
+#endif
 
         private static float Jitter(float amount) => 1f + ((float)Rng.NextDouble() * 2f - 1f) * amount;
 
@@ -384,40 +444,101 @@ namespace Arsenal.Visual
         }
 
         /// <summary>
-        /// Blaster: a sharp transient, then several partials whose pitch dives at different rates (a wave
-        /// dispersing along a taut cable: highs arrive first), a little ringing and a short low body.
+        /// The films' blaster, rebuilt from how it was made: a hammer striking a long steel guy-wire. Bending waves in a
+        /// stiff wire travel faster the higher they are (group velocity ∝ √f), so a frequency f reaches the ear at
+        /// τ = A/√f: the high end arrives first and the pitch dives as f(t) = (A/t)², from <paramref name="fmax"/> to
+        /// <paramref name="fmin"/> in <paramref name="sweep"/> seconds. The wave then bounces between the wire's ends:
+        /// each echo has travelled further, so it comes later and dives more slowly (the ringing "pyeww" tail).
+        /// On top: the hammer's click with a short metallic ring, an electric buzz (ship guns) and a low punch.
         /// </summary>
-        private static float[] BlasterShot()
+        private static float[] Dispersion(float length, float fmax, float fmin, float sweep, int echoes, float echoGain, float ring, float body, float buzz, int variant)
         {
-            const float length = 0.55f;
+            var rng = new System.Random(4242 + variant * 97);
+            float Vary(float x, float amount) => x * (1f + ((float)rng.NextDouble() * 2f - 1f) * amount);
+            fmax = Vary(fmax, 0.08f); fmin = Vary(fmin, 0.1f); sweep = Vary(sweep, 0.1f);
             int n = (int)(length * Rate);
             var s = new float[n];
-            float[] start = { 3400f, 2500f, 1700f, 5200f };
-            float[] end = { 260f, 190f, 140f, 420f };
-            float[] rate = { 9f, 7f, 5.5f, 14f };
-            float[] gain = { 0.55f, 0.45f, 0.35f, 0.2f };
-            var phase = new float[4];
-            float lp = 0f, body = 0f;
+            float a = sweep / (1f / Mathf.Sqrt(fmin) - 1f / Mathf.Sqrt(fmax));
+            var phase = new float[echoes + 1];
+            float[] ringHz = { Vary(2150f, 0.05f), Vary(3370f, 0.05f), Vary(5120f, 0.05f) };
+            float lp = 0f, hp = 0f, prev = 0f, punch = 0f;
             for (int i = 0; i < n; i++)
             {
-                float t = (float)i / Rate, k = t / length;
+                float t = (float)i / Rate;
                 float v = 0f;
-                for (int p = 0; p < 4; p++)
+                for (int e = 0; e <= echoes; e++)
                 {
-                    float f = end[p] + (start[p] - end[p]) * Mathf.Exp(-t * rate[p]);
-                    phase[p] += 2f * Mathf.PI * f / Rate;
-                    v += Mathf.Sin(phase[p] + 0.6f * Mathf.Sin(phase[p] * 2.01f)) * gain[p];
+                    float ae = a * (1f + 1.35f * e), delay = sweep * 0.42f * e;
+                    float te = t - delay;
+                    if (te < 0f) continue;
+                    float f = ae / (te + ae / Mathf.Sqrt(fmax));
+                    f *= f;
+                    if (f < fmin * 0.45f) continue;
+                    phase[e] += 2f * Mathf.PI * f / Rate;
+                    // brighter at the head of the chirp, fading out below fmin
+                    float level = Mathf.Pow(f / fmax, 0.18f) * Mathf.Clamp01((f - fmin * 0.45f) / (fmin * 0.55f)) * Mathf.Pow(echoGain, e);
+                    float p = phase[e];
+                    v += (Mathf.Sin(p) + 0.32f * Mathf.Sin(2f * p + 0.4f) + 0.12f * Mathf.Sin(3f * p + 1.1f)) * level;
                 }
-                // metallic shimmer
-                v *= 1f + 0.25f * Mathf.Sin(2f * Mathf.PI * 38f * t);
-                lp += 0.35f * (Noise() - lp);
-                float crack = lp * Mathf.Exp(-t * 90f) * 0.9f;
-                body += 2f * Mathf.PI * (90f + 120f * Mathf.Exp(-t * 30f)) / Rate;
-                float thump = Mathf.Sin(body) * Mathf.Exp(-t * 22f) * 0.5f;
-                float env = Mathf.Clamp01(i / 20f) * Mathf.Exp(-t * 5.5f) * (1f - k * k);
-                s[i] = v * env + crack + thump;
+                // the electric edge of a ship's gun: the chirp clipped into a buzz
+                if (buzz > 0f) v = Mathf.Lerp(v, Mathf.Clamp(v * 3f, -1f, 1f) * 0.7f, buzz * Mathf.Exp(-t * 6f));
+                // hammer: a click of bright noise and a short ring of the wire's own modes
+                float noise = Noise();
+                hp = 0.82f * (hp + noise - prev); prev = noise;
+                float click = hp * Mathf.Exp(-t * 600f) * 0.9f;
+                float rung = 0f;
+                for (int k = 0; k < 3; k++) rung += Mathf.Sin(2f * Mathf.PI * ringHz[k] * t) * Mathf.Exp(-t * (55f + 25f * k)) / (k + 1);
+                // the gun's low punch
+                punch += 2f * Mathf.PI * (65f + 160f * Mathf.Exp(-t * 45f)) / Rate;
+                float thump = Mathf.Sin(punch) * Mathf.Exp(-t * 26f) * body;
+                lp += 0.5f * (v - lp);
+                float env = Mathf.Clamp01(i / 25f) * Mathf.Clamp01((n - i) / (0.06f * Rate));
+                s[i] = (lp * 0.85f + click + rung * 0.25f * ring + thump) * env;
             }
-            return Normalise(s, 0.9f);
+            return Normalise(s, 0.92f);
+        }
+
+        /// <summary>A bolt's impact: a crackling burst of bright noise and a tiny dispersive "tchew".</summary>
+        private static float[] BoltImpact(int variant)
+        {
+            float[] chirp = Dispersion(0.16f, 6000f, 700f, 0.05f, 1, 0.4f, 0.5f, 0.2f, 0f, variant + 30);
+            int n = (int)(0.32f * Rate);
+            var s = new float[n];
+            float hp = 0f, prev = 0f, lp = 0f, amp = 1f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float noise = Noise();
+                hp = 0.6f * (hp + noise - prev); prev = noise;
+                lp += 0.45f * (hp - lp);
+                // sizzle: the burst breaks up into crackles
+                if (Rng.NextDouble() < 0.003) amp = 1f;
+                amp *= 0.9993f;
+                float sizzle = lp * Mathf.Exp(-t * 14f) * (0.55f + 0.45f * amp);
+                s[i] = sizzle * 1.1f + (i < chirp.Length ? chirp[i] * 0.55f : 0f);
+            }
+            return Normalise(s, 0.85f);
+        }
+
+        /// <summary>A shot deflected by a force field: a bright crackle over a falling electric hum.</summary>
+        private static float[] ShieldStrike()
+        {
+            int n = (int)(0.6f * Rate);
+            var s = new float[n];
+            float hum = 0f, lp = 0f, amp = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                hum += 2f * Mathf.PI * (95f + 140f * Mathf.Exp(-t * 7f)) / Rate;
+                float body = (Mathf.Sin(hum) + 0.45f * Mathf.Sin(2f * hum) + 0.25f * Mathf.Sign(Mathf.Sin(3f * hum))) * Mathf.Exp(-t * 6f);
+                if (Rng.NextDouble() < 0.006) amp = 1f;
+                amp *= 0.998f;
+                lp += 0.6f * (Noise() - lp);
+                float crackle = lp * amp * Mathf.Exp(-t * 5f);
+                float zap = Mathf.Sin(2f * Mathf.PI * (2600f * Mathf.Exp(-t * 18f) + 400f) * t) * Mathf.Exp(-t * 22f) * 0.4f;
+                s[i] = (body * 0.6f + crackle * 0.6f + zap) * Mathf.Clamp01(i / 30f);
+            }
+            return Normalise(s, 0.8f);
         }
 
         private static float[] Gauss()
@@ -534,7 +655,7 @@ namespace Arsenal.Visual
 {
     internal enum SoundStyle : byte
     {
-        Pistol, Rifle, Smg, Heavy, ShipGun, Laser, Gauss, Plasma, Rail, Emp, Arc, Launcher, Flame, Beam, Charge,
+        Pistol, Rifle, Smg, Heavy, ShipGun, Laser, Gauss, Plasma, Rail, Emp, Arc, Launcher, Flame, Beam, Charge, Blaster, HeavyBlaster,
     }
 
     internal enum WarningTone : byte

@@ -69,6 +69,7 @@ namespace Arsenal.Armory
         {
             if (d.Mode == FireMode.Projectile) return Loc.T("Souffle : ouvre toutes les coques", "Blast: tears any hull open");
             if (d.Mode == FireMode.Beam) return Loc.T("Rayon : fait fondre toutes les coques", "Beam: melts through any hull");
+            if (d.Mode == FireMode.Bolt) return Loc.T("Trait blaster : fait fondre un trou dans toutes les coques, abîme les machines", "Blaster bolt: melts a hole in any hull, damages machinery");
             float p = d.Bullet != null ? d.Bullet.Penetration : 0f;
             if (p <= 0f) return Loc.T("Ne traverse pas les coques", "Does not go through hulls");
             string Count(Ships.Interface.Model.Parts.HullMaterialType m) => Damage.Materials.PanelsThrough(p, m).ToString();
@@ -93,8 +94,8 @@ namespace Arsenal.Armory
                 if (d.Mode == FireMode.Beam) perShot = d.Bullet.PlayerDamage * 4f * 2.5f;
                 if (d.Mode == FireMode.Flame) perShot = d.Bullet.PlayerDamage * 4f + 9f;
                 dmg = perShot / 110f;
-                pen = d.Mode == FireMode.Beam ? 0.7f : d.Mode == FireMode.Flame ? 0.1f : Mathf.Log(1f + d.Bullet.Penetration) / Mathf.Log(321f);
-                range = (d.Mode == FireMode.Bullet || d.Mode == FireMode.Charge ? d.Bullet.Range : d.Reach) / 1200f;
+                pen = d.Mode == FireMode.Beam ? 0.7f : d.Mode == FireMode.Bolt ? 0.35f + d.Bullet.HoleRadius * 6f : d.Mode == FireMode.Flame ? 0.1f : Mathf.Log(1f + d.Bullet.Penetration) / Mathf.Log(321f);
+                range = (d.Mode == FireMode.Bullet || d.Mode == FireMode.Charge || d.Mode == FireMode.Bolt ? d.Bullet.Range : d.Reach) / 1200f;
             }
             rate = d.Mode == FireMode.Beam || d.Mode == FireMode.Flame ? 1f : d.RoundsPerMinute / 1300f;
             return new[]

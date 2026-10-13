@@ -122,6 +122,15 @@ namespace Arsenal
                 case "click":
                     MelonLoader.MelonCoroutines.Start(Click(a[1], float.Parse(a[2], CultureInfo.InvariantCulture)));
                     break;
+                case "sound":
+                    // sound <ship|hand|pew|hit|shield>: WAV and spectrogram in UserData
+                    Visual.Sounds.DevDump(a[1], MelonLoader.Utils.MelonEnvironment.UserDataDirectory);
+                    LoggerInstance.Msg($"[DEV] sound {a[1]} written");
+                    break;
+                case "key":
+                    // key <Key name>: taps a keyboard key (e.g. key Escape to leave the pause menu)
+                    MelonLoader.MelonCoroutines.Start(TapKey((UnityEngine.InputSystem.Key)System.Enum.Parse(typeof(UnityEngine.InputSystem.Key), a[1], true)));
+                    break;
                 case "tab":
                 {
                     var bm = Object.FindObjectsByType<UI.BuildMenu.BuildMenu>(FindObjectsSortMode.None).FirstOrDefault(b => b.isActiveAndEnabled);
@@ -199,6 +208,35 @@ namespace Arsenal
                 case "wall":
                     SpawnTestWall(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 6f);
                     break;
+                case "shield":
+                {
+                    // shield [off] [gunship]: a TF-Advanced-style force field bubble round the test wall (or the gunship)
+                    uint sid = a.Contains("gunship") ? _gunshipId : _testShipId;
+                    foreach (var (t, _) in Compat.ForceFields.DevBubbles) if (t != null) Object.Destroy(t.gameObject);
+                    Compat.ForceFields.DevBubbles.Clear();
+                    Compat.ForceFields.DevShielded.Clear();
+                    Compat.ForceFields.DevAbsorbed = 0f;
+                    if (a.Contains("off") || !Svc.ShipsClient.TryGetTrackedShip(sid, out TrackedShipClient sc) || !sc.IsRigidbodyLoaded) { LoggerInstance.Msg("[DEV] shield off"); break; }
+                    Transform root = sc.ShipRigidBody.transform;
+                    var bounds = new Bounds(); bool any = false;
+                    foreach (Renderer r in root.GetComponentsInChildren<Renderer>())
+                    {
+                        Bounds b = r.bounds;
+                        for (int i = 0; i < 8; i++)
+                        {
+                            Vector3 p = root.InverseTransformPoint(b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1)));
+                            if (!any) { bounds = new Bounds(p, Vector3.zero); any = true; } else bounds.Encapsulate(p);
+                        }
+                    }
+                    var bubble = new GameObject("TFA_ForceFieldBubble");
+                    bubble.transform.SetParent(root, false);
+                    bubble.transform.localPosition = bounds.center;
+                    bubble.transform.localScale = Vector3.Max(bounds.size * 1.3f, Vector3.one * 2f);
+                    Compat.ForceFields.DevBubbles.Add((bubble.transform, sid));
+                    Compat.ForceFields.DevShielded.Add(sid);
+                    LoggerInstance.Msg($"[DEV] shield on ship {sid}: bubble {bubble.transform.localScale} at {bounds.center}");
+                    break;
+                }
                 case "sheet":
                     // contact sheet of models: sheet guns | sheet parts [filter]
                     Dev.ModelSheet.Render(a[1], a.Length > 2 ? a[2] : null);
@@ -294,6 +332,20 @@ namespace Arsenal
                 case "aim":
                     Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool?.SecondaryActionBegin();
                     break;
+                case "clearbar":
+                {
+                    // empties toolbar slots 1-4 (the given weapons then land there)
+                    var tb = Svc.Get<PlayerToolbarProvider>();
+                    TrackedPlayerServer me = Svc.PlayersServer.ActivePlayers.First();
+                    for (byte i = 1; i < 5; i++)
+                    {
+                        var slot = tb.GetSlot(i);
+                        if (!slot.HasItem) continue;
+                        var drop = new[] { new ItemDrop { ItemId = slot.ItemId, Quantity = (byte)Mathf.Min(255, slot.Quantity) } };
+                        if (me.HasItemsInInventory(drop)) me.RemoveItemsFromInventory(drop);
+                    }
+                    break;
+                }
                 case "inv":
                 {
                     var tb = Svc.Get<PlayerToolbarProvider>();
@@ -453,6 +505,17 @@ namespace Arsenal
                 yield return null;
             }
             UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState());
+        }
+
+        private System.Collections.IEnumerator TapKey(UnityEngine.InputSystem.Key key)
+        {
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            for (int i = 0; i < 3; i++)
+            {
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState(key));
+                yield return null;
+            }
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState());
         }
 
         private System.Collections.IEnumerator ReleaseAfter(Tools.Interface.Model.IInteractableTool tool, float secs)

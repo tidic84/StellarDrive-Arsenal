@@ -479,5 +479,92 @@ namespace Arsenal.Visual
             TriggerGroup(k, -0.045f, -0.01f, 0.05f);
             return Finish("DisintegratorModel", k, g, new Color(0.8f, 0.35f, 1f), new Vector3(0, 0.03f, 0.32f), new Vector3(0, 0.09f, -0.04f), new Vector3(0.012f, -0.05f, -0.1f), new Vector3(-0.03f, -0.04f, 0.12f));
         }
+
+        // ------------------------------------------------------------------ blasters
+
+        /// <summary>
+        /// Heavy blaster pistol, a smuggler's sidearm: a dark slab frame, a scope on top, a finned cooling sleeve
+        /// round the barrel and a conical flash hider, a red power cell glowing under the frame.
+        /// </summary>
+        public static Model BlasterPistol()
+        {
+            var k = new MeshKit();
+            var g = new MeshKit();
+            Side(k, new[] { P(-0.06f, 0.006f), P(0.06f, 0.006f), P(0.07f, 0.018f), P(0.07f, 0.055f), P(-0.04f, 0.06f), P(-0.065f, 0.045f) }, 0.032f, Shade.HatchDark, Shade.Dark, 0.004f);
+            Plates(k, RectC(-0.045f, 0.018f, 0.055f, 0.048f, 0.004f), 0.017f, Shade.Black, 0.0015f);
+            // barrel with its cooling sleeve and flash hider
+            Barrel(k, 0.036f, 0.07f, 0.2f, 0.008f, Shade.Dark);
+            k.Tube(new Vector3(0, 0.036f, 0.11f), 0.015f, 0.008f, 0.07f, 14, Shade.Grey, Shade.Black);
+            for (int i = 0; i < 6; i++) k.Tube(new Vector3(0, 0.036f, 0.08f + i * 0.012f), 0.018f, 0.015f, 0.004f, 14, Shade.Dark, Shade.Black);
+            k.Lathe(new Vector2(0, 0.036f), new[] { P(0.008f, 0.19f), P(0.014f, 0.215f), P(0.012f, 0.22f) }, 14, Shade.Dark, Shade.Black, Shade.Black);
+            // scope on a short mount
+            Scope(k, 0.088f, -0.03f, 0.07f, 0.011f);
+            ScopeRings(k, 0.06f, 0.088f, 0.011f, -0.005f, 0.045f);
+            // power cell and its glow
+            k.ChamferBox(new Vector3(0, 0.0f, 0.035f), new Vector3(0.024f, 0.016f, 0.05f), 0.004f, Shade.Dark, Shade.Black);
+            g.Box(new Vector3(0.0125f, 0.0f, 0.035f), new Vector3(0.001f, 0.006f, 0.034f), Shade.White);
+            g.Box(new Vector3(-0.0125f, 0.0f, 0.035f), new Vector3(0.001f, 0.006f, 0.034f), Shade.White);
+            TriggerGroup(k, 0.0f, 0.006f);
+            Grip(k, -0.04f, 0.006f, Shade.HatchDark, 14f, 0.095f, 0.03f);
+            return Finish("BlasterPistolModel", k, g, new Color(1f, 0.15f, 0.08f), new Vector3(0, 0.036f, 0.225f), new Vector3(0, 0.1f, -0.03f), new Vector3(0.012f, -0.04f, -0.07f), new Vector3(-0.02f, -0.05f, -0.04f));
+        }
+
+        /// <summary>
+        /// Blaster rifle, a trooper's carbine: a slim black barrel shroud full of cooling holes, a side power cell,
+        /// a wire stock and a long scope. The carbine is shorter and lighter, with green accents.
+        /// </summary>
+        public static Model BlasterRifle() => Rifle(false);
+        public static Model BlasterCarbine() => Rifle(true);
+
+        private static Model Rifle(bool carbine)
+        {
+            var k = new MeshKit();
+            var g = new MeshKit();
+            float front = carbine ? 0.3f : 0.4f;
+            // receiver
+            Side(k, new[] { P(-0.05f, 0.006f), P(0.08f, 0.006f), P(0.09f, 0.02f), P(0.09f, 0.06f), P(-0.03f, 0.066f), P(-0.05f, 0.05f) }, 0.036f, Shade.HatchDark, Shade.Dark, 0.004f);
+            // barrel shroud with rows of cooling holes, emitter at the end
+            k.Lathe(new Vector2(0, 0.036f), new[] { P(0.019f, 0.09f), P(0.019f, front - 0.04f), P(0.015f, front - 0.03f) }, 16, Shade.Black, Shade.Dark, Shade.Black);
+            for (int row = 0; row < 3; row++)
+                GunParts.With(k, new Vector3(0, 0.036f, 0f), new Vector3(0, 0, row * 120f), () =>
+                    Vents(k, 0.0192f, 0.11f, front - 0.06f, carbine ? 7 : 10, 0.006f, 0.002f, 0.007f));
+            Barrel(k, 0.036f, front - 0.04f, front, 0.008f, Shade.Dark);
+            FlashHider(k, 0.036f, front + 0.015f, 0.012f, 0.03f);
+            // side power cell, sticking out to the left
+            k.ChamferBox(new Vector3(-0.034f, 0.03f, 0.05f), new Vector3(0.03f, 0.022f, 0.05f), 0.004f, Shade.Dark, Shade.Black);
+            g.Box(new Vector3(-0.05f, 0.03f, 0.05f), new Vector3(0.001f, 0.006f, 0.034f), Shade.White);
+            // scope, folding wire stock, grip
+            Scope(k, 0.09f, -0.04f, 0.09f, 0.012f);
+            ScopeRings(k, 0.066f, 0.09f, 0.012f, -0.01f, 0.06f);
+            if (!carbine) SkeletonStock(k, -0.05f, 0.06f, 0.17f, 0.01f, Shade.Dark);
+            GlowFrame(k, g, new Vector3(0.019f, 0.046f, 0.03f), new Vector3(0.002f, 0.006f, 0.05f));
+            TriggerGroup(k, 0.0f, 0.006f);
+            Grip(k, -0.03f, 0.006f, Shade.HatchDark, 16f, 0.09f, 0.03f);
+            return Finish(carbine ? "BlasterCarbineModel" : "BlasterRifleModel", k, g, carbine ? new Color(0.2f, 1f, 0.15f) : new Color(1f, 0.15f, 0.08f),
+                new Vector3(0, 0.036f, front + 0.03f), new Vector3(0, 0.104f, -0.04f), new Vector3(0.012f, -0.04f, -0.06f), new Vector3(-0.03f, -0.03f, 0.18f));
+        }
+
+        /// <summary>Heavy repeating blaster: a fat blue-lit gas chamber over the barrel, a cooling drum, a carry handle.</summary>
+        public static Model HeavyBlaster()
+        {
+            var k = new MeshKit();
+            var g = new MeshKit();
+            Side(k, new[] { P(-0.08f, 0.0f), P(0.12f, 0.0f), P(0.14f, 0.02f), P(0.14f, 0.075f), P(-0.06f, 0.08f), P(-0.08f, 0.06f) }, 0.05f, Shade.HatchMid, Shade.Grey, 0.005f);
+            // twin cooling cylinders and the barrel
+            k.Lathe(new Vector2(0, 0.045f), new[] { P(0.03f, 0.14f), P(0.03f, 0.36f), P(0.022f, 0.38f) }, 18, Shade.Dark, Shade.Black, Shade.Black);
+            for (int i = 0; i < 8; i++) k.Tube(new Vector3(0, 0.045f, 0.16f + i * 0.026f), 0.034f, 0.03f, 0.006f, 18, Shade.Grey, Shade.Black);
+            Barrel(k, 0.045f, 0.38f, 0.43f, 0.012f, Shade.Dark);
+            FlashHider(k, 0.045f, 0.455f, 0.017f, 0.04f);
+            // gas chamber lit blue along its sides
+            k.ChamferBox(new Vector3(0, 0.1f, 0.06f), new Vector3(0.03f, 0.03f, 0.14f), 0.005f, Shade.Dark, Shade.Black);
+            g.Box(new Vector3(0.0155f, 0.1f, 0.06f), new Vector3(0.001f, 0.012f, 0.11f), Shade.White);
+            g.Box(new Vector3(-0.0155f, 0.1f, 0.06f), new Vector3(0.001f, 0.012f, 0.11f), Shade.White);
+            // carry handle, cooling drum under the frame, grip
+            k.ChamferBox(new Vector3(0, 0.13f, 0.02f), new Vector3(0.012f, 0.008f, 0.08f), 0.002f, Shade.Black);
+            k.Lathe(new Vector2(0, -0.015f), new[] { P(0.035f, 0.02f), P(0.035f, 0.1f) }, 16, Shade.HatchDark, Shade.Dark, Shade.Dark);
+            TriggerGroup(k, -0.03f, 0.0f);
+            Grip(k, -0.06f, 0.0f, Shade.HatchDark, 14f, 0.1f, 0.034f);
+            return Finish("HeavyBlasterModel", k, g, new Color(0.15f, 0.45f, 1f), new Vector3(0, 0.045f, 0.475f), new Vector3(0, 0.15f, -0.02f), new Vector3(0.014f, -0.05f, -0.09f), new Vector3(-0.035f, -0.05f, 0.2f));
+        }
     }
 }

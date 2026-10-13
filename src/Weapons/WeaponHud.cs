@@ -115,6 +115,7 @@ namespace Arsenal.Weapons
             FireMode.Flame => Loc.T("FLAMMES", "FLAME"),
             FireMode.Arc => Loc.T("ARC", "ARC"),
             FireMode.Projectile => Loc.T("LANCEUR", "LAUNCHER"),
+            FireMode.Bolt => def.Automatic ? Loc.T("BLASTER AUTO", "AUTO BLASTER") : "BLASTER",
             _ => def.Pellets > 1 ? Loc.T("DISPERSION", "SPREAD") : def.Automatic ? "AUTO" : "SEMI",
         };
     }

@@ -408,6 +408,14 @@ namespace Arsenal.Weapons
                 return;
             if (dist > 0.0001f && Ballistics.Raycast(transform.position, step / dist, dist, out RaycastHit hit, out uint hitPlayer, Spec.Radius))
             {
+                if (Ballistics.HitShield)
+                {
+                    // a force field: rockets, plasma and grenades go off on its shell, which takes the bolt's own hit
+                    transform.position = hit.point - step / dist * Mathf.Max(0.05f, Spec.Radius);
+                    Compat.ForceFields.Struck(Ballistics.Shield, hit.point, hit.normal, 1.4f, Owner, Spec.DirectPanelDamage);
+                    Detonate();
+                    return;
+                }
                 if (hitPlayer != 0)
                 {
                     transform.position = hit.point;

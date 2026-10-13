@@ -270,6 +270,8 @@ namespace Arsenal.Weapons
             var rng = new System.Random();
             int blastSeed = rng.Next();
             var hits = new List<(PanelKey key, HoleMask holes, float damage)>();
+            var shielded = new List<(TrackedShipServer ship, Vector3 pos, Quaternion rot, uint space)>();
+            var absorbed = new HashSet<uint>();
 
             foreach (TrackedShipServer ship in Svc.ShipsServer.Ships.ToList())
             {
@@ -278,6 +280,19 @@ namespace Arsenal.Weapons
                 try { p = space == rootPhysics.SpaceId ? pos : transpose.Position(space, rootPhysics.SpaceId, pos); }
                 catch { continue; }
                 Vector3 local = Quaternion.Inverse(shipRot) * (p - shipPos);
+                // a force field (TF Advanced) holding around the ship takes a blast that went off outside it: no holes,
+                // no wrecked machinery, no push, and the players inside are safe; the field is drained once per blast
+                if (Compat.ForceFields.ServerShields(ship, local))
+                {
+                    shielded.Add((ship, shipPos, shipRot, rootPhysics.SpaceId));
+                    Compat.ForceFields.ServerBubble(ship, out Vector3 bc, out Vector3 bh);
+                    Vector3 rel = local - bc;
+                    float reachBubble = rel.magnitude - Mathf.Min(bh.x, Mathf.Min(bh.y, bh.z));
+                    uint rootOf = Svc.ShipsServer.TryGetTrackedRootShip(ship.Id, out TrackedShipServer rootShip) && rootShip != null ? rootShip.Id : ship.Id;
+                    if (reachBubble < radius * 1.5f && absorbed.Add(rootOf))
+                        Compat.ForceFields.ServerAbsorb(ship.Id, power * Compat.ForceFields.BlastPoints * Mathf.Clamp01(1f - Mathf.Max(0f, reachBubble) / (radius * 1.5f)));
+                    continue;
+                }
                 CoordBounds b = ship.GetHullCoordBounds();
                 bool pinned = ship.Id == pinnedShip;
                 if (!pinned && (local.x < b.LowerCoord.x - radius - 1 || local.y < b.LowerCoord.y - radius - 1 || local.z < b.LowerCoord.z - radius - 1 ||
@@ -370,11 +385,24 @@ namespace Arsenal.Weapons
                     try { pp = pl.SpaceId == space ? pl.Position : transpose.Position(pl.SpaceId, space, pl.Position); }
                     catch { continue; }
                     float d = Vector3.Distance(pp, pos);
-                    if (d < reach)
+                    if (d < reach && !InsideShield(pl, shielded, transpose))
                         PlayerDamage.ApplyServer(pl.Id, playerDamage * Mathf.Pow(1f - d / reach, 2f), attacker, weapon, space, pos);
                 }
             }
             FxNet.SendExplosionToAll(space, pos, radius);
+        }
+
+        /// <summary>Whether a player stands inside the force field of one of the ships a blast went off outside of.</summary>
+        private static bool InsideShield(TrackedPlayerServer pl, List<(TrackedShipServer ship, Vector3 pos, Quaternion rot, uint space)> shielded, IWorldTransposeServer transpose)
+        {
+            foreach (var s in shielded)
+            {
+                Vector3 pp;
+                try { pp = pl.SpaceId == s.space ? pl.Position : transpose.Position(pl.SpaceId, s.space, pl.Position); }
+                catch { continue; }
+                if (Compat.ForceFields.ServerInside(s.ship, Quaternion.Inverse(s.rot) * (pp - s.pos))) return true;
+            }
+            return false;
         }
 
         // ------------------------------------------------------------------ grenades
@@ -439,8 +467,14 @@ namespace Arsenal.Weapons
         /// <summary>Sticks a charge where the player looks. Returns false if nothing is in reach.</summary>
         public static bool TryPlaceCharge(Vector3 camPos, Vector3 dir)
         {
-            if (!ClientScene.PhysicsScene.Raycast(camPos, dir, out RaycastHit hit, 3.5f, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            bool any = ClientScene.PhysicsScene.Raycast(camPos, dir, out RaycastHit hit, 3.5f, Ballistics.Mask, QueryTriggerInteraction.Ignore);
+            // a force field keeps charges off the hull behind it
+            if (Compat.ForceFields.Entry(camPos, dir, any ? hit.distance : 3.5f, out float shieldDist, out Vector3 shieldNormal, out Compat.ForceFields.Bubble bubble))
+            {
+                Compat.ForceFields.Effect(camPos + dir * shieldDist, shieldNormal, Compat.ForceFields.Glow(bubble), 0.4f);
                 return false;
+            }
+            if (!any) return false;
             uint shipId = 0;
             Vector3 pos = hit.point, normal = hit.normal;
             IShipPartHelper helper = hit.collider.GetComponentInParent<IShipPartHelper>();
@@ -631,7 +665,16 @@ namespace Arsenal.Weapons
             Velocity += Gravity * dt;
             Vector3 step = Velocity * dt;
             float dist = step.magnitude;
-            if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, Radius, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
+            // a force field: the grenade bounces off its shell, lively, and never gets through
+            if (dist > 0.0001f && Compat.ForceFields.Entry(transform.position, step / dist, dist + Radius, out float sd, out Vector3 sn, out Compat.ForceFields.Bubble bubble))
+            {
+                transform.position += step / dist * Mathf.Max(0f, sd - Radius - 0.01f);
+                Vector3 vn = Vector3.Dot(Velocity, sn) * sn;
+                Velocity = (Velocity - vn) * 0.7f - vn * 0.5f;
+                if (vn.magnitude > 1f) Compat.ForceFields.Effect(transform.position + step / dist * Radius, sn, Compat.ForceFields.Glow(bubble), 0.35f);
+                _spin *= 0.7f;
+            }
+            else if (dist > 0.0001f && ClientScene.PhysicsScene.SphereCast(transform.position, Radius, step / dist, out RaycastHit hit, dist, Ballistics.Mask, QueryTriggerInteraction.Ignore))
             {
                 transform.position += step / dist * Mathf.Max(0f, hit.distance - 0.005f);
                 Vector3 vn = Vector3.Dot(Velocity, hit.normal) * hit.normal;

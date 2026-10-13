@@ -206,6 +206,14 @@ namespace Arsenal.Vehicles
             float dist = step.magnitude;
             if (dist > 0.0001f && Ballistics.Raycast(transform.position, step / dist, dist, out RaycastHit hit, out uint hitPlayer, 0.12f))
             {
+                if (Ballistics.HitShield)
+                {
+                    // a force field: the missile goes off on its shell
+                    transform.position = hit.point - step / dist * 0.1f;
+                    Compat.ForceFields.Effect(hit.point, hit.normal, Compat.ForceFields.Glow(Ballistics.Shield), 1.6f);
+                    Boom();
+                    return;
+                }
                 if (hitPlayer != 0)
                 {
                     transform.position = hit.point;
