@@ -283,7 +283,7 @@ namespace Arsenal.Visual
             return root;
         }
 
-        /// <summary>"Grêle" rocket pod: armoured box of 3 x 3 launch tubes with rocket noses showing (each "Tube").</summary>
+        /// <summary>"Hail" rocket pod: armoured box of 3 x 3 launch tubes with rocket noses showing (each "Tube").</summary>
         public static GameObject RocketPod()
         {
             var root = new GameObject("RocketPodModel");
@@ -331,7 +331,7 @@ namespace Arsenal.Visual
         }
 
         /// <summary>
-        /// "Faucon" SAM battery: a yawing Head with a radar mast (Radar spins) and a Pitch cradle carrying four
+        /// "Falcon" SAM battery: a yawing Head with a radar mast (Radar spins) and a Pitch cradle carrying four
         /// missile canisters ("Tube", seeker domes showing). Barrel axis along +z.
         /// </summary>
         public static GameObject SamBattery()
@@ -387,7 +387,7 @@ namespace Arsenal.Visual
         }
 
         /// <summary>
-        /// "Foudre" hypersonic missile launcher: a long armoured twin rail with two slim missiles ("Tube" points,
+        /// "Lightning" hypersonic missile launcher: a long armoured twin rail with two slim missiles ("Tube" points,
         /// hidden as they leave), blast deflector at the back, cooling fins and blue capacitor bands.
         /// </summary>
         public static GameObject HyperLauncher()
@@ -458,7 +458,7 @@ namespace Arsenal.Visual
             return new Vector3(side * 0.1f, 0.25f, 0f) + tilt * new Vector3(0, 0.085f, z);
         }
 
-        /// <summary>"Nuée" flare dispenser: armoured block with two tilted banks of three flare tubes ("Muzzle" points).</summary>
+        /// <summary>"Swarm" flare dispenser: armoured block with two tilted banks of three flare tubes ("Muzzle" points).</summary>
         public static GameObject FlareDispenser()
         {
             var root = new GameObject("FlareDispenserModel");

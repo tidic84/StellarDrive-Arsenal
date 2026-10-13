@@ -58,11 +58,11 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 | PX-9 laser pistol | energy | rapid laser bolts, runs on heat (no reload) |
 | "Blackout" EMP carbine | energy | ion bolts that jam weapons and knock ships out |
 | "Tesla" arc | energy | electric arc jumping from target to target |
-| "Néant" disintegrator | energy | continuous beam that ramps up and burns through walls |
-| "Contrebandier" blaster pistol | energy | semi-auto red blaster bolts, runs on heat
-| "Légion" blaster rifle | rifle | full-auto red blaster bolts, runs on heat
-| "Éclaireur" blaster carbine | energy | fast green bolts, runs on heat
-| "Tonnerre" heavy blaster | heavy | rapid blue bolts that open wide breaches
+| "Void" disintegrator | energy | continuous beam that ramps up and burns through walls |
+| "Smuggler" heavy blaster | energy | semi-auto red blaster bolts, runs on heat
+| "Legion" blaster rifle | rifle | full-auto red blaster bolts, runs on heat
+| "Scout" blaster carbine | energy | fast green bolts, runs on heat
+| "Thunder" heavy repeating blaster | heavy | rapid blue bolts that open wide breaches
 | "Havoc" grenade launcher | explosive | lobbed grenades that blow on impact |
 | "Titan" rocket launcher | explosive | accelerating rocket, big blast |
 | "Eagle" SAM launcher | explosive | **locks on by itself** to the ship you point at (blips, then a steady tone and red brackets); the missile leads its target and has a proximity fuse |
@@ -175,7 +175,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.9.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.9.2` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

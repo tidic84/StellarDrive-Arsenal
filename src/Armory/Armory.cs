@@ -64,7 +64,7 @@ namespace Arsenal.Armory
             return list;
         }
 
-        /// <summary>"Traverse : verre 4 · bois 1 · fer 0", head-on panels of each hull material.</summary>
+        /// <summary>"Goes through: glass 4 · wood 1 · iron 0", head-on panels of each hull material.</summary>
         private static string PierceText(HandWeaponDef d)
         {
             if (d.Mode == FireMode.Projectile) return Loc.T("Souffle : ouvre toutes les coques", "Blast: tears any hull open");
@@ -73,7 +73,7 @@ namespace Arsenal.Armory
             float p = d.Bullet != null ? d.Bullet.Penetration : 0f;
             if (p <= 0f) return Loc.T("Ne traverse pas les coques", "Does not go through hulls");
             string Count(Ships.Interface.Model.Parts.HullMaterialType m) => Damage.Materials.PanelsThrough(p, m).ToString();
-            return Loc.T("Traverse", "Goes through") + " :  " + Loc.T("verre", "glass") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Glass) +
+            return Loc.T("Traverse :  ", "Goes through:  ") + Loc.T("verre", "glass") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Glass) +
                    "  ·  " + Loc.T("bois", "wood") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Wood) +
                    "  ·  " + Loc.T("fer", "iron") + " " + Count(Ships.Interface.Model.Parts.HullMaterialType.Metal);
         }
