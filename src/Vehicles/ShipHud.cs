@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using Arsenal.Content;
 using Arsenal.Core;
+using Arsenal.Weapons;
 using Ships;
 using Ships.Interface.Model.Parts;
 using UnityEngine;
@@ -7,13 +9,30 @@ using UnityEngine;
 namespace Arsenal.Vehicles
 {
     /// <summary>
-    /// Pilot overlay while flying a ship with weapons: where each weapon points (300 m ahead), the missile
-    /// lock and missiles left, the laser heat. Drawn in thin ink-like lines to sit with the game's HUD.
+    /// Pilot overlay while flying a ship with weapons, drawn in thin ink-like lines to sit with the game's HUD.
+    /// However many weapons the ship carries, the fixed ones share one reticle where they converge (300 m ahead),
+    /// with one status line per kind of weapon beside it (count, heat or charge, missiles left); locks and
+    /// point-defence targets are marked once each.
     /// </summary>
     internal sealed class ShipHud : MonoBehaviour
     {
         private static Texture2D _px;
         private static GUIStyle _label;
+
+        private sealed class Status
+        {
+            public string Name;
+            public int Count;
+            public int Ammo = -1;      // missiles / rockets / salvos left, summed over the group
+            public float Bar = -1f;    // heat (the hottest) or charge (the readiest) of the group
+            public Color BarColor;
+        }
+
+        private static readonly List<Status> _status = new List<Status>();
+        private static readonly List<Vector2> _aims = new List<Vector2>();
+        private static readonly List<Vector2> _samMarks = new List<Vector2>();
+        private static readonly HashSet<uint> _locks = new HashSet<uint>();
+        private static readonly HashSet<IThreat> _tracked = new HashSet<IThreat>();
 
         internal static Texture2D Px
         {
@@ -36,94 +55,175 @@ namespace Arsenal.Vehicles
             if (_label == null)
                 _label = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
 
+            _status.Clear();
+            _aims.Clear();
+            _samMarks.Clear();
+            _locks.Clear();
+            _tracked.Clear();
+            Color ink = new Color(0.95f, 0.98f, 1f, 0.9f);
+            TrackedShipClient anyShip = null;
+
             foreach (ShipWeapons.Mount m in ShipWeapons.Mounts)
             {
                 if (ShipWeapons.RootOf(m.Ctx.ShipId) != root) continue;
                 if (!Svc.ShipsClient.TryGetTrackedShip(m.Ctx.ShipId, out TrackedShipClient ship) || !ship.IsRigidbodyLoaded) continue;
                 if (!ship.TryGetStatefulPart(m.Ctx.PartId, out StatefulPart part)) continue;
-                Vector3 aim = ShipWeapons.PartPoint(ship, part, new Vector3(0, 0.27f, 0.6f)) + ShipWeapons.PartForward(ship, part) * 300f;
-                Vector3 sp = cam.WorldToScreenPoint(aim);
-                if (sp.z <= 0) continue;
-                var c = new Vector2(sp.x, Screen.height - sp.y);
-                Color ink = new Color(0.95f, 0.98f, 1f, 0.9f);
+                anyShip = ship;
+                bool fixedAim = true;
+                Status s;
                 switch (m.Kind)
                 {
                     case ShipContent.MachineGunId:
-                        Cross(c, 9f, 4f, ink);
+                        StatusFor("MITRAILLEUSE", "MACHINE GUN");
                         break;
                     case ShipContent.LaserCannonId:
                     case ShipContent.LaserGreenId:
                     case ShipContent.LaserBlueId:
-                        Ring(c, 10f, ink);
-                        Bar(new Rect(c.x + 16f, c.y - 10f, 5f, 20f), m.Heat, m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f));
+                        s = StatusFor("LASER", "LASER");
+                        if (m.Heat > s.Bar || m.Overheated)
+                        {
+                            s.Bar = Mathf.Max(s.Bar, m.Heat);
+                            s.BarColor = m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f);
+                        }
                         break;
                     case ShipContent.PlasmaCannonId:
+                        StatusFor("PLASMA", "PLASMA");
+                        break;
                     case ShipContent.IonCannonId:
-                        Cross(c, 12f, 6f, m.Kind == ShipContent.PlasmaCannonId ? new Color(1f, 0.7f, 0.4f, 0.9f) : new Color(0.6f, 0.8f, 1f, 0.9f));
+                        StatusFor("ION", "ION");
                         break;
                     case ShipContent.RailgunId:
-                        Cross(c, 16f, 10f, ink);
-                        Ring(c, 5f, ink);
-                        Bar(new Rect(c.x + 22f, c.y - 12f, 5f, 24f), Time.time < m.NextShot ? 1f - (m.NextShot - Time.time) / 4f : m.Charge,
-                            Time.time < m.NextShot ? new Color(0.5f, 0.55f, 0.6f) : new Color(0.5f, 0.85f, 1f));
+                    {
+                        s = StatusFor("RAILGUN", "RAILGUN");
+                        bool reloading = Time.time < m.NextShot;
+                        float v = reloading ? 1f - (m.NextShot - Time.time) / 4f : m.Charge;
+                        if (v > s.Bar)
+                        {
+                            s.Bar = v;
+                            s.BarColor = reloading ? new Color(0.5f, 0.55f, 0.6f) : new Color(0.5f, 0.85f, 1f);
+                        }
                         break;
+                    }
                     case ShipContent.RocketPodId:
-                        Cross(c, 14f, 8f, new Color(1f, 0.6f, 0.35f, 0.9f));
-                        GUI.color = ink;
-                        GUI.Label(new Rect(c.x + 16f, c.y - 10f, 120f, 20f), m.Rockets > 0 ? new string('|', m.Rockets) : Loc.T("RECHARGE", "RELOADING"), _label);
+                        AddAmmo(StatusFor("ROQUETTES", "ROCKETS"), Mathf.Max(0, m.Rockets));
+                        break;
+                    case ShipContent.MissilePodId:
+                        AddAmmo(StatusFor("MISSILES", "MISSILES"), m.Missiles);
+                        if (m.LockedTarget != 0) _locks.Add(m.LockedTarget);
+                        break;
+                    case ShipContent.TorpedoId:
+                        AddAmmo(StatusFor("TORPILLES", "TORPEDOES"), m.Missiles);
+                        if (m.LockedTarget != 0) _locks.Add(m.LockedTarget);
+                        break;
+                    case ShipContent.HyperLauncherId:
+                        AddAmmo(StatusFor("HYPERSONIQUE", "HYPERSONIC"), m.Missiles);
+                        if (m.LockedTarget != 0) _locks.Add(m.LockedTarget);
                         break;
                     case ShipContent.SamBatteryId:
                     {
-                        // the battery aims by itself: show where its launcher points and the missiles left
-                        if (m.Pitch == null) continue;
+                        // aims by itself: a small ring where its launcher points, batteries aiming together share one
+                        fixedAim = false;
+                        AddAmmo(StatusFor("SOL-AIR", "SAM"), m.Missiles);
+                        if (m.Pitch == null) break;
                         Vector3 sp2 = cam.WorldToScreenPoint(m.Pitch.position + m.Pitch.forward * 300f);
-                        if (sp2.z <= 0) continue;
-                        var c2 = new Vector2(sp2.x, Screen.height - sp2.y);
-                        Ring(c2, 6f, new Color(1f, 0.85f, 0.3f, 0.8f));
-                        GUI.color = ink;
-                        GUI.Label(new Rect(c2.x + 12f, c2.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
-                        continue;
+                        if (sp2.z > 0) Merge(_samMarks, new Vector2(sp2.x, Screen.height - sp2.y));
+                        break;
                     }
                     case ShipContent.FlareDispenserId:
-                    {
-                        // no aim: salvos left, under the screen centre
-                        var fc = new Vector2(Screen.width / 2f, Screen.height - 120f);
-                        GUI.color = ink;
-                        string salvos = m.Missiles > 0 ? new string('|', m.Missiles) : Loc.T("RECHARGE", "RELOADING");
-                        GUI.Label(new Rect(fc.x - 90f, fc.y, 180f, 20f), Loc.T("LEURRES ", "FLARES ") + salvos, _label);
-                        continue;
-                    }
+                        fixedAim = false;
+                        AddAmmo(StatusFor("LEURRES", "FLARES"), m.Missiles);
+                        break;
                     case ShipContent.PdcId:
                         // point defence aims by itself: show what it is tracking
-                        if (m.Tracking != null && !(m.Tracking is Object o && o == null))
-                        {
-                            Vector3 tp = cam.WorldToScreenPoint(m.Tracking.Position);
-                            if (tp.z > 0) Brackets(new Vector2(tp.x, Screen.height - tp.y), 14f, new Color(1f, 0.85f, 0.3f, 0.95f));
-                        }
-                        continue;
-                    case ShipContent.MissilePodId:
-                    case ShipContent.TorpedoId:
-                    case ShipContent.HyperLauncherId:
-                        Diamond(c, 8f, ink);
-                        GUI.color = ink;
-                        GUI.Label(new Rect(c.x + 14f, c.y - 10f, 80f, 20f), new string('|', m.Missiles), _label);
-                        if (m.LockedTarget != 0 && ShipWeapons.TryGetShipMotion(m.LockedTarget, out Vector3 tcenter, out _, out _, out _))
-                        {
-                            Vector3 tp = cam.WorldToScreenPoint(tcenter);
-                            if (tp.z > 0)
-                            {
-                                var tc = new Vector2(tp.x, Screen.height - tp.y);
-                                Color lockCol = new Color(1f, 0.35f, 0.25f, 0.95f);
-                                Brackets(tc, 26f, lockCol);
-                                GUI.color = lockCol;
-                                float range = Vector3.Distance(ShipWeapons.TargetPoint(ship), tcenter);
-                                GUI.Label(new Rect(tc.x - 30f, tc.y + 28f, 200f, 20f), Loc.T("VERROUILLÉ", "LOCKED") + (range >= 1000f ? $"  {range / 1000f:0.0} km" : $"  {range:0} m"), _label);
-                            }
-                        }
+                        fixedAim = false;
+                        StatusFor("DÉFENSE", "DEFENCE");
+                        if (m.Tracking != null && !(m.Tracking is Object o && o == null)) _tracked.Add(m.Tracking);
+                        break;
+                    default:
+                        fixedAim = false;
                         break;
                 }
+                if (!fixedAim) continue;
+                Vector3 aim = ShipWeapons.PartPoint(ship, part, new Vector3(0, 0.27f, 0.6f)) + ShipWeapons.PartForward(ship, part) * 300f;
+                Vector3 sp = cam.WorldToScreenPoint(aim);
+                if (sp.z > 0) _aims.Add(new Vector2(sp.x, Screen.height - sp.y));
+            }
+            if (_status.Count == 0) return;
+
+            // One reticle where the fixed weapons converge; a faint dot for any weapon pointing well apart.
+            Vector2 c = new Vector2(Screen.width / 2f, Screen.height / 2f);
+            if (_aims.Count > 0)
+            {
+                c = Vector2.zero;
+                foreach (Vector2 a in _aims) c += a;
+                c /= _aims.Count;
+                foreach (Vector2 a in _aims)
+                    if ((a - c).sqrMagnitude > 30f * 30f)
+                        Ring(a, 3f, new Color(ink.r, ink.g, ink.b, 0.45f));
+                Ring(c, 10f, ink);
+                Cross(c, 18f, 13f, ink);
+            }
+            foreach (Vector2 mk in _samMarks) Ring(mk, 6f, new Color(1f, 0.85f, 0.3f, 0.8f));
+
+            // Status column right of the reticle, one line per kind of weapon.
+            float y = c.y - (_status.Count - 1) * 9f;
+            foreach (Status s in _status)
+            {
+                float x = c.x + 28f;
+                string text = s.Count > 1 ? $"{s.Name} ×{s.Count}" : s.Name;
+                if (s.Ammo >= 0)
+                    text += "  " + (s.Ammo > 0 ? new string('|', Mathf.Min(s.Ammo, 24)) : Loc.T("RECHARGE", "RELOADING"));
+                GUI.color = new Color(0f, 0f, 0f, 0.6f);
+                GUI.Label(new Rect(x + 1f, y - 9f, 280f, 20f), text, _label);
+                GUI.color = ink;
+                GUI.Label(new Rect(x, y - 10f, 280f, 20f), text, _label);
+                if (s.Bar >= 0f)
+                    BarH(new Rect(x + _label.CalcSize(new GUIContent(text)).x + 4f, y - 3f, 30f, 6f), s.Bar, s.BarColor);
+                y += 18f;
+            }
+
+            foreach (IThreat t in _tracked)
+            {
+                Vector3 tp = cam.WorldToScreenPoint(t.Position);
+                if (tp.z > 0) Brackets(new Vector2(tp.x, Screen.height - tp.y), 14f, new Color(1f, 0.85f, 0.3f, 0.95f));
+            }
+
+            foreach (uint target in _locks)
+            {
+                if (!ShipWeapons.TryGetShipMotion(target, out Vector3 tcenter, out _, out _, out _)) continue;
+                Vector3 tp = cam.WorldToScreenPoint(tcenter);
+                if (tp.z <= 0) continue;
+                var tc = new Vector2(tp.x, Screen.height - tp.y);
+                Color lockCol = new Color(1f, 0.35f, 0.25f, 0.95f);
+                Brackets(tc, 26f, lockCol);
+                GUI.color = lockCol;
+                float range = Vector3.Distance(ShipWeapons.TargetPoint(anyShip), tcenter);
+                GUI.Label(new Rect(tc.x - 30f, tc.y + 28f, 200f, 20f), Loc.T("VERROUILLÉ", "LOCKED") + (range >= 1000f ? $"  {range / 1000f:0.0} km" : $"  {range:0} m"), _label);
             }
             GUI.color = Color.white;
+        }
+
+        private static Status StatusFor(string fr, string en)
+        {
+            string name = Loc.T(fr, en);
+            foreach (Status s in _status)
+                if (s.Name == name)
+                {
+                    s.Count++;
+                    return s;
+                }
+            var added = new Status { Name = name, Count = 1 };
+            _status.Add(added);
+            return added;
+        }
+
+        private static void AddAmmo(Status s, int ammo) => s.Ammo = Mathf.Max(0, s.Ammo) + Mathf.Max(0, ammo);
+
+        private static void Merge(List<Vector2> marks, Vector2 p)
+        {
+            foreach (Vector2 q in marks)
+                if ((q - p).sqrMagnitude < 25f * 25f) return;
+            marks.Add(p);
         }
 
         internal static void Line(Vector2 a, Vector2 b, float width, Color c)
@@ -181,6 +281,14 @@ namespace Arsenal.Vehicles
             GUI.color = col;
             float h = r.height * Mathf.Clamp01(fill);
             GUI.DrawTexture(new Rect(r.x, r.yMax - h, r.width, h), Px);
+        }
+
+        private static void BarH(Rect r, float fill, Color col)
+        {
+            GUI.color = new Color(1f, 1f, 1f, 0.25f);
+            GUI.DrawTexture(r, Px);
+            GUI.color = col;
+            GUI.DrawTexture(new Rect(r.x, r.y, r.width * Mathf.Clamp01(fill), r.height), Px);
         }
     }
 }

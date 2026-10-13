@@ -117,7 +117,7 @@ New tab **Arsenal** in the build menu, unlocked by three new technologies in the
 - **"Swarm" flare dispenser**: throws a salvo of 6 burning heat flares on each signal pulse (4 salvos, reloads by itself). Every guided missile, SAM or torpedo that sees a hot flare may turn away and blow up on it instead of the ship.
 - **Armory**: the weapon fabrication terminal (see above).
 
-While you pilot, the HUD shows where each weapon points, the missile and torpedo lock, the laser heat, the railgun charge and what the point defence is tracking. A ship hit by an ion bolt or an EMP can't fly or shoot until it recovers.
+While you pilot, the HUD shows one reticle where your fixed weapons converge, however many there are, with one status line per kind of weapon beside it (how many, laser heat, railgun charge, missiles and rockets left), plus the missile and torpedo locks and what the point defence is tracking. A ship hit by an ion bolt or an EMP can't fly or shoot until it recovers.
 
 **Radar warning**: when someone's lock-on (hand SAM launcher, SAM battery, missile pod, torpedo tube) sweeps your ship you hear a slow ping ("ENEMY RADAR"); once they are locked, a fast beep ("ENEMY LOCK"); and a guided missile coming at you sets off a two-tone alarm that speeds up as it closes in ("INCOMING MISSILE"), with markers around the screen centre showing where the threat comes from. Pop flares!
 
@@ -175,7 +175,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.9.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.9.1` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json
