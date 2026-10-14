@@ -138,10 +138,14 @@ namespace Arsenal.Visual
             g.Lathe(new Vector2(0, 0.092f), new[] { P(0.0f, -0.07f), P(0.016f, -0.064f), P(0.016f, 0.064f), P(0.0f, 0.07f) }, 12, Shade.White);
             foreach (float z in new[] { -0.075f, -0.025f, 0.025f, 0.075f })
                 k.Tube(new Vector3(0, 0.092f, z), 0.02f, 0.0165f, 0.008f, 12, Shade.Dark, Shade.Black);
+            // reflex sight on a tall riser bridging the cage, high enough to see over the canister
+            k.ChamferBox(new Vector3(0, 0.114f, 0.02f), new Vector3(0.03f, 0.006f, 0.06f), 0.0015f, Shade.Dark, Shade.Black);
+            Side(k, new[] { P(-0.004f, 0.114f), P(0.044f, 0.114f), P(0.038f, 0.142f), P(0.002f, 0.142f) }, 0.016f, Shade.Dark, Shade.Black, 0.002f);
+            ReflexSight(k, 0.02f, 0.142f);
             TriggerGroup(k, -0.03f, -0.016f, 0.06f);
             Grip(k, -0.065f, -0.016f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.11f, 0.056f, 0.2f, 0.044f, Shade.HatchLight);
-            return Finish("PlasmaShotgunModel", k, g, new Color(1f, 0.55f, 0.15f), new Vector3(0, 0.027f, 0.32f), new Vector3(0, 0.123f, -0.02f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
+            return Finish("PlasmaShotgunModel", k, g, new Color(1f, 0.55f, 0.15f), new Vector3(0, 0.027f, 0.32f), new Vector3(0, 0.1565f, 0.024f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
         }
 
         public static Model Railgun()
@@ -413,10 +417,13 @@ namespace Arsenal.Visual
             // cell pack on top, grip, stock
             k.ChamferBox(new Vector3(0, 0.077f, 0.0f), new Vector3(0.032f, 0.03f, 0.08f), 0.006f, Shade.Dark, Shade.Black);
             g.Box(new Vector3(0, 0.0925f, 0.0f), new Vector3(0.02f, 0.002f, 0.06f), Shade.White);
+            // reflex sight on a riser so the cell pack stays out of the view
+            Side(k, new[] { P(0.011f, 0.092f), P(0.059f, 0.092f), P(0.053f, 0.118f), P(0.017f, 0.118f) }, 0.016f, Shade.Dark, Shade.Black, 0.002f);
+            ReflexSight(k, 0.035f, 0.118f);
             TriggerGroup(k, -0.03f, -0.014f, 0.055f);
             Grip(k, -0.065f, -0.014f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.11f, 0.05f, 0.17f, 0.042f, Shade.HatchLight);
-            return Finish("EmpCarbineModel", k, g, new Color(0.35f, 0.6f, 1f), new Vector3(0, 0.03f, 0.31f), new Vector3(0, 0.1f, -0.01f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
+            return Finish("EmpCarbineModel", k, g, new Color(0.35f, 0.6f, 1f), new Vector3(0, 0.03f, 0.31f), new Vector3(0, 0.1325f, 0.039f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
         }
 
         public static Model Tesla()

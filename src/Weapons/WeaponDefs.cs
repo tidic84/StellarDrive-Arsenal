@@ -130,7 +130,8 @@ namespace Arsenal.Weapons
         public float AimSpreadDegrees;
         public float RecoilKick;       // metres of visual kick-back
         public float AimFov;           // camera FOV while aiming (0 = no zoom)
-        public bool Scope;             // shows the scope overlay when aimed
+        public ScopeKind Scope;        // aimed: hides the model and looks through this scope
+        public Color ReticleColor = new Color(1f, 0.22f, 0.15f);
         public float Mass;
         public BulletSpec Bullet;
         public ProjectileKind Projectile;
@@ -245,7 +246,7 @@ namespace Arsenal.Weapons
             DescFr = "Gros calibre à lunette. Traverse plusieurs plaques de fer. Clic droit pour viser.", DescEn = "Scoped heavy calibre. Goes through several iron plates. Right click to aim.",
             Cost = new[] { (Iron, (byte)12), (Copper, (byte)4), (Glass, (byte)2) },
             Automatic = false, RoundsPerMinute = 50, Magazine = 5, ReloadTime = 2.8f,
-            SpreadDegrees = 2.5f, AimSpreadDegrees = 0.02f, RecoilKick = 0.16f, AimFov = 18f, Scope = true, Mass = 9f,
+            SpreadDegrees = 2.5f, AimSpreadDegrees = 0.02f, RecoilKick = 0.16f, AimFov = 18f, Scope = ScopeKind.Sniper, Mass = 9f,
             Bullet = new BulletSpec { PlayerDamage = 85, PanelDamage = 60, Penetration = 125, HoleRadius = 0.06f, Range = 900f, ObjectDamage = 3f },
             Sound = SoundStyle.Heavy, MuzzleSize = 0.35f, Model = WeaponModels.Marksman, HoldPosition = new Vector3(-0.08f, 0.06f, 0f),
         };
@@ -258,7 +259,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)12), (Copper, (byte)6), (Shard, (byte)1) },
             Mode = FireMode.Charge, ChargeTime = 1.1f,
             Automatic = false, RoundsPerMinute = 40, Magazine = 4, ReloadTime = 3f,
-            SpreadDegrees = 0.8f, AimSpreadDegrees = 0f, RecoilKick = 0.2f, AimFov = 20f, Scope = true, Mass = 10f,
+            SpreadDegrees = 0.8f, AimSpreadDegrees = 0f, RecoilKick = 0.2f, AimFov = 20f, Scope = ScopeKind.Rail, ReticleColor = new Color(0.4f, 0.9f, 1f), Mass = 10f,
             Bullet = new BulletSpec { PlayerDamage = 110, PanelDamage = 90, Penetration = 320, HoleRadius = 0.075f, Range = 1200f, ObjectDamage = 6f, ThroughPlayers = true },
             Tracer = TracerStyle.Rail, TracerColor = new Color(0.5f, 0.85f, 1f), Sound = SoundStyle.Rail, MuzzleSize = 0.4f,
             Model = GunModels.Railgun, HoldPosition = new Vector3(-0.08f, 0.06f, 0f),
@@ -312,7 +313,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)14), (Copper, (byte)6), (Shard, (byte)1) },
             Mode = FireMode.Projectile, Projectile = ProjectileKind.Rocket,
             Automatic = false, RoundsPerMinute = 30, Magazine = 1, ReloadTime = 3f,
-            SpreadDegrees = 0.3f, AimSpreadDegrees = 0f, RecoilKick = 0.12f, AimFov = 40f, Mass = 11f,
+            SpreadDegrees = 0.3f, AimSpreadDegrees = 0f, RecoilKick = 0.12f, AimFov = 30f, Scope = ScopeKind.Launcher, ReticleColor = new Color(1f, 0.62f, 0.18f), Mass = 11f,
             Tracer = TracerStyle.None, Sound = SoundStyle.Launcher, MuzzleSize = 0.4f,
             Model = GunModels.RocketLauncher, HoldPosition = new Vector3(-0.12f, 0.02f, -0.05f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.22f,
         };
@@ -368,7 +369,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)18), (Copper, (byte)10), (Shard, (byte)2), (Glass, (byte)2) },
             Mode = FireMode.Projectile, Projectile = ProjectileKind.Sam,
             Automatic = false, RoundsPerMinute = 30, Magazine = 1, ReloadTime = 3.5f,
-            SpreadDegrees = 0.2f, AimSpreadDegrees = 0f, RecoilKick = 0.1f, AimFov = 35f, Mass = 14f,
+            SpreadDegrees = 0.2f, AimSpreadDegrees = 0f, RecoilKick = 0.1f, AimFov = 26f, Scope = ScopeKind.Launcher, ReticleColor = new Color(1f, 0.3f, 0.25f), Mass = 14f,
             Tracer = TracerStyle.None, Sound = SoundStyle.Launcher, MuzzleSize = 0.4f,
             Model = GunModels.SamLauncher, HoldPosition = new Vector3(-0.12f, -0.03f, 0.0f), HoldEuler = new Vector3(3f, 12f, 0f), AimDistance = 0.24f,
         };
@@ -404,7 +405,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)6), (Copper, (byte)3), (Glass, (byte)1) },
             Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.PistolBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.16f, CoolPerSecond = 0.3f,
             Automatic = false, RoundsPerMinute = 200,
-            SpreadDegrees = 0.5f, AimSpreadDegrees = 0.1f, RecoilKick = 0.06f, AimFov = 45f, Mass = 1.6f,
+            SpreadDegrees = 0.5f, AimSpreadDegrees = 0.1f, RecoilKick = 0.06f, AimFov = 36f, Scope = ScopeKind.Tactical, Mass = 1.6f,
             Bullet = BoltSpec(Arsenal.Vehicles.Laser.PistolBolt),
             Tracer = TracerStyle.None, TracerColor = new Color(1f, 0.15f, 0.08f), Sound = SoundStyle.Blaster, MuzzleSize = 0.12f,
             Model = GunModels.BlasterPistol, HoldPosition = Sidearm, HoldEuler = SidearmRot, AimDistance = 0.3f,
@@ -419,7 +420,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)8), (Copper, (byte)4), (Glass, (byte)1) },
             Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.RifleBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.06f, CoolPerSecond = 0.2f,
             Automatic = true, RoundsPerMinute = 420,
-            SpreadDegrees = 1.4f, AimSpreadDegrees = 0.45f, RecoilKick = 0.03f, AimFov = 48f, Mass = 3.2f,
+            SpreadDegrees = 1.4f, AimSpreadDegrees = 0.45f, RecoilKick = 0.03f, AimFov = 32f, Scope = ScopeKind.Tactical, Mass = 3.2f,
             Bullet = BoltSpec(Arsenal.Vehicles.Laser.RifleBolt),
             Tracer = TracerStyle.None, TracerColor = new Color(1f, 0.15f, 0.08f), Sound = SoundStyle.Blaster, MuzzleSize = 0.14f,
             Model = GunModels.BlasterRifle, HoldPosition = Long,
@@ -434,7 +435,7 @@ namespace Arsenal.Weapons
             Cost = new[] { (Iron, (byte)6), (Copper, (byte)4), (Glass, (byte)2) },
             Mode = FireMode.Bolt, BoltStyle = Arsenal.Vehicles.Laser.CarbineBolt, Ammo = AmmoMode.Heat, HeatPerShot = 0.045f, CoolPerSecond = 0.25f,
             Automatic = true, RoundsPerMinute = 540,
-            SpreadDegrees = 1.2f, AimSpreadDegrees = 0.35f, RecoilKick = 0.022f, AimFov = 50f, Mass = 2.5f,
+            SpreadDegrees = 1.2f, AimSpreadDegrees = 0.35f, RecoilKick = 0.022f, AimFov = 36f, Scope = ScopeKind.Tactical, ReticleColor = new Color(0.3f, 1f, 0.25f), Mass = 2.5f,
             Bullet = BoltSpec(Arsenal.Vehicles.Laser.CarbineBolt),
             Tracer = TracerStyle.None, TracerColor = new Color(0.2f, 1f, 0.15f), Sound = SoundStyle.Blaster, MuzzleSize = 0.12f,
             Model = GunModels.BlasterCarbine, HoldPosition = Long,

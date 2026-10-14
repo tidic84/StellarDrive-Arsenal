@@ -208,32 +208,47 @@ namespace Arsenal.Weapons
 
         private void OnDisable() => UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
 
+        /// <summary>Hip-fire convergence: the barrel points at the crosshair this far ahead (parallel to the view, so it lines up with the dot).</summary>
+        private const float HipConverge = 30f;
+
+        /// <summary>The scope view takes over (model hidden) from this aim blend on.</summary>
+        private const float ScopeIn = 0.8f;
+
         /// <summary>
-        /// Final placement right before the camera renders: blends the model from its hip pose to a pose where
-        /// the sights sit on the line of sight. Scoped weapons hide the model and show the scope instead.
+        /// Final placement right before the camera renders: turns the hip pose so the barrel points at the crosshair,
+        /// then blends to a pose where the sights sit on the line of sight. Scoped weapons hide the model and show the scope instead.
         /// </summary>
         private void OnBeginCamera(UnityEngine.Rendering.ScriptableRenderContext ctx, Camera cam)
         {
             if (_model == null || cam != _camera) return;
             _model.localPosition = _holdPos;
             _model.localRotation = _holdRot;
-            bool scoped = _def.Scope && _aimBlend > 0.85f;
+            bool scoped = _def.Scope != ScopeKind.None && _aimBlend > ScopeIn;
             foreach (Renderer r in _renderers) r.enabled = !scoped;
-            if (_aimBlend <= 0f || scoped) return;
-            float k = Mathf.SmoothStep(0f, 1f, _aimBlend);
+            if (scoped) return;
             Transform ct = cam.transform;
+            // hip: aim the barrel's axis at the crosshair point, keep the camera's up so the gun stays level
+            Vector3 axis = _model.position + _model.rotation * _boreLocal;
+            Vector3 toDot = ct.position + ct.forward * HipConverge - axis;
+            Quaternion hipRot = Quaternion.LookRotation(toDot, ct.up) * Quaternion.Euler(0f, 0f, HipCant);
+            _model.rotation = hipRot;
+            if (_aimBlend <= 0f) return;
+            float k = Mathf.SmoothStep(0f, 1f, _aimBlend);
             Quaternion aimRot = ct.rotation;
             Vector3 sightTarget = ct.position + ct.rotation * new Vector3(0f, 0f, _def.AimDistance);
-            Quaternion modelRot = Quaternion.Slerp(_model.rotation, aimRot, k);
+            Quaternion modelRot = Quaternion.Slerp(hipRot, aimRot, k);
             Vector3 aimPos = sightTarget - aimRot * _sightLocal;
             Vector3 hipPos = _model.position;
             _model.rotation = modelRot;
             _model.position = Vector3.Lerp(hipPos, aimPos, k) + ct.rotation * new Vector3(0f, -_recoil * 0.2f, -_recoil);
         }
 
+        /// <summary>A slight inward roll at the hip, like a gun held in the right hand.</summary>
+        private const float HipCant = -4f;
+
         private Transform _model;
         private Renderer[] _renderers = new Renderer[0];
-        private Vector3 _holdPos, _sightLocal;
+        private Vector3 _holdPos, _sightLocal, _boreLocal;
         private Quaternion _holdRot;
 
         private void CacheModel()
@@ -245,12 +260,15 @@ namespace Arsenal.Weapons
             _renderers = _model.GetComponentsInChildren<Renderer>(true);
             Transform sight = _model.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Sight");
             _sightLocal = sight != null ? sight.localPosition : Vector3.up * 0.06f;
+            // a point on the bore axis (muzzle height, at the grip) so the barrel itself, not the grip, lines up
+            _boreLocal = _muzzle != null ? new Vector3(_muzzle.localPosition.x, _muzzle.localPosition.y, 0f) : Vector3.zero;
         }
 
         private void OnGUI()
         {
-            if (_def == null || !enabled || Assets.IsTemplate(this)) return;
-            if (_def.Scope && _aimBlend > 0.85f) ScopeOverlay.Draw();
+            if (_def == null || !enabled || Assets.IsTemplate(this) || _def.Scope == ScopeKind.None) return;
+            if (Event.current.type != EventType.Repaint) return;
+            ScopeOverlay.Draw(_def.Scope, _def.ReticleColor, Mathf.InverseLerp(ScopeIn - 0.15f, 1f, _aimBlend));
         }
 
         private void RestoreFov()
