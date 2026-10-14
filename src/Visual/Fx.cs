@@ -115,6 +115,7 @@ namespace Arsenal.Visual
             {
                 // no local player yet
             }
+            _trauma = Mathf.Max(0f, _trauma - Time.deltaTime * 1.6f);
             float dt = Time.deltaTime;
             for (int i = _items.Count - 1; i >= 0; i--)
             {
@@ -362,26 +363,235 @@ namespace Arsenal.Visual
             }
         }
 
-        /// <summary>A blast: fireball, flash light, smoke ring, chips.</summary>
+        /// <summary>
+        /// A cinematic blast in the game's low-poly style: a white-hot flash and a light that cools to orange, a fireball of
+        /// blobs that cool from yellow to dark red, burning debris trailing smoke, a ground dust ring,
+        /// a smoke column that rises and lightens, and a camera shake that depends on distance.
+        /// </summary>
         public static void Explosion(Vector3 pos, float radius)
         {
-            GameObject fire = MeshObject("Arsenal.Fireball", IcoMesh, FireMat, pos, Random.rotation, Vector3.one * 0.01f);
-            Light l = fire.AddComponent<Light>();
+            radius = Mathf.Max(0.5f, radius);
+            Vector3 up = Up;
+            Shake(pos, radius);
+            float s = radius * 0.5f; // visual size: the damage radius reaches well past the visible fireball
+
+            // flash and the light that cools down with the fireball
+            GlowFlash(pos, new Color(1f, 0.93f, 0.75f), s * 1.6f, 0.12f, 0f, 0f, 22f);
+            var lightGo = new GameObject("Arsenal.BlastLight");
+            lightGo.transform.position = pos + up * radius * 0.3f;
+            Light l = lightGo.AddComponent<Light>();
             l.type = LightType.Point;
-            l.color = new Color(1f, 0.6f, 0.3f);
-            l.range = radius * 6f;
-            l.intensity = 8f;
+            l.range = radius * 12f;
             l.shadows = LightShadows.None;
-            Instance._items.Add(new Body { T = fire.transform, Life = 0.35f, BaseScale = Vector3.one * radius * 0.8f, Puff = true, Spin = Random.insideUnitSphere * 90f, Light = l, LightIntensity = 8f });
-            for (int i = 0; i < 6; i++)
+            Instance._items.Add(new LightPulse { L = l, Life = 1.1f, Peak = 22f });
+
+            // fireball: blobs thrown out (mostly upwards), cooling as they go
+            int blobs = Mathf.Clamp((int)(10 + radius * 3f), 10, 24);
+            for (int i = 0; i < blobs; i++)
             {
-                GameObject core = MeshObject("Arsenal.Fire", IcoMesh, FireMat, pos + Random.insideUnitSphere * radius * 0.3f, Random.rotation, Vector3.one * 0.01f);
-                Instance._items.Add(new Body { T = core.transform, Life = Random.Range(0.25f, 0.5f), BaseScale = Vector3.one * radius * Random.Range(0.25f, 0.45f), Puff = true, Velocity = Random.insideUnitSphere * radius * 2f, Drag = 3f });
+                Vector3 dir = (Random.onUnitSphere + up * 0.55f).normalized;
+                Blob(FireMat, pos + dir * s * Random.Range(0f, 0.25f), dir * s * Random.Range(2.5f, 5f), up * s * 1.6f,
+                    s * Random.Range(0.3f, 0.6f), Random.Range(0.55f, 1.05f), Random.Range(0f, 0.06f), 4f, true);
             }
-            Puff(pos, radius * 0.2f, new Color(0.5f, 0.48f, 0.46f), 1.6f, 8, Up * 0.8f);
-            Puff(pos, radius * 0.14f, new Color(0.72f, 0.7f, 0.67f), 2.2f, 6, Up * 1.4f);
-            EmitSparks(pos, Up, 60);
-            Debris(pos, Up, new Color(0.25f, 0.24f, 0.23f), 12, 0.06f * Mathf.Max(1f, radius * 0.3f), radius * 4f);
+
+            // burning debris arcing out, each leaving a smoke trail
+            int trails = Mathf.Clamp((int)(3 + radius), 3, 9);
+            for (int i = 0; i < trails; i++)
+            {
+                Vector3 dir = (Random.onUnitSphere + up * 1.1f).normalized;
+                GameObject ember = MeshObject("Arsenal.Brand", IcoMesh, GlowMat(new Color(1f, 0.55f, 0.15f), 10f), pos, Random.rotation, Vector3.one * s * 0.12f);
+                Instance._items.Add(new Trail
+                {
+                    T = ember.transform,
+                    Velocity = dir * s * Random.Range(5f, 9f),
+                    Life = Random.Range(0.9f, 1.6f),
+                    BaseScale = ember.transform.localScale,
+                    Size = s * 0.14f,
+                });
+            }
+
+            // dust rolling out along the ground
+            Vector3 side = Vector3.Cross(up, Mathf.Abs(Vector3.Dot(up, Vector3.forward)) > 0.9f ? Vector3.right : Vector3.forward).normalized;
+            int dust = Mathf.Clamp((int)(6 + radius), 6, 12);
+            for (int i = 0; i < dust; i++)
+            {
+                Vector3 dir = Quaternion.AngleAxis(i * 360f / dust + Random.Range(-12f, 12f), up) * side;
+                Blob(Tint(Color.white), pos + dir * s * 0.3f - up * s * 0.2f, dir * s * Random.Range(3f, 4.5f), up * s * 0.15f,
+                    s * Random.Range(0.12f, 0.22f), Random.Range(1.4f, 2.2f), Random.Range(0.02f, 0.1f), 2.2f, false, new Color(0.6f, 0.55f, 0.47f), new Color(0.76f, 0.72f, 0.66f));
+            }
+
+            // smoke column: sooty at first, rising, spreading and lightening as it cools
+            int smoke = Mathf.Clamp((int)(10 + radius * 3f), 10, 24);
+            for (int i = 0; i < smoke; i++)
+            {
+                Vector3 off = Random.insideUnitSphere * s * 0.6f;
+                Blob(Tint(Color.white), pos + off, (off + up * s * Random.Range(0.8f, 2f)) * 1.2f, up * s * Random.Range(0.4f, 0.9f),
+                    s * Random.Range(0.22f, 0.42f), Random.Range(2.8f, 4.6f), Random.Range(0.12f, 0.45f), 1.4f, false, new Color(0.4f, 0.38f, 0.36f), new Color(0.8f, 0.79f, 0.77f));
+            }
+
+            EmitSparks(pos, up, 80);
+            Debris(pos, up, new Color(0.25f, 0.24f, 0.23f), 14, 0.06f * Mathf.Max(1f, radius * 0.3f), radius * 4.5f);
+        }
+
+        /// <summary>One swelling blob: fire (emission cooling from white-hot to dark red) or smoke/dust (colour ramp).</summary>
+        private static void Blob(Material mat, Vector3 pos, Vector3 velocity, Vector3 lift, float size, float life, float delay, float drag, bool fire,
+            Color from = default, Color to = default)
+        {
+            GameObject go = MeshObject(fire ? "Arsenal.Fireball" : "Arsenal.Smoke", IcoMesh, mat, pos, Random.rotation, Vector3.one * 0.001f);
+            go.SetActive(delay <= 0f);
+            Instance._items.Add(new BlobItem
+            {
+                T = go.transform,
+                R = go.GetComponent<MeshRenderer>(),
+                Velocity = velocity,
+                Lift = lift,
+                Drag = drag,
+                Spin = Random.insideUnitSphere * (fire ? 160f : 30f),
+                Size = size,
+                Life = life + delay,
+                Delay = delay,
+                Fire = fire,
+                From = from,
+                To = to,
+            });
+        }
+
+        private sealed class BlobItem : Item
+        {
+            public Transform T;
+            public MeshRenderer R;
+            public Vector3 Velocity, Lift, Spin;
+            public float Drag, Size, Delay;
+            public bool Fire;
+            public Color From, To;
+            private MaterialPropertyBlock _block;
+
+            // white-hot core -> yellow -> orange -> deep red -> soot
+            private static readonly Color[] Heat =
+            {
+                new Color(1f, 0.95f, 0.8f) * 20f, new Color(1f, 0.72f, 0.28f) * 13f, new Color(1f, 0.4f, 0.1f) * 7f,
+                new Color(0.55f, 0.13f, 0.04f) * 2.2f, new Color(0.08f, 0.06f, 0.05f) * 0.1f,
+            };
+
+            private static Color Ramp(Color[] keys, float k)
+            {
+                float f = Mathf.Clamp01(k) * (keys.Length - 1);
+                int i = Mathf.Min(keys.Length - 2, (int)f);
+                return Color.Lerp(keys[i], keys[i + 1], f - i);
+            }
+
+            public override bool Step(float dt)
+            {
+                Age += dt;
+                if (Age < Delay) return true;
+                if (!T.gameObject.activeSelf) T.gameObject.SetActive(true);
+                float k = (Age - Delay) / (Life - Delay);
+                Velocity += Lift * dt;
+                Velocity *= Mathf.Clamp01(1f - Drag * dt);
+                T.position += Velocity * dt;
+                T.rotation = Quaternion.Euler(Spin * dt) * T.rotation;
+                float grow = Fire ? 1f - Mathf.Pow(1f - Mathf.Clamp01(k / 0.25f), 3f) : Mathf.Lerp(0.35f, 1f, 1f - Mathf.Pow(1f - k, 2.5f));
+                float shrink = Fire ? Mathf.Clamp01((1f - k) / 0.35f) : Mathf.Clamp01((1f - k) / 0.2f);
+                T.localScale = Vector3.one * (Size * 2f * grow * Mathf.Sqrt(shrink) + 0.001f);
+                if (_block == null) _block = new MaterialPropertyBlock();
+                R.GetPropertyBlock(_block);
+                if (Fire)
+                {
+                    _block.SetColor("_EmissionColor", Ramp(Heat, k));
+                    Color b = Color.Lerp(new Color(1f, 0.85f, 0.6f), new Color(0.12f, 0.1f, 0.09f), Mathf.Clamp01(k * 1.3f));
+                    _block.SetColor("_BaseColor", b);
+                    _block.SetColor("_Color", b);
+                }
+                else
+                {
+                    Color c = Color.Lerp(From, To, Mathf.Clamp01(k * 1.4f));
+                    _block.SetColor("_Color", c);
+                    _block.SetColor("_BaseColor", c);
+                }
+                R.SetPropertyBlock(_block);
+                return Age < Life;
+            }
+
+            public override void Kill() => Destroy(T.gameObject);
+        }
+
+        /// <summary>The blast's light: a hard white peak that cools to orange and dies.</summary>
+        private sealed class LightPulse : Item
+        {
+            public Light L;
+            public float Peak;
+
+            public override bool Step(float dt)
+            {
+                Age += dt;
+                float k = Age / Life;
+                L.intensity = Peak * Mathf.Pow(1f - k, 2.2f);
+                L.color = Color.Lerp(new Color(1f, 0.92f, 0.8f), new Color(1f, 0.42f, 0.12f), Mathf.Clamp01(k * 2.5f));
+                return Age < Life;
+            }
+
+            public override void Kill() => Destroy(L.gameObject);
+        }
+
+        /// <summary>A burning chunk on a ballistic arc that leaves small smoke puffs behind it.</summary>
+        private sealed class Trail : Item
+        {
+            public Transform T;
+            public Vector3 Velocity, BaseScale;
+            public float Size;
+            private float _next;
+
+            public override bool Step(float dt)
+            {
+                Age += dt;
+                Velocity += -Up * 9.81f * dt;
+                Velocity *= Mathf.Clamp01(1f - 0.3f * dt);
+                T.position += Velocity * dt;
+                float k = Age / Life;
+                T.localScale = BaseScale * Mathf.Clamp01((1f - k) / 0.4f);
+                if (Age >= _next)
+                {
+                    _next = Age + 0.045f;
+                    Blob(Tint(Color.white), T.position, Random.insideUnitSphere * Size, Up * Size * 2f, Size * Mathf.Lerp(1f, 0.5f, k),
+                        Random.Range(0.7f, 1.1f), 0f, 2f, false, new Color(0.45f, 0.43f, 0.41f), new Color(0.82f, 0.81f, 0.79f));
+                }
+                return Age < Life;
+            }
+
+            public override void Kill() => Destroy(T.gameObject);
+        }
+
+        // ------------------------------------------------------------------ camera shake
+
+        private static float _trauma;
+        private static bool _shakeHooked;
+        private static Quaternion _shakeSaved;
+        private static Camera _shaken;
+
+        /// <summary>Adds camera shake from a blast: strong up close, fading with distance relative to the blast's size.</summary>
+        public static void Shake(Vector3 pos, float radius)
+        {
+            Camera cam = Camera.main;
+            if (cam == null) return;
+            float d = Vector3.Distance(cam.transform.position, pos);
+            float add = Mathf.Clamp01(radius * 2.5f / (d + radius)) * Mathf.Clamp01(radius / 3f + 0.3f);
+            _trauma = Mathf.Clamp01(_trauma + add);
+            if (_shakeHooked) return;
+            _shakeHooked = true;
+            UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering += (ctx, c) =>
+            {
+                if (_trauma <= 0f || c != Camera.main) return;
+                float t = Time.time * 28f, s = _trauma * _trauma;
+                _shaken = c;
+                _shakeSaved = c.transform.localRotation;
+                c.transform.localRotation *= Quaternion.Euler((Mathf.PerlinNoise(t, 0.1f) - 0.5f) * 5f * s, (Mathf.PerlinNoise(0.7f, t) - 0.5f) * 5f * s, (Mathf.PerlinNoise(t, t) - 0.5f) * 3f * s);
+            };
+            UnityEngine.Rendering.RenderPipelineManager.endCameraRendering += (ctx, c) =>
+            {
+                if (c != _shaken) return;
+                c.transform.localRotation = _shakeSaved;
+                _shaken = null;
+            };
         }
 
         private static readonly Dictionary<Color, Material> GlowMats = new Dictionary<Color, Material>();

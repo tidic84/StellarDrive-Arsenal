@@ -46,30 +46,42 @@ namespace Arsenal.Visual
         {
             switch (s)
             {
-                case SoundStyle.Pistol: Play("pistol", () => Gunshot(0.22f, 2400f, 120f, 0.8f), pos, 1f, Jitter(0.06f), 3f, 250f); break;
-                case SoundStyle.Rifle: Play("rifle", () => Gunshot(0.26f, 1900f, 95f, 1f), pos, 1f, Jitter(0.05f), 3f, 320f); break;
-                case SoundStyle.Smg: Play("smg", () => Gunshot(0.16f, 2800f, 140f, 0.6f), pos, 0.8f, Jitter(0.07f), 3f, 220f); break;
-                case SoundStyle.Heavy: Play("marksman", () => Gunshot(0.75f, 1300f, 60f, 1.6f), pos, 1.15f, Jitter(0.03f), 5f, 700f); break;
-                case SoundStyle.ShipGun: Play("shipgun", () => Gunshot(0.32f, 1500f, 70f, 1.3f), pos, 1f, Jitter(0.05f), 5f, 600f); break;
-                case SoundStyle.Laser: { int v = Rng.Next(3); Play("pew" + v, () => Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, v + 20), pos, 0.7f, Jitter(0.04f), 3f, 250f); break; }
+                case SoundStyle.Pistol: Play("pistol", () => Gunshot(0.2f, 2600f, 110f, 0.9f), pos, 1.1f, Jitter(0.06f), 3f, 250f); break;
+                case SoundStyle.Rifle: Play("rifle", () => Gunshot(0.24f, 2200f, 85f, 1.1f), pos, 1.15f, Jitter(0.05f), 3f, 320f); break;
+                case SoundStyle.Smg: Play("smg", () => Gunshot(0.15f, 3000f, 120f, 0.7f), pos, 0.95f, Jitter(0.07f), 3f, 220f); break;
+                case SoundStyle.Heavy: Play("marksman", () => Gunshot(0.6f, 1500f, 50f, 1.7f), pos, 1.3f, Jitter(0.03f), 5f, 700f); break;
+                case SoundStyle.ShipGun: Play("shipgun", () => Gunshot(0.3f, 1800f, 65f, 1.3f), pos, 1.2f, Jitter(0.05f), 5f, 600f); break;
+                case SoundStyle.Laser: { int v = Rng.Next(3); Play("pew" + v, () => Punch(Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, v + 20), 110f, 0.55f, 0.25f, 1.6f), pos, 0.75f, Jitter(0.04f), 3f, 250f); break; }
                 case SoundStyle.Blaster: HandBlaster(pos); break;
                 case SoundStyle.HeavyBlaster: HandBlaster(pos, 0.78f); break;
-                case SoundStyle.Gauss: Play("gauss", Gauss, pos, 1f, Jitter(0.04f), 4f, 400f); break;
-                case SoundStyle.Plasma: Play("plasma", () => Zap(0.35f, 700f, 90f, 0.6f), pos, 1f, Jitter(0.06f), 4f, 350f); break;
-                case SoundStyle.Rail: Play("rail", Rail, pos, 1.2f, Jitter(0.03f), 6f, 900f); break;
-                case SoundStyle.Emp: Play("emp", () => Zap(0.5f, 900f, 60f, 0.9f), pos, 1f, Jitter(0.05f), 4f, 300f); break;
+                case SoundStyle.Gauss: Play("gauss", () => Punch(Gauss(), 65f, 0.7f, 0.5f, 1.8f), pos, 1.1f, Jitter(0.04f), 4f, 400f); break;
+                case SoundStyle.Plasma: Play("plasma", () => Punch(Zap(0.35f, 700f, 90f, 0.6f), 70f, 0.9f, 0.6f, 2f), pos, 1.05f, Jitter(0.06f), 4f, 350f); break;
+                case SoundStyle.Rail: Play("rail", () => Punch(Rail(), 40f, 0.9f, 0.9f, 1.6f), pos, 1.25f, Jitter(0.03f), 6f, 900f); break;
+                case SoundStyle.Emp: Play("emp", () => Punch(Zap(0.5f, 900f, 60f, 0.9f), 55f, 1f, 0.7f, 2f), pos, 1.05f, Jitter(0.05f), 4f, 300f); break;
                 case SoundStyle.Arc: Play("arc", Crackle, pos, 0.9f, Jitter(0.1f), 4f, 250f); break;
-                case SoundStyle.Launcher: Play("launcher", () => Gunshot(0.35f, 600f, 55f, 1.2f), pos, 0.9f, Jitter(0.05f), 4f, 300f); break;
+                case SoundStyle.Launcher: Play("launcher", () => Gunshot(0.35f, 700f, 50f, 1.4f), pos, 1.1f, Jitter(0.05f), 4f, 300f); break;
             }
         }
 
-        public static FMOD.Channel Loop(SoundStyle s, Vector3 pos) => s switch
+        public static FMOD.Channel Loop(SoundStyle s, Vector3 pos)
         {
+            FMOD.Channel ch = s switch
+            {
             SoundStyle.Flame => Play("flameloop", FlameRoar, pos, 0.8f, 1f, 3f, 120f, loop: true),
             SoundStyle.Beam => Play("beamloop", LaserHum, pos, 0.7f, 0.6f, 3f, 200f, loop: true),
             SoundStyle.Charge => Play("chargeloop", ChargeWhine, pos, 0.6f, 1f, 2f, 80f, loop: true),
             _ => Play("laser", LaserHum, pos, 0.8f, 1f, 4f, 300f, loop: true),
-        };
+            };
+#if DEV
+            DevLoops.Add((s, ch));
+#endif
+            return ch;
+        }
+
+#if DEV
+        /// <summary>Dev: every loop started, to check none keeps playing after its weapon stopped.</summary>
+        public static readonly List<(SoundStyle style, FMOD.Channel ch)> DevLoops = new List<(SoundStyle, FMOD.Channel)>();
+#endif
 
         public static void SetPitch(FMOD.Channel ch, float pitch)
         {
@@ -133,14 +145,14 @@ namespace Arsenal.Visual
         public static void Blaster(Vector3 pos, float pitch = 1f)
         {
             int v = Rng.Next(3);
-            Play("blaster" + v, () => Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, v), pos, 1f, pitch * Jitter(0.03f), 6f, 700f);
+            Play("blaster" + v, () => Punch(Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, v), 55f, 0.7f, 0.55f, 1.5f), pos, 1f, pitch * Jitter(0.03f), 6f, 700f);
         }
 
         /// <summary>Hand blaster: a brighter, snappier struck-wire "pew"; heavy ones (pitch below 1) sound fuller.</summary>
         public static void HandBlaster(Vector3 pos, float pitch = 1f)
         {
             int v = Rng.Next(3);
-            Play("handblaster" + v, () => Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, v + 10), pos, 0.95f, pitch * Jitter(0.03f), 3f, 320f);
+            Play("handblaster" + v, () => Punch(Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, v + 10), 85f, 0.5f, 0.35f, 1.5f), pos, 0.95f, pitch * Jitter(0.03f), 3f, 320f);
         }
 
         /// <summary>A blaster bolt splashing on something: the sharp sizzle and small "tchew" of the films' impacts.</summary>
@@ -179,6 +191,18 @@ namespace Arsenal.Visual
                 "ship" => Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, 0),
                 "hand" => Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, 10),
                 "pew" => Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, 20),
+                "pistol" => Gunshot(0.2f, 2600f, 110f, 0.9f),
+                "rifle" => Gunshot(0.24f, 2200f, 85f, 1.1f),
+                "smg" => Gunshot(0.15f, 3000f, 120f, 0.7f),
+                "marksman" => Gunshot(0.6f, 1500f, 50f, 1.7f),
+                "launcher" => Gunshot(0.35f, 700f, 50f, 1.4f),
+                "plasma" => Punch(Zap(0.35f, 700f, 90f, 0.6f), 70f, 0.9f, 0.6f, 2f),
+                "emp" => Punch(Zap(0.5f, 900f, 60f, 0.9f), 55f, 1f, 0.7f, 2f),
+                "gauss" => Punch(Gauss(), 65f, 0.7f, 0.5f, 1.8f),
+                "rail" => Punch(Rail(), 40f, 0.9f, 0.9f, 1.6f),
+                "minigun" => Punch(Dispersion(0.26f, 8000f, 520f, 0.07f, 2, 0.4f, 0.5f, 0.1f, 0.05f, 20), 110f, 0.55f, 0.25f, 1.6f),
+                "blaster" => Punch(Dispersion(0.42f, 7200f, 260f, 0.11f, 3, 0.45f, 0.9f, 0.35f, 0.15f, 10), 85f, 0.5f, 0.35f, 1.5f),
+                "shipblaster" => Punch(Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, 0), 55f, 0.7f, 0.55f, 1.5f),
                 "hit" => BoltImpact(0),
                 "shield" => ShieldStrike(),
                 _ => new float[Rate / 10],
@@ -326,27 +350,96 @@ namespace Arsenal.Visual
             return s;
         }
 
-        /// <summary>Crack (filtered noise burst) + thump (falling sine) + tail.</summary>
+        private static float Coef(float hz) => 1f - Mathf.Exp(-2f * Mathf.PI * hz / Rate);
+
+        /// <summary>
+        /// A gunshot built in layers so it hits hard: a bright muzzle crack, the blast body, a sub-bass punch falling in pitch,
+        /// early reflections, a distant slap echo and a rolling outdoor tail, then soft saturation for loudness.
+        /// <paramref name="length"/> is the blast itself; the echoes and tail are added after it.
+        /// </summary>
         private static float[] Gunshot(float length, float cutoff, float thumpHz, float body)
         {
-            int n = (int)(length * Rate);
+            float tailLen = 0.45f + body * 0.45f;
+            int n = (int)((length + tailLen) * Rate);
             var s = new float[n];
-            float lp = 0f, lp2 = 0f, phase = 0f;
-            float a = 1f - Mathf.Exp(-2f * Mathf.PI * cutoff / Rate);
+            float aCrack = Coef(Mathf.Min(cutoff * 3.5f, 12000f)), aBody = Coef(cutoff);
+            float crackLp = 0f, b1 = 0f, b2 = 0f, phase = 0f;
+            float weight = Mathf.Min(1.4f, body);
             for (int i = 0; i < n; i++)
             {
                 float t = (float)i / Rate;
-                float crack = Noise() * Mathf.Exp(-t * 55f);
-                float tail = Noise() * Mathf.Exp(-t * 9f / body) * 0.35f;
-                lp += a * (crack + tail - lp);
-                lp2 += a * 0.5f * (lp - lp2);
-                float f = thumpHz * (1f + 2.5f * Mathf.Exp(-t * 40f));
+                float w = Noise();
+                crackLp += aCrack * (w - crackLp);
+                float crack = crackLp * Mathf.Exp(-t * 120f) * 1.4f;
+                float src = w * (Mathf.Exp(-t * 22f / body) + 0.25f * Mathf.Exp(-t * 6f / body));
+                b1 += aBody * (src - b1);
+                b2 += aBody * (b1 - b2);
+                float f = thumpHz * (1f + 2.2f * Mathf.Exp(-t * 45f));
                 phase += 2f * Mathf.PI * f / Rate;
-                float thump = Mathf.Sin(phase) * Mathf.Exp(-t * 18f / body) * 0.9f * body;
-                float attack = Mathf.Clamp01(i / 30f);
-                s[i] = (lp2 * 1.6f + thump) * attack;
+                float sub = (Mathf.Sin(phase) + 0.3f * Mathf.Sin(2f * phase)) * Mathf.Exp(-t * 11f / body) * 0.95f * weight;
+                s[i] = (crack + b2 * 2.2f + sub) * Mathf.Clamp01(i / 8f);
             }
-            return Normalise(s);
+            Room(s, 0.21f + 0.1f * body, 0.85f, body);
+            Saturate(s, 2.4f);
+            return Normalise(s, 0.97f);
+        }
+
+        /// <summary>Early reflections, a distant slap echo and a low rolling tail, as heard outdoors.</summary>
+        private static void Room(float[] s, float slap, float amount, float body, float tailGain = 1f)
+        {
+            var dry = (float[])s.Clone();
+            void Echo(float delay, float gain, float hz)
+            {
+                int d = (int)(delay * Rate);
+                float a = Coef(hz), lp = 0f;
+                for (int i = 0; i + d < s.Length; i++)
+                {
+                    lp += a * (dry[i] - lp);
+                    s[i + d] += lp * gain * amount;
+                }
+            }
+            Echo(0.019f, 0.32f, 2600f);
+            Echo(0.037f, 0.24f, 2000f);
+            Echo(0.061f, 0.17f, 1500f);
+            Echo(0.093f, 0.12f, 1200f);
+            Echo(slap, 0.22f, 900f);
+            float tail = Coef(650f), lpT = 0f;
+            for (int i = 0; i < s.Length; i++)
+            {
+                float t = (float)i / Rate;
+                lpT += tail * (Noise() - lpT);
+                s[i] += lpT * 1.6f * Mathf.Exp(-t * 3.2f / Mathf.Max(0.3f, body)) * Mathf.Clamp01(t * 30f) * 0.35f * amount * tailGain;
+            }
+        }
+
+        /// <summary>Soft clipping: louder without harsh digital clipping.</summary>
+        private static void Saturate(float[] s, float drive)
+        {
+            Normalise(s, 1f);
+            float k = (float)System.Math.Tanh(drive);
+            for (int i = 0; i < s.Length; i++) s[i] = (float)System.Math.Tanh(s[i] * drive) / k;
+        }
+
+        /// <summary>
+        /// Gives an energy weapon the weight of a gunshot without changing its character: a sub-bass punch under its attack,
+        /// a little room around it and soft saturation.
+        /// </summary>
+        private static float[] Punch(float[] src, float subHz, float sub, float room, float drive)
+        {
+            var s = new float[src.Length + (int)(room * 0.7f * Rate)];
+            System.Array.Copy(src, s, src.Length);
+            Normalise(s, 1f);
+            float phase = 0f;
+            int n = (int)(0.35f * Rate);
+            for (int i = 0; i < n && i < s.Length; i++)
+            {
+                float t = (float)i / Rate;
+                phase += 2f * Mathf.PI * subHz * (1f + 2f * Mathf.Exp(-t * 40f)) / Rate;
+                s[i] += Mathf.Sin(phase) * Mathf.Exp(-t * 13f) * sub * Mathf.Clamp01(i / 10f);
+            }
+            if (room > 0f) Room(s, 0.17f + 0.12f * room, room, 0.6f + room, 0.3f); // little rolling noise: it would bury the weapon's own tone
+            Saturate(s, drive);
+            return Normalise(s, 0.97f);
         }
 
         private static float[] Boom()
@@ -543,10 +636,10 @@ namespace Arsenal.Visual
 
         private static float[] Gauss()
         {
-            int n = (int)(0.55f * Rate);
+            float[] crack = Gunshot(0.25f, 3000f, 160f, 0.7f);
+            int n = Mathf.Max((int)(0.55f * Rate), crack.Length);
             var s = new float[n];
             float phase = 0f, ring = 0f;
-            float[] crack = Gunshot(0.25f, 3000f, 160f, 0.7f);
             for (int i = 0; i < n; i++)
             {
                 float t = (float)i / Rate;
@@ -559,9 +652,9 @@ namespace Arsenal.Visual
 
         private static float[] Rail()
         {
-            int n = (int)(1.2f * Rate);
-            var s = new float[n];
             float[] boom = Gunshot(1.0f, 4000f, 45f, 1.8f);
+            int n = Mathf.Max((int)(1.2f * Rate), boom.Length);
+            var s = new float[n];
             float phase = 0f;
             for (int i = 0; i < n; i++)
             {

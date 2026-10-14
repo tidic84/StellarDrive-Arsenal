@@ -175,6 +175,14 @@ namespace Arsenal
                     // armshow <itemId>: the open armory jumps to that weapon
                     Armory.ArmoryUi.DevShow(uint.Parse(a[1]));
                     break;
+                case "channels":
+                {
+                    FMODUnity.RuntimeManager.CoreSystem.getChannelsPlaying(out int playing, out int real);
+                    LoggerInstance.Msg($"[DEV] FMOD channels playing {playing} (real {real})");
+                    foreach (var (style, lch) in Visual.Sounds.DevLoops)
+                        if (lch.isPlaying(out bool on) == FMOD.RESULT.OK && on) LoggerInstance.Msg($"[DEV]   arsenal loop still playing: {style}");
+                    break;
+                }
                 case "lang":
                     // lang en|fr: switches the game's locale (for screenshots in either language)
                     UnityEngine.Localization.Settings.LocalizationSettings.SelectedLocale =

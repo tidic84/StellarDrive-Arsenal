@@ -132,7 +132,7 @@ namespace Arsenal.Visual
             var m = new Model { Root = new GameObject("RifleModel") };
             MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Rifle"), Assets.ToolAtlas);
             m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.55f), Vector3.zero);
-            Point(m.Root.transform, "Sight", new Vector3(0, 0.0805f, 0.024f), Vector3.zero);
+            Point(m.Root.transform, "Sight", new Vector3(0, 0.066f + ReflexDot, 0.026f), Vector3.zero);
             Hands(m, new Vector3(0.012f, -0.05f, -0.06f), new Vector3(-0.03f, 0.0f, 0.28f));
             m.Display = Point(m.Root.transform, "Display", new Vector3(0.0255f, 0.037f, 0.115f), new Vector3(0, -90f, 0));
             return m;

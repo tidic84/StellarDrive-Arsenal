@@ -100,7 +100,8 @@ namespace Arsenal.Visual
         /// <summary>Picatinny-style rail on top of something, from z0 to z1 with its base at height y.</summary>
         public static void Rail(MeshKit k, float y, float z0, float z1, float width = 0.022f, Shade shade = Shade.Black)
         {
-            k.ChamferBox(new Vector3(0, y + 0.003f, (z0 + z1) * 0.5f), new Vector3(width, 0.006f, z1 - z0), 0.0015f, shade, shade);
+            // sunk 3 mm into the surface below so its chamfered bottom edge never shows as a gap
+            k.ChamferBox(new Vector3(0, y + 0.0015f, (z0 + z1) * 0.5f), new Vector3(width, 0.009f, z1 - z0), 0.0015f, shade, shade);
             for (float z = z0 + 0.006f; z < z1 - 0.004f; z += 0.01f)
                 k.Box(new Vector3(0, y + 0.0075f, z), new Vector3(width + 0.002f, 0.003f, 0.005f), Shade.Dark);
         }
@@ -195,17 +196,30 @@ namespace Arsenal.Visual
             Side(k, bp, width + 0.004f, baseShade ?? Shade.Black, Shade.Black, 0.0015f);
         }
 
-        /// <summary>Open reflex sight on a rail: base, side wings, hood and a red dot. The dot is at (z, y + 0.0145).</summary>
-        public static void ReflexSight(MeshKit k, float z, float y)
+        /// <summary>Height of the holographic reticle above the sight's base (the weapon's "Sight" point is at (0, y + ReflexDot, z + 0.006)).</summary>
+        public const float ReflexDot = 0.021f;
+
+        /// <summary>
+        /// Holographic sight on a rail: a low base, a thin open frame around a big window and a ring-and-dot reticle
+        /// floating in it (emissive when a glow kit is given). Batteries and knobs sit on the sides so nothing blocks the view.
+        /// </summary>
+        public static void ReflexSight(MeshKit k, float z, float y, MeshKit glow = null)
         {
-            Side(k, new[] { P(z - 0.03f, y), P(z + 0.026f, y), P(z + 0.022f, y + 0.008f), P(z - 0.026f, y + 0.008f) }, 0.028f, Shade.Dark, Shade.Black, 0.002f);
-            // hood: two posts and a roof, open in the middle to see through
-            foreach (float x in new[] { -0.0155f, 0.0155f })
-                k.ChamferBox(new Vector3(x, y + 0.022f, z - 0.004f), new Vector3(0.004f, 0.03f, 0.014f), 0.0015f, Shade.Dark, Shade.Black);
-            k.ChamferBox(new Vector3(0, y + 0.0385f, z - 0.004f), new Vector3(0.035f, 0.004f, 0.014f), 0.0015f, Shade.Dark, Shade.Black);
-            k.Box(new Vector3(0, y + 0.0075f, z - 0.024f), new Vector3(0.012f, 0.006f, 0.006f), Shade.Black); // battery knob
-            k.Box(new Vector3(0, y + 0.0145f, z + 0.004f), new Vector3(0.003f, 0.003f, 0.003f), Shade.Red);
-            k.Box(new Vector3(0, y + 0.011f, z + 0.004f), new Vector3(0.0012f, 0.006f, 0.0012f), Shade.Dark);
+            // base clamped on the rail
+            Side(k, new[] { P(z - 0.03f, y - 0.004f), P(z + 0.026f, y - 0.004f), P(z + 0.022f, y + 0.006f), P(z - 0.026f, y + 0.006f) }, 0.03f, Shade.Dark, Shade.Black, 0.002f);
+            // frame: two side walls and a roof, open front and back
+            foreach (float x in new[] { -0.0165f, 0.0165f })
+                k.ChamferBox(new Vector3(x, y + 0.0195f, z - 0.004f), new Vector3(0.004f, 0.033f, 0.03f), 0.0012f, Shade.Dark, Shade.Black);
+            k.ChamferBox(new Vector3(0, y + 0.038f, z - 0.004f), new Vector3(0.037f, 0.004f, 0.03f), 0.0012f, Shade.Dark, Shade.Black);
+            // battery tube and brightness buttons on the right side
+            With(k, new Vector3(0.022f, y + 0.012f, z - 0.004f), Vector3.zero, () => k.Lathe(Vector2.zero, new[] { P(0.0045f, -0.014f), P(0.0045f, 0.012f) }, 10, Shade.Black, Shade.Dark, Shade.Grey));
+            k.Box(new Vector3(0.0195f, y + 0.026f, z - 0.012f), new Vector3(0.002f, 0.004f, 0.004f), Shade.Grey);
+            k.Box(new Vector3(0.0195f, y + 0.026f, z - 0.004f), new Vector3(0.002f, 0.004f, 0.004f), Shade.Grey);
+            // reticle on the front glass: a thin ring and a dot
+            MeshKit r = glow ?? k;
+            Shade lit = glow != null ? Shade.White : Shade.Red;
+            r.Tube(new Vector3(0, y + ReflexDot, z + 0.006f), 0.0062f, 0.0052f, 0.0004f, 24, lit, lit);
+            r.Box(new Vector3(0, y + ReflexDot, z + 0.006f), new Vector3(0.0013f, 0.0013f, 0.0004f), lit);
         }
 
         /// <summary>Telescopic sight along z at height y (rings included), eyepiece at z0.</summary>
@@ -236,10 +250,13 @@ namespace Arsenal.Visual
         /// <summary>Iron sights: front post at zf, rear notch at zr, both on top of a surface at y.</summary>
         public static void IronSights(MeshKit k, float y, float zf, float zr, Shade dot = Shade.Yellow)
         {
-            Side(k, new[] { P(zf - 0.008f, y), P(zf + 0.004f, y), P(zf + 0.002f, y + 0.009f), P(zf - 0.003f, y + 0.009f) }, 0.004f, Shade.Black, Shade.Black, 0.0008f);
+            // every piece starts a few mm inside the surface it stands on: no seam under the sights
+            Side(k, new[] { P(zf - 0.009f, y - 0.004f), P(zf + 0.005f, y - 0.004f), P(zf + 0.002f, y + 0.009f), P(zf - 0.003f, y + 0.009f) }, 0.004f, Shade.Black, Shade.Black, 0.0008f);
             k.Box(new Vector3(0, y + 0.0075f, zf - 0.0015f), new Vector3(0.0045f, 0.0025f, 0.0025f), dot);
+            // rear notch: two ears on a dovetail base
+            k.ChamferBox(new Vector3(0, y + 0.0005f, zr), new Vector3(0.02f, 0.007f, 0.01f), 0.0012f, Shade.Black, Shade.Black);
             foreach (float x in new[] { -0.0065f, 0.0065f })
-                k.ChamferBox(new Vector3(x, y + 0.004f, zr), new Vector3(0.007f, 0.008f, 0.008f), 0.0012f, Shade.Black, Shade.Black);
+                k.ChamferBox(new Vector3(x, y + 0.0045f, zr), new Vector3(0.007f, 0.009f, 0.008f), 0.0012f, Shade.Black, Shade.Black);
         }
 
         /// <summary>A glowing strip / lens part goes in the glow kit; this adds its dark recessed frame to the body.</summary>

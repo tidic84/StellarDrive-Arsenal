@@ -45,7 +45,7 @@ namespace Arsenal.Visual
             GlowFrame(k, g, new Vector3(0.0185f, 0.04f, 0.06f), new Vector3(0.002f, 0.008f, 0.1f));
             GlowFrame(k, g, new Vector3(-0.0185f, 0.04f, 0.06f), new Vector3(0.002f, 0.008f, 0.1f));
             // heat sink fins on top
-            for (int i = 0; i < 6; i++) k.ChamferBox(new Vector3(0, 0.061f, 0.0f + i * 0.016f), new Vector3(0.024f, 0.008f, 0.006f), 0.0015f, Shade.Dark, Shade.Black);
+            for (int i = 0; i < 6; i++) k.ChamferBox(new Vector3(0, 0.059f, 0.0f + i * 0.016f), new Vector3(0.024f, 0.012f, 0.006f), 0.0015f, Shade.Dark, Shade.Black);
             // emitter
             k.Tube(new Vector3(0, 0.032f, 0.16f), 0.016f, 0.009f, 0.014f, 16, Shade.Dark, Shade.Black);
             g.Lathe(new Vector2(0, 0.032f), new[] { P(0.009f, 0.16f), P(0.009f, 0.164f) }, 12, Shade.White, Shade.White, Shade.White);
@@ -54,8 +54,8 @@ namespace Arsenal.Visual
             g.Box(new Vector3(0.0135f, -0.002f, 0.085f), new Vector3(0.001f, 0.004f, 0.04f), Shade.White);
             TriggerGroup(k, 0.03f, 0.004f);
             Grip(k, -0.009f, 0.004f, Shade.HatchDark, 18f, 0.094f, 0.03f);
-            k.ChamferBox(new Vector3(0, 0.066f, -0.035f), new Vector3(0.018f, 0.008f, 0.02f), 0.002f, Shade.Black);
-            return Finish("LaserPistolModel", k, g, new Color(0.3f, 0.9f, 1f), new Vector3(0, 0.032f, 0.168f), new Vector3(0, 0.072f, -0.035f), new Vector3(0.012f, -0.04f, -0.045f), new Vector3(-0.02f, -0.05f, -0.02f));
+            k.ChamferBox(new Vector3(0, 0.062f, -0.035f), new Vector3(0.018f, 0.012f, 0.02f), 0.002f, Shade.Black);
+            return Finish("LaserPistolModel", k, g, new Color(0.3f, 0.9f, 1f), new Vector3(0, 0.032f, 0.168f), new Vector3(0, 0.07f, -0.035f), new Vector3(0.012f, -0.04f, -0.045f), new Vector3(-0.02f, -0.05f, -0.02f));
         }
 
         public static Model Gauss()
@@ -70,8 +70,9 @@ namespace Arsenal.Visual
                 With(k, new Vector3(0, 0.032f, 0.003f), new Vector3(0, 0, i * 60f + 30f), () => k.Box(new Vector3(0, 0.0258f, 0f), new Vector3(0.006f, 0.002f, 0.036f), Shade.Black));
             // long magnetic barrel: rails above and below, coil rings
             Barrel(k, 0.04f, 0.06f, 0.27f, 0.009f, Shade.Dark, 0.005f);
-            k.ChamferBox(new Vector3(0, 0.056f, 0.165f), new Vector3(0.014f, 0.008f, 0.21f), 0.002f, Shade.Light, Shade.Grey);
-            k.ChamferBox(new Vector3(0, 0.024f, 0.155f), new Vector3(0.014f, 0.008f, 0.19f), 0.002f, Shade.Light, Shade.Grey);
+            // rails welded along the barrel (they overlap it: no daylight between rail and barrel)
+            k.ChamferBox(new Vector3(0, 0.053f, 0.165f), new Vector3(0.014f, 0.012f, 0.21f), 0.002f, Shade.Light, Shade.Grey);
+            k.ChamferBox(new Vector3(0, 0.027f, 0.155f), new Vector3(0.014f, 0.012f, 0.19f), 0.002f, Shade.Light, Shade.Grey);
             for (int i = 0; i < 5; i++)
             {
                 k.Tube(new Vector3(0, 0.04f, 0.09f + i * 0.04f), 0.019f, 0.009f, 0.012f, 14, Shade.Yellow, Shade.Black);
@@ -80,11 +81,11 @@ namespace Arsenal.Visual
             k.ChamferBox(new Vector3(0, 0.04f, 0.272f), new Vector3(0.03f, 0.04f, 0.012f), 0.004f, Shade.Dark, Shade.Black);
             // hammer, sights
             Side(k, new[] { P(-0.066f, 0.05f), P(-0.056f, 0.05f), P(-0.054f, 0.066f), P(-0.07f, 0.07f) }, 0.01f, Shade.Black, Shade.Black, 0.001f);
-            IronSights(k, 0.06f, 0.265f, -0.04f, Shade.Orange);
+            IronSights(k, 0.059f, 0.265f, -0.04f, Shade.Orange);
             TriggerGroup(k, 0.012f, 0.003f, 0.05f);
             Grip(k, -0.02f, 0.003f, Shade.Orange, 22f, 0.095f, 0.032f, Shade.Dark);
             Screws(k, 0.016f, P(0.05f, 0.012f), P(-0.045f, 0.015f));
-            return Finish("GaussModel", k, g, new Color(1f, 0.75f, 0.3f), new Vector3(0, 0.04f, 0.28f), new Vector3(0, 0.069f, -0.04f), new Vector3(0.012f, -0.04f, -0.065f), new Vector3(-0.02f, -0.05f, -0.04f));
+            return Finish("GaussModel", k, g, new Color(1f, 0.75f, 0.3f), new Vector3(0, 0.04f, 0.28f), new Vector3(0, 0.068f, -0.04f), new Vector3(0.012f, -0.04f, -0.065f), new Vector3(-0.02f, -0.05f, -0.04f));
         }
 
         public static Model Smg()
@@ -138,14 +139,13 @@ namespace Arsenal.Visual
             g.Lathe(new Vector2(0, 0.092f), new[] { P(0.0f, -0.07f), P(0.016f, -0.064f), P(0.016f, 0.064f), P(0.0f, 0.07f) }, 12, Shade.White);
             foreach (float z in new[] { -0.075f, -0.025f, 0.025f, 0.075f })
                 k.Tube(new Vector3(0, 0.092f, z), 0.02f, 0.0165f, 0.008f, 12, Shade.Dark, Shade.Black);
-            // reflex sight on a tall riser bridging the cage, high enough to see over the canister
-            k.ChamferBox(new Vector3(0, 0.114f, 0.02f), new Vector3(0.03f, 0.006f, 0.06f), 0.0015f, Shade.Dark, Shade.Black);
-            Side(k, new[] { P(-0.004f, 0.114f), P(0.044f, 0.114f), P(0.038f, 0.142f), P(0.002f, 0.142f) }, 0.016f, Shade.Dark, Shade.Black, 0.002f);
-            ReflexSight(k, 0.02f, 0.142f);
+            // holographic sight on a solid mount bridging the cage, high enough to see over the canister
+            k.ChamferBox(new Vector3(0, 0.116f, 0.02f), new Vector3(0.032f, 0.018f, 0.062f), 0.002f, Shade.Dark, Shade.Black);
+            ReflexSight(k, 0.02f, 0.124f, g);
             TriggerGroup(k, -0.03f, -0.016f, 0.06f);
             Grip(k, -0.065f, -0.016f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.11f, 0.056f, 0.2f, 0.044f, Shade.HatchLight);
-            return Finish("PlasmaShotgunModel", k, g, new Color(1f, 0.55f, 0.15f), new Vector3(0, 0.027f, 0.32f), new Vector3(0, 0.1565f, 0.024f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
+            return Finish("PlasmaShotgunModel", k, g, new Color(1f, 0.55f, 0.15f), new Vector3(0, 0.027f, 0.32f), new Vector3(0, 0.124f + ReflexDot, 0.026f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
         }
 
         public static Model Railgun()
@@ -258,14 +258,16 @@ namespace Arsenal.Visual
             // short wide barrel and its top strap
             k.Tube(new Vector3(0, 0.035f, 0.27f), 0.03f, 0.022f, 0.18f, 16, Shade.HatchDark, Shade.Black);
             k.Tube(new Vector3(0, 0.035f, 0.355f), 0.034f, 0.022f, 0.012f, 16, Shade.Dark, Shade.Black);
-            k.ChamferBox(new Vector3(0, 0.115f, 0.13f), new Vector3(0.03f, 0.012f, 0.3f), 0.003f, Shade.Yellow, Shade.Dark);
-            Side(k, new[] { P(0.05f, 0.105f), P(0.06f, 0.105f), P(0.06f, 0.06f), P(0.05f, 0.06f) }, 0.02f, Shade.Dark, Shade.Black, 0.002f);
-            IronSights(k, 0.121f, 0.27f, 0.0f);
+            // solid top rib over the frame and the drum, and a front sight post standing on the barrel
+            k.ChamferBox(new Vector3(0, 0.092f, 0.08f), new Vector3(0.03f, 0.04f, 0.2f), 0.003f, Shade.Yellow, Shade.Dark);
+            Side(k, new[] { P(-0.012f, 0.072f), P(0.008f, 0.075f), P(0.008f, 0.1f), P(-0.012f, 0.1f) }, 0.024f, Shade.Dark, Shade.Black, 0.002f);
+            Side(k, new[] { P(0.256f, 0.06f), P(0.276f, 0.06f), P(0.274f, 0.112f), P(0.262f, 0.112f) }, 0.014f, Shade.Dark, Shade.Black, 0.002f);
+            IronSights(k, 0.112f, 0.27f, 0.0f);
             k.ChamferBox(new Vector3(0, -0.035f, 0.25f), new Vector3(0.032f, 0.05f, 0.05f), 0.007f, Shade.Dark, Shade.Black);
             TriggerGroup(k, 0.01f, -0.016f, 0.055f);
             Grip(k, -0.025f, -0.016f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.1f, 0.05f, 0.17f, 0.044f, Shade.HatchMid);
-            return Finish("GrenadeLauncherModel", k, null, Color.white, new Vector3(0, 0.035f, 0.365f), new Vector3(0, 0.13f, 0.0f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.05f, 0.24f));
+            return Finish("GrenadeLauncherModel", k, null, Color.white, new Vector3(0, 0.035f, 0.365f), new Vector3(0, 0.121f, 0.0f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.05f, 0.24f));
         }
 
         /// <summary>Shoulder tube shared by the rocket launchers: flared bells at both ends, bands and rings.</summary>
@@ -290,6 +292,7 @@ namespace Arsenal.Visual
             LauncherTube(k, 0.08f, 0.062f, -0.32f, 0.64f, Shade.HatchLight, Shade.Orange);
             // optical sight box on the left, shoulder rest, grips
             k.ChamferBox(new Vector3(-0.085f, 0.13f, 0.12f), new Vector3(0.034f, 0.046f, 0.1f), 0.006f, Shade.Dark, Shade.Black);
+            k.ChamferBox(new Vector3(-0.07f, 0.112f, 0.12f), new Vector3(0.03f, 0.02f, 0.07f), 0.003f, Shade.Black, Shade.Black); // bracket onto the tube
             k.Tube(new Vector3(-0.085f, 0.135f, 0.172f), 0.012f, 0.008f, 0.006f, 12, Shade.Black, Shade.Blue);
             k.Tube(new Vector3(-0.085f, 0.135f, 0.068f), 0.01f, 0.006f, 0.006f, 12, Shade.Black, Shade.Blue);
             Side(k, new[] { P(0.08f, 0.09f), P(0.16f, 0.09f), P(0.16f, 0.115f), P(0.08f, 0.115f) }, 0.016f, Shade.Dark, Shade.Black, 0.002f, -0.065f);
@@ -316,6 +319,7 @@ namespace Arsenal.Visual
             LauncherTube(k, 0.085f, 0.058f, -0.4f, 0.72f, Shade.HatchMid, Shade.Yellow);
             // seeker / IFF unit on the left: housing, antenna grid, lens
             k.ChamferBox(new Vector3(-0.088f, 0.14f, 0.2f), new Vector3(0.05f, 0.07f, 0.16f), 0.008f, Shade.Dark, Shade.Black);
+            k.ChamferBox(new Vector3(-0.07f, 0.11f, 0.2f), new Vector3(0.04f, 0.03f, 0.12f), 0.004f, Shade.Black, Shade.Black); // bracket onto the tube
             for (int i = 0; i < 4; i++) k.Box(new Vector3(-0.114f, 0.14f, 0.14f + i * 0.04f), new Vector3(0.003f, 0.05f, 0.006f), Shade.Black);
             k.Tube(new Vector3(-0.088f, 0.145f, 0.283f), 0.02f, 0.014f, 0.008f, 14, Shade.Black, Shade.Black);
             g.Lathe(new Vector2(-0.088f, 0.145f), new[] { P(0.014f, 0.28f), P(0.014f, 0.282f) }, 14, Shade.White, Shade.White, Shade.White);
@@ -368,12 +372,13 @@ namespace Arsenal.Visual
                 k.ChamferBox(new Vector3(0, 0.03f, 0.36f + i * 0.03f), new Vector3(0.05f, 0.02f, 0.008f), 0.002f, Shade.Grey, Shade.Dark);
             // long-range seeker on the left: angular housing, blue lens, antenna strip
             k.ChamferBox(new Vector3(-0.08f, 0.14f, 0.24f), new Vector3(0.046f, 0.06f, 0.2f), 0.008f, Shade.Black, Shade.HatchDark);
+            k.ChamferBox(new Vector3(-0.065f, 0.105f, 0.24f), new Vector3(0.04f, 0.025f, 0.14f), 0.004f, Shade.Black, Shade.Black); // bracket onto the tube
             k.Tube(new Vector3(-0.08f, 0.145f, 0.343f), 0.019f, 0.013f, 0.008f, 14, Shade.Dark, Shade.Black);
             g.Lathe(new Vector2(-0.08f, 0.145f), new[] { P(0.013f, 0.34f), P(0.013f, 0.342f) }, 14, Shade.White, Shade.White, Shade.White);
             g.Box(new Vector3(-0.1035f, 0.14f, 0.24f), new Vector3(0.002f, 0.006f, 0.15f), Shade.White);
             k.Tube(new Vector3(-0.08f, 0.15f, 0.136f), 0.012f, 0.007f, 0.012f, 12, Shade.Black, Shade.Black); // eyepiece
             // holographic sight on top: base, two posts, ring with a glowing reticle
-            k.ChamferBox(new Vector3(0, 0.16f, 0.03f), new Vector3(0.034f, 0.02f, 0.05f), 0.004f, Shade.Dark, Shade.Black);
+            k.ChamferBox(new Vector3(0, 0.155f, 0.03f), new Vector3(0.034f, 0.032f, 0.05f), 0.004f, Shade.Dark, Shade.Black);
             foreach (float x in new[] { -0.021f, 0.021f })
                 k.Box(new Vector3(x, 0.182f, 0.04f), new Vector3(0.005f, 0.028f, 0.008f), Shade.Black);
             k.Tube(new Vector3(0, 0.205f, 0.04f), 0.024f, 0.02f, 0.006f, 18, Shade.Dark, Shade.Black);
@@ -417,13 +422,13 @@ namespace Arsenal.Visual
             // cell pack on top, grip, stock
             k.ChamferBox(new Vector3(0, 0.077f, 0.0f), new Vector3(0.032f, 0.03f, 0.08f), 0.006f, Shade.Dark, Shade.Black);
             g.Box(new Vector3(0, 0.0925f, 0.0f), new Vector3(0.02f, 0.002f, 0.06f), Shade.White);
-            // reflex sight on a riser so the cell pack stays out of the view
-            Side(k, new[] { P(0.011f, 0.092f), P(0.059f, 0.092f), P(0.053f, 0.118f), P(0.017f, 0.118f) }, 0.016f, Shade.Dark, Shade.Black, 0.002f);
-            ReflexSight(k, 0.035f, 0.118f);
+            // holographic sight on a solid mount over the cell pack, so the pack stays out of the view
+            k.ChamferBox(new Vector3(0, 0.098f, 0.0f), new Vector3(0.03f, 0.022f, 0.05f), 0.002f, Shade.Dark, Shade.Black);
+            ReflexSight(k, 0.0f, 0.108f, g);
             TriggerGroup(k, -0.03f, -0.014f, 0.055f);
             Grip(k, -0.065f, -0.014f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.11f, 0.05f, 0.17f, 0.042f, Shade.HatchLight);
-            return Finish("EmpCarbineModel", k, g, new Color(0.35f, 0.6f, 1f), new Vector3(0, 0.03f, 0.31f), new Vector3(0, 0.1325f, 0.039f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
+            return Finish("EmpCarbineModel", k, g, new Color(0.35f, 0.6f, 1f), new Vector3(0, 0.03f, 0.31f), new Vector3(0, 0.108f + ReflexDot, 0.006f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.04f, 0.16f));
         }
 
         public static Model Tesla()
@@ -444,8 +449,8 @@ namespace Arsenal.Visual
                 g.Lathe(new Vector2(x, 0.03f), new[] { P(0.0f, 0.312f), P(0.008f, 0.316f), P(0.008f, 0.322f), P(0.0f, 0.328f) }, 10, Shade.White);
             }
             // capacitor bank on top
-            k.ChamferBox(new Vector3(0, 0.078f, -0.02f), new Vector3(0.036f, 0.024f, 0.08f), 0.006f, Shade.Yellow, Shade.Dark);
-            for (int i = 0; i < 3; i++) k.Lathe(new Vector2(0.0f, 0.095f), new[] { P(0.006f, -0.05f + i * 0.026f), P(0.006f, -0.036f + i * 0.026f) }, 8, Shade.Blue, Shade.Blue, Shade.Blue);
+            k.ChamferBox(new Vector3(0, 0.074f, -0.02f), new Vector3(0.036f, 0.024f, 0.08f), 0.006f, Shade.Yellow, Shade.Dark);
+            for (int i = 0; i < 3; i++) k.Lathe(new Vector2(0.0f, 0.087f), new[] { P(0.007f, -0.05f + i * 0.026f), P(0.007f, -0.036f + i * 0.026f) }, 8, Shade.Blue, Shade.Blue, Shade.Blue);
             TriggerGroup(k, -0.03f, -0.014f, 0.055f);
             Grip(k, -0.065f, -0.014f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.1f, 0.052f, 0.15f, 0.044f, Shade.HatchMid);
@@ -563,11 +568,13 @@ namespace Arsenal.Visual
             Barrel(k, 0.045f, 0.38f, 0.43f, 0.012f, Shade.Dark);
             FlashHider(k, 0.045f, 0.455f, 0.017f, 0.04f);
             // gas chamber lit blue along its sides
-            k.ChamferBox(new Vector3(0, 0.1f, 0.06f), new Vector3(0.03f, 0.03f, 0.14f), 0.005f, Shade.Dark, Shade.Black);
+            k.ChamferBox(new Vector3(0, 0.095f, 0.06f), new Vector3(0.03f, 0.042f, 0.14f), 0.005f, Shade.Dark, Shade.Black); // sits down into the frame
             g.Box(new Vector3(0.0155f, 0.1f, 0.06f), new Vector3(0.001f, 0.012f, 0.11f), Shade.White);
             g.Box(new Vector3(-0.0155f, 0.1f, 0.06f), new Vector3(0.001f, 0.012f, 0.11f), Shade.White);
             // carry handle, cooling drum under the frame, grip
             k.ChamferBox(new Vector3(0, 0.13f, 0.02f), new Vector3(0.012f, 0.008f, 0.08f), 0.002f, Shade.Black);
+            foreach (float z in new[] { -0.012f, 0.052f })
+                k.ChamferBox(new Vector3(0, 0.12f, z), new Vector3(0.01f, 0.016f, 0.01f), 0.002f, Shade.Black);
             k.Lathe(new Vector2(0, -0.015f), new[] { P(0.035f, 0.02f), P(0.035f, 0.1f) }, 16, Shade.HatchDark, Shade.Dark, Shade.Dark);
             TriggerGroup(k, -0.03f, 0.0f);
             Grip(k, -0.06f, 0.0f, Shade.HatchDark, 14f, 0.1f, 0.034f);

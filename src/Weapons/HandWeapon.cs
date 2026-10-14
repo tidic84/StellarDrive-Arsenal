@@ -91,6 +91,7 @@ namespace Arsenal.Weapons
             base.EnableTool();
             _camera = Camera.main;
             _baseFov = _camera != null ? _camera.fieldOfView : 60f;
+            if (_def != null) ScopeOverlay.Prewarm(_def.Scope, _def.ReticleColor);
         }
 
         public override void DisableTool()
@@ -98,7 +99,7 @@ namespace Arsenal.Weapons
             _trigger = false;
             _aiming = false;
             RestoreFov();
-            StopContinuous();
+            StopContinuous(true);
             Save();
             WeaponHud.Hide();
             base.DisableTool();
@@ -107,7 +108,7 @@ namespace Arsenal.Weapons
         private void OnDestroy()
         {
             RestoreFov();
-            StopContinuous();
+            StopContinuous(true);
             if (_def != null)
             {
                 Save();
@@ -184,7 +185,8 @@ namespace Arsenal.Weapons
                 FiringEffectListener?.NotifyToolFiringStop();
             }
             _recoil = Mathf.MoveTowards(_recoil, 0f, dt * Mathf.Max(0.02f, _def.RecoilKick) * 12f);
-            _aimBlend = Mathf.MoveTowards(_aimBlend, _aiming ? 1f : 0f, dt * 6f);
+            // scoped weapons come up a little slower so the eye visibly reaches the eyepiece
+            _aimBlend = Mathf.MoveTowards(_aimBlend, _aiming ? 1f : 0f, dt * (_def.Scope != ScopeKind.None ? 3.4f : 6f));
             if (Homing && _camera != null)
             {
                 // seeker: locks automatically on the ship it is pointed at (tighter cone when aiming)
@@ -199,20 +201,32 @@ namespace Arsenal.Weapons
         {
             if (_def == null || _camera == null || _def.AimFov <= 0f) return;
             if (_aimBlend > 0f)
-                _camera.fieldOfView = Mathf.Lerp(_baseFov, _def.AimFov, _aimBlend);
+                _camera.fieldOfView = Mathf.Lerp(_baseFov, _def.AimFov, ZoomBlend());
             else if (Mathf.Abs(_camera.fieldOfView - _baseFov) > 0.01f && Mathf.Abs(_camera.fieldOfView - _def.AimFov) < Mathf.Abs(_baseFov - _def.AimFov))
                 _camera.fieldOfView = _baseFov;
         }
 
         private void OnEnable() => UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering += OnBeginCamera;
 
-        private void OnDisable() => UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
+        private void OnDisable()
+        {
+            UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
+            StopContinuous(true); // deactivated without being put away: no Update left to stop a loop
+        }
 
         /// <summary>Hip-fire convergence: the barrel points at the crosshair this far ahead (parallel to the view, so it lines up with the dot).</summary>
         private const float HipConverge = 30f;
 
         /// <summary>The scope view takes over (model hidden) from this aim blend on.</summary>
-        private const float ScopeIn = 0.8f;
+        private const float ScopeIn = ScopeOverlay.EyeAt;
+
+        /// <summary>How far the zoom has gone: through a scope, a slight push while the weapon comes up, then the real magnification as the view opens.</summary>
+        private float ZoomBlend()
+        {
+            if (_def.Scope == ScopeKind.None) return _aimBlend;
+            if (_aimBlend < ScopeIn) return _aimBlend / ScopeIn * 0.12f;
+            return 0.12f + 0.88f * Mathf.SmoothStep(0f, 1f, (_aimBlend - ScopeIn) / (1f - ScopeIn));
+        }
 
         /// <summary>
         /// Final placement right before the camera renders: turns the hip pose so the barrel points at the crosshair,
@@ -223,7 +237,7 @@ namespace Arsenal.Weapons
             if (_model == null || cam != _camera) return;
             _model.localPosition = _holdPos;
             _model.localRotation = _holdRot;
-            bool scoped = _def.Scope != ScopeKind.None && _aimBlend > ScopeIn;
+            bool scoped = _def.Scope != ScopeKind.None && _aimBlend > ScopeIn && ScopeOverlay.Ready(_def.Scope, _def.ReticleColor);
             foreach (Renderer r in _renderers) r.enabled = !scoped;
             if (scoped) return;
             Transform ct = cam.transform;
@@ -268,7 +282,7 @@ namespace Arsenal.Weapons
         {
             if (_def == null || !enabled || Assets.IsTemplate(this) || _def.Scope == ScopeKind.None) return;
             if (Event.current.type != EventType.Repaint) return;
-            ScopeOverlay.Draw(_def.Scope, _def.ReticleColor, Mathf.InverseLerp(ScopeIn - 0.15f, 1f, _aimBlend));
+            ScopeOverlay.Draw(_def.Scope, _def.ReticleColor, _aimBlend);
         }
 
         private void RestoreFov()
@@ -762,9 +776,18 @@ namespace Arsenal.Weapons
 
         // ------------------------------------------------------------------ misc
 
-        private void StopContinuous()
+        /// <summary>Stops loops and beams. The minigun winds down on its own while the weapon is in hand; <paramref name="force"/>
+        /// (put away, destroyed) cuts it too, since nothing would be left to stop its loop.</summary>
+        private void StopContinuous(bool force = false)
         {
-            if (_def != null && _def.SpinUp > 0f && _spin > 0.05f) return; // the minigun winds down on its own
+            if (force && _firingNotified)
+            {
+                // the game keeps its firing effect (and its sound) running until told otherwise
+                _firingNotified = false;
+                FiringEffectListener?.NotifyToolFiringStop();
+            }
+            if (!force && _def != null && _def.SpinUp > 0f && _spin > 0.05f) return;
+            if (force) _spin = 0f;
             Sounds.Stop(ref _loop);
             if (_beam != null) Destroy(_beam.gameObject);
             _beam = null;

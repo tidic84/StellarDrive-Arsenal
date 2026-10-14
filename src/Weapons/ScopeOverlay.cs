@@ -12,7 +12,15 @@ namespace Arsenal.Weapons
     /// </summary>
     internal static class ScopeOverlay
     {
-        private static readonly Dictionary<(ScopeKind, Color, int), Texture2D> Cache = new Dictionary<(ScopeKind, Color, int), Texture2D>();
+        /// <summary>A scope texture: its pixels are computed on a worker thread, then uploaded once on the main thread.</summary>
+        private sealed class Entry
+        {
+            public Color32[] Pixels;
+            public Texture2D Tex;
+            public volatile bool Done;
+        }
+
+        private static readonly Dictionary<(ScopeKind, Color, int), Entry> Cache = new Dictionary<(ScopeKind, Color, int), Entry>();
         private static Texture2D _pixel;
 
         private static readonly Color Tube = new Color(0.035f, 0.04f, 0.047f, 1f);
@@ -41,17 +49,41 @@ namespace Arsenal.Weapons
             }
         }
 
-        /// <summary>Draws the scope; <paramref name="blend"/> (0..1) fades it in and opens the window as the weapon comes up.</summary>
-        public static void Draw(ScopeKind kind, Color tint, float blend)
+        /// <summary>Aim blend at which the eye reaches the eyepiece: the weapon model hides and the scope view starts to open.</summary>
+        public const float EyeAt = 0.62f;
+
+        /// <summary>
+        /// Draws the scope for an aim blend (0..1) in two beats: while the weapon comes up, a dark tube closes in from the
+        /// screen edges (the eye nearing the eyepiece); at <see cref="EyeAt"/> the window is a small circle, then it opens
+        /// onto the magnified view with its reticle.
+        /// </summary>
+        public static void Draw(ScopeKind kind, Color tint, float aimBlend)
         {
-            if (kind == ScopeKind.None || blend <= 0f) return;
+            if (kind == ScopeKind.None || aimBlend <= 0.3f) return;
+            Texture2D view = Texture(kind, tint);
+            if (view == null) return;
+            float h = Screen.height;
+            if (aimBlend < EyeAt)
+            {
+                float c = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, EyeAt, aimBlend));
+                Window(EmptyTube, h * Size(kind) * Mathf.Lerp(3.4f, 0.28f, c), Mathf.Sqrt(c));
+            }
+            else
+            {
+                float o = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(EyeAt, 1f, aimBlend));
+                Window(view, h * Size(kind) * Mathf.Lerp(0.28f, 1f, 1f - (1f - o) * (1f - o)), 1f);
+            }
+        }
+
+        /// <summary>A round window of that size centred on screen, everything around it dark.</summary>
+        private static void Window(Texture2D tex, float size, float alpha)
+        {
             float h = Screen.height, w = Screen.width;
-            float k = Mathf.SmoothStep(0f, 1f, blend);
-            float size = Mathf.Round(h * Size(kind) * Mathf.Lerp(0.82f, 1f, k));
+            size = Mathf.Round(size);
             float x = (w - size) / 2f, y = (h - size) / 2f;
             Color saved = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, k);
-            GUI.DrawTexture(new Rect(x, y, size, size), Get(kind, tint, Mathf.Clamp(Mathf.CeilToInt(h * Size(kind) / 64f) * 64, 512, 2560)));
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.DrawTexture(new Rect(x, y, size, size), tex);
             if (x > 0)
             {
                 GUI.DrawTexture(new Rect(0, 0, x + 1, h), Pixel);
@@ -65,20 +97,67 @@ namespace Arsenal.Weapons
             GUI.color = saved;
         }
 
-        private static Texture2D Get(ScopeKind kind, Color tint, int s)
+        private static Texture2D _tube;
+
+        /// <summary>The empty tube (dark rim, clear window, no reticle) used while the eye nears the eyepiece. Small: it is only ever seen blurred by motion.</summary>
+        private static Texture2D EmptyTube
         {
-            if (Cache.TryGetValue((kind, tint, s), out Texture2D t) && t != null) return t;
-            t = Build(kind, tint, s);
-            Cache[(kind, tint, s)] = t;
-            return t;
+            get
+            {
+                if (_tube != null) return _tube;
+                const int s = 256;
+                _tube = new Texture2D(s, s, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, name = "Arsenal.Scope.Tube" };
+                _tube.SetPixels32(Compute(ScopeKind.None, Color.white, s));
+                _tube.Apply(true);
+                return _tube;
+            }
+        }
+
+        private static int TexSize(ScopeKind kind) => Mathf.Clamp(Mathf.CeilToInt(Screen.height * Size(kind) / 64f) * 64, 512, 2560);
+
+        /// <summary>Starts building this scope in the background (call when the weapon is taken in hand) so aiming never stalls.</summary>
+        public static void Prewarm(ScopeKind kind, Color tint)
+        {
+            if (kind != ScopeKind.None) GetEntry(kind, tint, TexSize(kind));
+        }
+
+        /// <summary>True once the scope can be drawn; until then the weapon keeps its model on screen.</summary>
+        public static bool Ready(ScopeKind kind, Color tint) => kind == ScopeKind.None || Texture(kind, tint) != null;
+
+        private static Texture2D Texture(ScopeKind kind, Color tint)
+        {
+            Entry e = GetEntry(kind, tint, TexSize(kind));
+            if (e.Tex == null && e.Done && e.Pixels != null)
+            {
+                int s = (int)Mathf.Sqrt(e.Pixels.Length);
+                e.Tex = new Texture2D(s, s, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, name = "Arsenal.Scope." + kind };
+                e.Tex.SetPixels32(e.Pixels);
+                e.Tex.Apply(true);
+                e.Pixels = null;
+            }
+            return e.Tex;
+        }
+
+        private static Entry GetEntry(ScopeKind kind, Color tint, int s)
+        {
+            if (Cache.TryGetValue((kind, tint, s), out Entry e)) return e;
+            e = new Entry();
+            Cache[(kind, tint, s)] = e;
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try { e.Pixels = Compute(kind, tint, s); }
+                catch (System.Exception ex) { ArsenalMod.Log.Warning($"Scope {kind} failed: {ex.Message}"); }
+                e.Done = true;
+            });
+            return e;
         }
 
         // ------------------------------------------------------------------ texture
 
-        private static Texture2D Build(ScopeKind kind, Color tint, int s)
+        /// <summary>Pure maths (no Unity objects), safe on a worker thread.</summary>
+        private static Color32[] Compute(ScopeKind kind, Color tint, int s)
         {
-            var tex = new Texture2D(s, s, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, name = "Arsenal.Scope." + kind };
-            var px = new Color[s * s];
+            var px = new Color32[s * s];
             float c = (s - 1) / 2f, r = s * 0.49f;
             float u = r / 240f; // reticle unit: sizes below are given for a 240 px window radius
             float line = Mathf.Max(0.7f, 0.55f * u); // hair-line half width, never thinner than a pixel
@@ -102,9 +181,7 @@ namespace Arsenal.Weapons
                     }
                     px[iy * s + ix] = col;
                 }
-            tex.SetPixels(px);
-            tex.Apply(true);
-            return tex;
+            return px;
         }
 
         /// <summary>Paints <paramref name="top"/> over <paramref name="under"/> with the given coverage.</summary>
