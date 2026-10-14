@@ -125,7 +125,7 @@ namespace Arsenal.Armory
         private void Build()
         {
             _canvas = UiKit.MakeCanvas("Arsenal.Armory", 6);
-            _window = UiKit.Window(_canvas.transform, "Armory", new Vector2(-560f, 40f), new Vector2(2300f, 1700f));
+            _window = UiKit.Window(_canvas.transform, "Armory", new Vector2(-560f, 40f), new Vector2(2300f, 1800f));
 
             // header
             UiKit.Label(UiKit.Rect(_window, "Title", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(70f, -40f), new Vector2(1200f, 90f), new Vector2(0f, 1f)),
@@ -146,10 +146,10 @@ namespace Arsenal.Armory
             UiKit.Line(_window, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -240f), 2160f);
 
             // grid
-            _grid = UiKit.Rect(_window, "Grid", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(70f, -290f), new Vector2(1240f, 1340f), new Vector2(0f, 1f));
+            _grid = UiKit.Rect(_window, "Grid", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(70f, -290f), new Vector2(1240f, 1440f), new Vector2(0f, 1f));
 
             // info column
-            RectTransform info = UiKit.Rect(_window, "Info", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-60f, -280f), new Vector2(880f, 1360f), new Vector2(1f, 1f));
+            RectTransform info = UiKit.Rect(_window, "Info", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-60f, -280f), new Vector2(880f, InfoHeight), new Vector2(1f, 1f));
             UiKit.Image(info, null, new Color(0f, 0f, 0f, 0.18f), 1f);
             RectTransform iconBg = UiKit.Rect(info, "IconBg", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(420f, 300f), new Vector2(0.5f, 1f));
             UiKit.Image(iconBg, "unit_bg", new Color(UiKit.Accent.r, UiKit.Accent.g, UiKit.Accent.b, 0.18f), 2f);
@@ -161,10 +161,14 @@ namespace Arsenal.Armory
             shadow.GetComponent<RawImage>().enabled = false;
 
             _infoName = UiKit.Label(UiKit.Rect(info, "Name", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -350f), new Vector2(-60f, 90f), new Vector2(0.5f, 1f)), "", 58, UiKit.Accent, true, TextAlignmentOptions.Center);
-            _infoName.enableWordWrapping = true;
+            // one line: long English names shrink instead of wrapping over the rarity line
+            _infoName.enableAutoSizing = true;
+            _infoName.fontSizeMin = 34f;
+            _infoName.fontSizeMax = 58f;
             _infoRarity = UiKit.Label(UiKit.Rect(info, "Rarity", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -440f), new Vector2(-60f, 56f), new Vector2(0.5f, 1f)), "", 42, UiKit.TextDim, false, TextAlignmentOptions.Center);
             _infoDesc = UiKit.Label(UiKit.Rect(info, "Desc", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -510f), new Vector2(-90f, 150f), new Vector2(0.5f, 1f)), "", 40, UiKit.Text, false, TextAlignmentOptions.TopLeft);
             _infoPierce = UiKit.Label(UiKit.Rect(info, "Pierce", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -662f), new Vector2(-90f, 50f), new Vector2(0.5f, 1f)), "", 36, UiKit.Accent, true, TextAlignmentOptions.Left);
+            _infoPierce.enableWordWrapping = true; // long blaster lines wrap and push the stats down
             _statsRoot = UiKit.Rect(info, "Stats", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -720f), new Vector2(-90f, 250f), new Vector2(0.5f, 1f));
             _costRoot = UiKit.Rect(info, "Cost", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -970f), new Vector2(-90f, 240f), new Vector2(0.5f, 1f));
 
@@ -205,6 +209,17 @@ namespace Arsenal.Armory
             }
             Select(entries.FirstOrDefault());
         }
+
+#if DEV
+        /// <summary>Dev: shows that weapon's tab with it selected (for screenshots).</summary>
+        public static void DevShow(uint item)
+        {
+            ArmoryEntry e = _instance?._catalogue.FirstOrDefault(x => x.ItemId == item);
+            if (e == null) return;
+            _instance.SelectCategory(e.Category);
+            _instance.Select(e);
+        }
+#endif
 
         private static string ShortName(string n)
         {
@@ -257,15 +272,20 @@ namespace Arsenal.Armory
             _infoRarity.color = WeaponDefs.RarityColor(e.Rarity);
             _infoDesc.text = e.Description;
             _infoPierce.text = e.Pierce ?? "";
+            float y = LayoutText();
 
             foreach (Transform c in _statsRoot) Destroy(c.gameObject);
             for (int i = 0; i < e.Stats.Length; i++)
             {
-                RectTransform row = UiKit.Rect(_statsRoot, "Stat", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -i * 60f), new Vector2(0f, 54f), new Vector2(0.5f, 1f));
+                RectTransform row = UiKit.Rect(_statsRoot, "Stat", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -i * StatStep), new Vector2(0f, 54f), new Vector2(0.5f, 1f));
                 UiKit.Label(UiKit.Rect(row, "Label", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(320f, 54f), new Vector2(0f, 0.5f)), e.Stats[i].label, 40, UiKit.Text);
                 UiKit.Bar(row, "Bar", new Vector2(340f, 0f), new Vector2(440f, 20f), e.Stats[i].value, UiKit.Accent, new Vector2(0f, 0.5f));
             }
 
+            y += e.Stats.Length * StatStep + 16f;
+            Place(_costRoot, y, 0f);
+            // cost rows tighten when a long description leaves less room above the button
+            float costStep = Mathf.Clamp((InfoHeight - ButtonSpace - y) / Mathf.Max(1, e.Cost.Length), 70f, 76f);
             foreach (Transform c in _costRoot) Destroy(c.gameObject);
             var inv = Svc.Get<PlayerInventoryReaderProxy>();
             bool affordable = true;
@@ -275,7 +295,7 @@ namespace Arsenal.Armory
                 int have = inv != null ? inv.GetItemQuantity(item) : 0;
                 bool enough = have >= qty;
                 affordable &= enough;
-                RectTransform row = UiKit.Rect(_costRoot, "Cost", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -i * 76f), new Vector2(0f, 70f), new Vector2(0.5f, 1f));
+                RectTransform row = UiKit.Rect(_costRoot, "Cost", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -i * costStep), new Vector2(0f, costStep - 6f), new Vector2(0.5f, 1f));
                 RectTransform line = UiKit.Rect(row, "Line", new Vector2(0f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 12f), new Vector2(0f, 0f));
                 UiKit.Image(line, "materials_line", Color.white, 2f);
                 RectTransform iconBg = UiKit.Rect(row, "IconBg", new Vector2(0f, 0f), new Vector2(0f, 0f), Vector2.zero, new Vector2(70f, 70f), new Vector2(0f, 0f));
@@ -287,6 +307,44 @@ namespace Arsenal.Armory
             }
             _buttonFill.color = affordable ? UiKit.Accent : new Color(0.35f, 0.4f, 0.45f, 1f);
             _buttonLabel.color = affordable ? UiKit.Text : new Color(0.75f, 0.78f, 0.8f);
+        }
+
+        private const float InfoHeight = 1460f, ButtonSpace = 190f, StatStep = 54f, DescTop = 506f;
+
+        /// <summary>
+        /// Stacks description, penetration line and stats under the rarity line at their real heights
+        /// (long descriptions use a smaller font) and returns where the stats end.
+        /// </summary>
+        private float LayoutText()
+        {
+            float width = ((RectTransform)_infoDesc.transform).rect.width;
+            _infoDesc.fontSize = 40f;
+            float h = _infoDesc.GetPreferredValues(_infoDesc.text, width, 0f).y;
+            if (h > 160f)
+            {
+                _infoDesc.fontSize = 34f;
+                h = _infoDesc.GetPreferredValues(_infoDesc.text, width, 0f).y;
+            }
+            float y = DescTop;
+            Place((RectTransform)_infoDesc.transform, y, Mathf.Ceil(h));
+            y += Mathf.Ceil(h) + 16f;
+            bool pierce = !string.IsNullOrEmpty(_infoPierce.text);
+            _infoPierce.gameObject.SetActive(pierce);
+            if (pierce)
+            {
+                float ph = Mathf.Ceil(_infoPierce.GetPreferredValues(_infoPierce.text, width, 0f).y);
+                Place((RectTransform)_infoPierce.transform, y, ph);
+                y += ph + 10f;
+            }
+            Place(_statsRoot, y, 0f);
+            return y;
+        }
+
+        /// <summary>Puts a top-anchored child of the info column at <paramref name="top"/> units down (height kept when 0).</summary>
+        private static void Place(RectTransform rt, float top, float height)
+        {
+            rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, -top);
+            if (height > 0f) rt.sizeDelta = new Vector2(rt.sizeDelta.x, height);
         }
 
         private void Fabricate()

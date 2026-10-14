@@ -97,6 +97,55 @@ namespace Arsenal.Dev
             File.WriteAllBytes(path, sheet.EncodeToPNG());
             ArsenalMod.Log.Msg($"[DEV] sheet {path} ({items.Count} models)");
         }
+
+        /// <summary>Dev: each ship weapon part alone on a transparent background (cutp_<id>.png).</summary>
+        public static void PartCutouts(int size, Quaternion view)
+        {
+            var renderer = Svc.Get<ObjectThumbnailRenderer>();
+            var provider = new PartSettingsProvider();
+            foreach (ushort id in new ushort[] { 9201, 9210, 9211, 9212, 9213, 9214, 9215, 9216, 9217, 9218, 9219, 9220, 9221, 9222, 9223, 9224 })
+            {
+                PartSettings ps;
+                try { ps = provider.GetPartSettingById(id); } catch { continue; }
+                if (ps == null) continue;
+                GameObject go = Object.Instantiate(ps.part);
+                foreach (Collider c in go.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+                Save(renderer, go, view, size, "cutp_" + id);
+            }
+        }
+
+        private static void Save(ObjectThumbnailRenderer renderer, GameObject go, Quaternion view, int size, string name)
+        {
+            var tex = new Texture2D(size, size, GraphicsFormat.R8G8B8A8_UNorm, TextureCreationFlags.None);
+            go.transform.position = new Vector3(0, -20000f, 0);
+            go.SetActive(true);
+            renderer.Render(go, view, tex);
+            var rt = RenderTexture.GetTemporary(size, size);
+            Graphics.Blit(tex, rt);
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tmp = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tmp.ReadPixels(new Rect(0, 0, size, size), 0, 0);
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            string path = Path.Combine(MelonEnvironment.UserDataDirectory, name + ".png");
+            File.WriteAllBytes(path, tmp.EncodeToPNG());
+            Object.Destroy(tmp);
+            Object.Destroy(tex);
+            Object.Destroy(go);
+            ArsenalMod.Log.Msg($"[DEV] cutout {path}");
+        }
+
+        /// <summary>Dev: each hand weapon alone on a transparent background (cut_<kind>.png), for promo images.</summary>
+        public static void Cutouts(string filter, int size, Quaternion view)
+        {
+            var renderer = Svc.Get<ObjectThumbnailRenderer>();
+            foreach (HandWeaponDef def in WeaponDefs.Guns)
+            {
+                if (!string.IsNullOrEmpty(filter) && !def.Kind.ToString().ToLowerInvariant().Contains(filter.ToLowerInvariant())) continue;
+                Save(renderer, def.Model().Root, view, size, "cut_" + def.Kind);
+            }
+        }
     }
 }
 #endif

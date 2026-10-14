@@ -171,6 +171,20 @@ namespace Arsenal
                     SpawnWallAt(tph.SpaceId, tph.Position + tfwd * float.Parse(a[1], CultureInfo.InvariantCulture) + tup * float.Parse(a[2], CultureInfo.InvariantCulture), Quaternion.LookRotation(tfwd, tup), a.Length > 3 && a[3] == "hollow");
                     break;
                 }
+                case "armshow":
+                    // armshow <itemId>: the open armory jumps to that weapon
+                    Armory.ArmoryUi.DevShow(uint.Parse(a[1]));
+                    break;
+                case "lang":
+                    // lang en|fr: switches the game's locale (for screenshots in either language)
+                    UnityEngine.Localization.Settings.LocalizationSettings.SelectedLocale =
+                        UnityEngine.Localization.Settings.LocalizationSettings.AvailableLocales.Locales.FirstOrDefault(l => l.Identifier.Code.StartsWith(a[1]));
+                    break;
+                case "hud":
+                    // hud off|on: hides every root canvas (game and mod HUD) for clean screenshots
+                    foreach (Canvas cv in Resources.FindObjectsOfTypeAll<Canvas>().Where(cv => cv.isRootCanvas && cv.gameObject.scene.IsValid()))
+                        cv.enabled = a.Length > 1 && a[1] == "on";
+                    break;
                 case "fov":
                     Camera.main.fieldOfView = float.Parse(a[1], CultureInfo.InvariantCulture);
                     break;
@@ -240,6 +254,14 @@ namespace Arsenal
                 case "sheet":
                     // contact sheet of models: sheet guns | sheet parts [filter]
                     Dev.ModelSheet.Render(a[1], a.Length > 2 ? a[2] : null);
+                    break;
+                case "cutouts":
+                    // cutouts <filter|all> <size> <pitch> <yaw>: transparent renders of the hand weapons
+                    Dev.ModelSheet.Cutouts(a[1] == "all" ? null : a[1], int.Parse(a[2]), Quaternion.Euler(float.Parse(a[3], CultureInfo.InvariantCulture), float.Parse(a[4], CultureInfo.InvariantCulture), 0f));
+                    break;
+                case "partcutouts":
+                    // partcutouts <size> <pitch> <yaw>: transparent renders of the ship weapon parts
+                    Dev.ModelSheet.PartCutouts(int.Parse(a[1]), Quaternion.Euler(float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture), 0f));
                     break;
                 case "particon":
                 {
