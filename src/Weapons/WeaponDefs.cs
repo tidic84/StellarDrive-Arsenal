@@ -158,7 +158,7 @@ namespace Arsenal.Weapons
             EmpId = 9116, GrenadeLauncherId = 9117, RocketLauncherId = 9118, FlamethrowerId = 9119, TeslaId = 9120, DisintegratorId = 9121, SamLauncherId = 9122,
             HyperLauncherId = 9123, BlasterPistolId = 9124, BlasterRifleId = 9125, BlasterCarbineId = 9126, HeavyBlasterId = 9127;
 
-        private const uint Iron = 101, Glass = 102, Shard = 103, Aluminium = 104, Fuel = 100, Wood = 110, Copper = 112;
+        private const uint Iron = 101, Glass = 102, Shard = 103, Aluminium = 104, Wood = 110, Copper = 112;
 
         private static readonly Vector3 Sidearm = new Vector3(-0.13f, 0.12f, -0.1f), SidearmRot = new Vector3(6f, 24f, 0f);
         private static readonly Vector3 Long = new Vector3(-0.08f, 0.07f, 0.02f);
@@ -283,8 +283,8 @@ namespace Arsenal.Weapons
         {
             Kind = WeaponKind.Flamethrower, ItemId = FlamethrowerId, Category = ArmoryCategory.Heavy, Rarity = Rarity.Uncommon,
             NameFr = "Lance-flammes « Inferno »", NameEn = "\"Inferno\" flamethrower",
-            DescFr = "Cône de feu à courte portée. Enflamme les joueurs et consume le bois. Brûle du biocarburant.", DescEn = "Short-range cone of fire. Sets players ablaze and eats through wood. Burns biofuel.",
-            Cost = new[] { (Iron, (byte)8), (Copper, (byte)2), (Fuel, (byte)4) },
+            DescFr = "Cône de feu à courte portée. Enflamme les joueurs et consume le bois.", DescEn = "Short-range cone of fire. Sets players ablaze and eats through wood.",
+            Cost = new[] { (Iron, (byte)8), (Copper, (byte)2), (Wood, (byte)6) },
             Mode = FireMode.Flame, Automatic = true, RoundsPerMinute = 600, Magazine = 100, ReloadTime = 2.5f, Reach = 9f,
             SpreadDegrees = 0f, RecoilKick = 0.004f, Mass = 9f,
             Bullet = new BulletSpec { PlayerDamage = 1.6f, PanelDamage = 2.2f, Penetration = 0, ObjectDamage = 0.3f, BurnSeconds = 4f },

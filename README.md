@@ -84,7 +84,7 @@ Use them like the game's tools (toolbar). Left click fires, **R** reloads, right
 
 ## Armory
 
-Place an **Armory** (build menu, *Arsenal* tab) and open it like a chest: a fabrication terminal opens next to your inventory, built from the game's own menu pieces. Pick a category (sidearms, rifles, heavy, energy, explosives), see the weapon's rarity, description and stats, and **Fabricate** it from your materials (iron, copper, fuel…). The host checks the cost, takes the materials and puts the weapon in your inventory. The armory still works as a storage chest.
+Place an **Armory** (build menu, *Arsenal* tab) and open it like a chest: a fabrication terminal opens next to your inventory, built from the game's own menu pieces. Pick a category (sidearms, rifles, heavy, energy, explosives), see the weapon's rarity, description and stats, and **Fabricate** it from your materials (iron, copper, wood…). The host checks the cost, takes the materials and puts the weapon in your inventory. The armory still works as a storage chest.
 
 ![Armory](docs/armory.jpg)
 
@@ -175,7 +175,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.10.2` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.10.3` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

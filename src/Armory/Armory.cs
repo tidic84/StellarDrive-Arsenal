@@ -35,7 +35,7 @@ namespace Arsenal.Armory
     /// </summary>
     internal static class Armory
     {
-        private const uint Iron = 101, Copper = 112, Fuel = 100;
+        private const uint Iron = 101, Wood = 110, Copper = 112;
 
         public static List<ArmoryEntry> Catalogue()
         {
@@ -58,7 +58,7 @@ namespace Arsenal.Armory
             {
                 ItemId = WeaponDefs.ChargeId, Quantity = 2, Name = Loc.T("Charges de brèche ×2", "Breaching charges ×2"), Category = ArmoryCategory.Explosives, Rarity = Rarity.Uncommon, Kind = WeaponKind.Charge,
                 Description = Loc.T("Se colle aux murs et aux sols. Clic droit pour faire sauter toutes vos charges.", "Sticks to walls and floors. Right click blows all your charges."),
-                Cost = new[] { (Iron, (byte)4), (Copper, (byte)2), (Fuel, (byte)1) },
+                Cost = new[] { (Iron, (byte)4), (Copper, (byte)2), (Wood, (byte)2) },
                 Stats = new[] { (Loc.T("Dégâts", "Damage"), 0.95f), (Loc.T("Rayon", "Radius"), 0.4f), (Loc.T("Portée", "Range"), 0.05f), (Loc.T("Cadence", "Rate"), 0.15f) },
             });
             return list;

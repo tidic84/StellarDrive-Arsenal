@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.10.2", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.10.3", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal

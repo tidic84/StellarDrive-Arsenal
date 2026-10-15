@@ -2,7 +2,7 @@
     "id": "arsenal",
     "name": "Arsenal",
     "author": "tidic84",
-    "version": "1.10.2",
+    "version": "1.10.3",
     "description": "Firearms, explosives and ship weapons in the game's style. Bullets drill round holes through hull panels with penetration levels per weapon and different resistance per material (glass, wood, iron, ricochets); every hull piece (slopes and corners too) can be holed and broken; explosions wreck thrusters, tanks and other machinery. 20 hand weapons (blasters, gauss, plasma, railgun, laser minigun, flamethrower, Tesla arc, disintegrator, launchers, legendary hypersonic launcher...) made at an armory terminal, PvP with hit markers and kill feed. SAM launcher with auto lock-on. Gunner seat, machine gun, homing missiles, hypersonic missile launcher, thin red, green and blue blaster cannons that hole ships, push them and burn players, with Star Wars-style sounds, point defence, plasma, ion, railgun, torpedo, rocket pod, self-aiming SAM battery and flare dispenser. Radar warning beeps when you are locked or a missile is inbound; turrets need line of sight. Blasts push ships off course. Compatible with TF Advanced force fields: shots, bolts, missiles and grenades stop on a raised field and drain it instead of holing the hull. Multiplayer: every player needs the mod.",
     "thumbnail": "Thumbnail.png",
     "images": [
