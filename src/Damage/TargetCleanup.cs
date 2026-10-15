@@ -46,6 +46,9 @@ namespace Arsenal.Damage
         {
             try { ClearTargetsOn(shipState.Id, null); }
             catch (Exception ex) { ArsenalMod.Log.Warning($"Clearing targets on a removed ship failed: {ex.Message}"); }
+            // its hull and machinery damage goes with it, or it would stay in the save forever
+            HullDamage.ForgetShip(shipState.Id);
+            PartDamage.ForgetShip(shipState.Id);
         }
 
         /// <summary>Clears every targeting computer aimed at a beacon of this ship (or at this one beacon).</summary>

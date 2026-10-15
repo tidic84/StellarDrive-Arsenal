@@ -150,7 +150,7 @@ namespace Arsenal.Weapons
         {
             if (!enabled || _def == null) return;
             Keyboard kb = Keyboard.current;
-            if (kb != null && kb.rKey.wasPressedThisFrame) StartReload();
+            if (kb != null && kb.rKey.wasPressedThisFrame && !Typing()) StartReload();
             float dt = Time.deltaTime;
 
             if (Reloading && Time.time >= _reloadDone)
@@ -195,6 +195,17 @@ namespace Arsenal.Weapons
                 LockHud.Show(_lock);
             }
             WeaponHud.Show(_def, UsesFuel ? Mathf.CeilToInt(_fuel) : _ammo, _heat, _overheated, Reloading ? 1f - (_reloadDone - Time.time) / _def.ReloadTime : -1f, _def.Mode == FireMode.Charge ? _charge : -1f, Effects.LocalJammed);
+        }
+
+        /// <summary>A text field has the focus (chat, sign, console...): the R typed there is not a reload.</summary>
+        private static bool Typing()
+        {
+            GameObject sel = UnityEngine.EventSystems.EventSystem.current != null ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+            if (sel == null) return false;
+            TMP_InputField tmp = sel.GetComponent<TMP_InputField>();
+            if (tmp != null && tmp.isFocused) return true;
+            UnityEngine.UI.InputField legacy = sel.GetComponent<UnityEngine.UI.InputField>();
+            return legacy != null && legacy.isFocused;
         }
 
         private void LateUpdate()
@@ -327,7 +338,10 @@ namespace Arsenal.Weapons
             if (!wants || Reloading || Time.time < _nextShot) return;
             if (_def.SpinUp > 0f && _spin < 1f) return;
             if (!TryConsume()) return;
-            _nextShot = Time.time + 60f / _def.RoundsPerMinute;
+            // carry the leftover of the tick over, so full auto keeps its real rate (not rounded up to whole ticks);
+            // a fresh trigger pull after a pause starts from now
+            float interval = 60f / _def.RoundsPerMinute;
+            _nextShot = Mathf.Max(_nextShot + interval, Time.time + interval - Mathf.Max(deltaTime, Time.fixedDeltaTime));
             switch (_def.Mode)
             {
                 case FireMode.Projectile: FireProjectile(cam); break;

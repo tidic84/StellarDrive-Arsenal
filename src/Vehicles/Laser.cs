@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Arsenal.Compat;
@@ -134,10 +135,7 @@ namespace Arsenal.Vehicles
         public static void Fire(Vector3 from, Vector3 velocity, uint shooterRoot, bool owner, byte style)
         {
             LaserStyle s = Style(style);
-            var go = new GameObject("Arsenal.BlasterBolt");
-            go.transform.position = from;
-            var bolt = go.AddComponent<BlasterBolt>();
-            bolt.Init(from, velocity, shooterRoot, owner, style);
+            BlasterBolt.Take(from).Init(from, velocity, shooterRoot, owner, style);
 
             // muzzle: hot white pop inside a coloured bloom that lights the gun up
             Vector3 dir = velocity.normalized;
@@ -220,8 +218,7 @@ namespace Arsenal.Vehicles
         /// </summary>
         public static void ServerImpact(uint shipId, Vector3 local, Vector3 dir, LaserStyle s)
         {
-            TrackedShipServer ship = Svc.ShipsServer?.Ships.FirstOrDefault(x => x.Id == shipId);
-            if (ship == null || dir.sqrMagnitude < 1e-6f) return;
+            if (Svc.ShipsServer == null || !Svc.ShipsServer.TryGetTrackedShip(shipId, out TrackedShipServer ship) || dir.sqrMagnitude < 1e-6f) return;
             if (ForceFields.ServerShields(ship, local))
             {
                 ForceFields.ServerAbsorb(ship.Id, s.PanelDamage * ForceFields.PanelPoints);
@@ -276,6 +273,36 @@ namespace Arsenal.Vehicles
         private LineRenderer _bloom, _halo, _core;
         private Light _light;
 
+        // spent bolts wait here for the next shot (a cannon fires several a second, each one four objects)
+        private static readonly Stack<BlasterBolt> Pool = new Stack<BlasterBolt>();
+        private const int MaxPooled = 256;
+
+        public static BlasterBolt Take(Vector3 from)
+        {
+            while (Pool.Count > 0)
+            {
+                BlasterBolt b = Pool.Pop();
+                if (b == null) continue; // went with the scene
+                b.transform.position = from;
+                b.gameObject.SetActive(true);
+                return b;
+            }
+            var go = new GameObject("Arsenal.BlasterBolt");
+            go.transform.position = from;
+            return go.AddComponent<BlasterBolt>();
+        }
+
+        private void Recycle()
+        {
+            if (Pool.Count >= MaxPooled)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            gameObject.SetActive(false);
+            Pool.Push(this);
+        }
+
         public void Init(Vector3 from, Vector3 velocity, uint shooterRoot, bool owner, byte style)
         {
             _s = Laser.Style(style);
@@ -283,32 +310,44 @@ namespace Arsenal.Vehicles
             _velocity = velocity;
             _shooterRoot = shooterRoot;
             _owner = owner;
+            _stopped = false;
+            _travelled = _age = _tailGone = 0f;
             // thin as in the films: a needle of white light in a slim coloured sheath
-            _bloom = Line("Bloom", Laser.TintedGlow(ref _s.BloomMat, _s.Halo, _s.BloomGlow), BloomWidth * _s.Width);
-            _halo = Line("Halo", Laser.TintedGlow(ref _s.HaloMat, _s.Halo, _s.HaloGlow), HaloWidth * _s.Width);
-            _core = Line("Core", Fx.GlowMat(_s.Core, 6f), CoreWidth * _s.Width);
-            _light = gameObject.AddComponent<Light>();
-            _light.type = LightType.Point;
+            if (_bloom == null)
+            {
+                _bloom = Line("Bloom");
+                _halo = Line("Halo");
+                _core = Line("Core");
+                _light = gameObject.AddComponent<Light>();
+                _light.type = LightType.Point;
+                _light.shadows = LightShadows.None;
+            }
+            Style(_bloom, Laser.TintedGlow(ref _s.BloomMat, _s.Halo, _s.BloomGlow), BloomWidth * _s.Width);
+            Style(_halo, Laser.TintedGlow(ref _s.HaloMat, _s.Halo, _s.HaloGlow), HaloWidth * _s.Width);
+            Style(_core, Fx.GlowMat(_s.Core, 6f), CoreWidth * _s.Width);
             _light.color = Color.Lerp(_s.Halo, Color.white, 0.15f);
             _light.range = 7f * Mathf.Sqrt(_s.Width);
             _light.intensity = 5f;
-            _light.shadows = LightShadows.None;
             Draw(_head, _head);
         }
 
-        private LineRenderer Line(string name, Material mat, float width)
+        private LineRenderer Line(string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(transform, false);
             var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = mat;
             lr.positionCount = 2;
             lr.useWorldSpace = true;
-            lr.startWidth = lr.endWidth = width;
             lr.numCapVertices = 4;
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.receiveShadows = false;
             return lr;
+        }
+
+        private static void Style(LineRenderer lr, Material mat, float width)
+        {
+            lr.sharedMaterial = mat;
+            lr.startWidth = lr.endWidth = width;
         }
 
         private void Update()
@@ -324,7 +363,7 @@ namespace Arsenal.Vehicles
                 _tailGone += speed * dt;
                 if (_tailGone >= _s.Length)
                 {
-                    Destroy(gameObject);
+                    Recycle();
                     return;
                 }
                 Draw(_head - dir * (_s.Length - _tailGone), _head);

@@ -33,12 +33,17 @@ namespace Arsenal.Damage
         // client side mirror (what is drawn)
         private static readonly Dictionary<PanelKey, HoleMask> Client = new Dictionary<PanelKey, HoleMask>();
 
+        // server: panel states changed this frame, sent together at the end of it (a torpedo changes hundreds)
+        private static readonly Dictionary<PanelKey, (bool broken, HoleMask holes)> Outgoing = new Dictionary<PanelKey, (bool, HoleMask)>();
+        private static readonly List<KeyValuePair<PanelKey, (bool broken, HoleMask holes)>> OutgoingList = new List<KeyValuePair<PanelKey, (bool, HoleMask)>>();
+
         private static readonly System.Random Rng = new System.Random();
 
         public static void Init()
         {
             ArsenalNet.OnServer(Op.PanelHit, ServerOnPanelHit);
             ArsenalNet.OnClient(Op.PanelState, ClientOnPanelState);
+            ArsenalNet.OnClient(Op.PanelStates, ClientOnPanelStates);
             ArsenalNet.OnClient(Op.PanelSnapshot, ClientOnSnapshot);
             ArsenalNet.OnClientHello += SendSnapshot;
         }
@@ -49,7 +54,11 @@ namespace Arsenal.Damage
         {
             Server.Clear();
             Client.Clear();
+            Outgoing.Clear();
         }
+
+        /// <summary>The hole sets the panels show right now (the mesh cache keeps these).</summary>
+        public static IEnumerable<HoleMask> ClientMasks => Client.Values;
 
         public static IReadOnlyDictionary<PanelKey, PanelState> ServerStates => Server;
 
@@ -97,10 +106,12 @@ namespace Arsenal.Damage
             Client.Remove(key);
         }
 
+        /// <summary>A whole ship is gone: drop all its damage (otherwise it stays in the save forever).</summary>
         public static void ForgetShip(uint shipId)
         {
             Server.Keys.Where(k => k.ShipId == shipId).ToList().ForEach(k => Server.Remove(k));
             Client.Keys.Where(k => k.ShipId == shipId).ToList().ForEach(k => Client.Remove(k));
+            Outgoing.Keys.Where(k => k.ShipId == shipId).ToList().ForEach(k => Outgoing.Remove(k));
         }
 
         // ------------------------------------------------------------------ server
@@ -137,19 +148,29 @@ namespace Arsenal.Damage
             {
                 Server.Remove(key);
                 BreakPanel(ship, p);
-                ArsenalNet.SendToAll(Op.PanelState, w =>
-                {
-                    key.Write(w);
-                    w.Write(true);
-                });
+                Outgoing[key] = (true, default);
                 return;
             }
             Server[key] = st;
-            ArsenalNet.SendToAll(Op.PanelState, w =>
+            Outgoing[key] = (false, st.Holes);
+        }
+
+        /// <summary>Server, once a frame: sends the panels that changed in one message.</summary>
+        public static void FlushServer()
+        {
+            if (Outgoing.Count == 0) return;
+            OutgoingList.Clear();
+            OutgoingList.AddRange(Outgoing);
+            Outgoing.Clear();
+            ArsenalNet.SendToAll(Op.PanelStates, w =>
             {
-                key.Write(w);
-                w.Write(false);
-                st.Holes.Write(w);
+                w.Write(OutgoingList.Count);
+                foreach (var kv in OutgoingList)
+                {
+                    kv.Key.Write(w);
+                    w.Write(kv.Value.broken);
+                    if (!kv.Value.broken) kv.Value.holes.Write(w);
+                }
             });
         }
 
@@ -216,7 +237,15 @@ namespace Arsenal.Damage
 
         // ------------------------------------------------------------------ client
 
-        private static void ClientOnPanelState(BinaryReader r)
+        private static void ClientOnPanelState(BinaryReader r) => ReadPanelState(r);
+
+        private static void ClientOnPanelStates(BinaryReader r)
+        {
+            int n = r.ReadInt32();
+            for (int i = 0; i < n; i++) ReadPanelState(r);
+        }
+
+        private static void ReadPanelState(BinaryReader r)
         {
             PanelKey key = PanelKey.Read(r);
             bool broken = r.ReadBoolean();

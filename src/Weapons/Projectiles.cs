@@ -100,7 +100,7 @@ namespace Arsenal.Weapons
         };
 
         public static readonly List<IThreat> Threats = new List<IThreat>();
-        private static readonly Dictionary<uint, ProjectileSim> Flying = new Dictionary<uint, ProjectileSim>();
+        private static readonly Dictionary<ulong, ProjectileSim> Flying = new Dictionary<ulong, ProjectileSim>();
         private static uint _nextId = 1;
 
         public static void Init()
@@ -123,7 +123,7 @@ namespace Arsenal.Weapons
             ArsenalNet.OnClient(Op.ProjectileSpawn, ClientOnSpawn);
             ArsenalNet.OnClient(Op.ProjectileGone, r =>
             {
-                uint key = Key(r.ReadInt32(), r.ReadUInt32());
+                ulong key = Key(r.ReadInt32(), r.ReadUInt32());
                 if (Flying.TryGetValue(key, out ProjectileSim s) && s != null) Object.Destroy(s.gameObject);
                 Flying.Remove(key);
             });
@@ -138,7 +138,8 @@ namespace Arsenal.Weapons
             Threats.Clear();
         }
 
-        public static uint Key(int owner, uint id) => (uint)(owner * 100000) + id;
+        /// <summary>One key per (client, id) pair: the client id in the high half, its own counter in the low half.</summary>
+        public static ulong Key(int owner, uint id) => ((ulong)(uint)owner << 32) | id;
 
         public static bool TryGet(int owner, uint id, out ProjectileSim sim) => Flying.TryGetValue(Key(owner, id), out sim) && sim != null;
 
@@ -303,7 +304,7 @@ namespace Arsenal.Weapons
         private bool _done;
 
         public FlareSim Decoy;
-        private readonly HashSet<uint> _seenFlares = new HashSet<uint>();
+        private readonly HashSet<ulong> _seenFlares = new HashSet<ulong>();
 
         public Vector3 Position => transform.position;
         Vector3 IThreat.Velocity => Velocity;

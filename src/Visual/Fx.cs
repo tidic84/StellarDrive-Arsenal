@@ -22,8 +22,25 @@ namespace Arsenal.Visual
         private abstract class Item
         {
             public float Age, Life;
+            public Pooled P;                     // the recycled object it draws with
             public abstract bool Step(float dt); // false = done
-            public abstract void Kill();
+            public virtual void Kill() => Release(P);
+        }
+
+        /// <summary>
+        /// A recycled effect object: a mesh (puffs, chips, flames, fireballs...) or a line (tracers, arcs, beams),
+        /// with a light that stays off unless the effect asks for one. Effects come and go by the thousand in a
+        /// fight (a missile trail alone keeps hundreds of puffs alive), so they are reused instead of created and destroyed.
+        /// </summary>
+        private sealed class Pooled
+        {
+            public GameObject Go;
+            public Transform T;
+            public MeshFilter Filter;
+            public MeshRenderer Renderer;
+            public LineRenderer Line;
+            public Light Light;
+            public bool Parented;
         }
 
         private sealed class Tracer : Item
@@ -43,8 +60,6 @@ namespace Arsenal.Visual
                 Line.SetPosition(1, From + dir * head);
                 return tail < total && Age < Life;
             }
-
-            public override void Kill() => Destroy(Line.gameObject);
         }
 
         private sealed class Body : Item
@@ -72,16 +87,18 @@ namespace Arsenal.Visual
                 if (Light != null) Light.intensity = LightIntensity * (1f - k) * (1f - k);
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(T.gameObject);
         }
 
         private static Fx _instance;
         private readonly List<Item> _items = new List<Item>();
         private static Mesh _cube, _ico, _star;
-        private static readonly Dictionary<Color, Material> Tints = new Dictionary<Color, Material>();
+        private static readonly Dictionary<int, Material> Tints = new Dictionary<int, Material>();
         private static Material _tracerMat, _flashMat, _fireMat;
         private static ParticleSystem _sparks;
+
+        private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
 
         public static Fx Instance
         {
@@ -117,6 +134,7 @@ namespace Arsenal.Visual
             }
             _trauma = Mathf.Max(0f, _trauma - Time.deltaTime * 1.6f);
             float dt = Time.deltaTime;
+            // swap-remove: the order of effects does not matter, and a missile trail keeps thousands of them
             for (int i = _items.Count - 1; i >= 0; i--)
             {
                 Item it = _items[i];
@@ -126,21 +144,141 @@ namespace Arsenal.Visual
                 if (!alive)
                 {
                     try { it.Kill(); } catch { }
-                    _items.RemoveAt(i);
+                    int last = _items.Count - 1;
+                    _items[i] = _items[last];
+                    _items.RemoveAt(last);
                 }
             }
         }
 
         public static void ClearAll()
         {
-            if (_instance == null) return;
-            foreach (Item it in _instance._items)
-                try { it.Kill(); } catch { }
-            _instance._items.Clear();
+            if (_instance != null)
+            {
+                foreach (Item it in _instance._items)
+                    try { it.Kill(); } catch { }
+                _instance._items.Clear();
+            }
+            // the tinted and glowing copies are made from the scene's materials: drop them with it
+            foreach (Material m in Tints.Values)
+                if (m != null) Destroy(m);
+            foreach (Material m in GlowMats.Values)
+                if (m != null) Destroy(m);
             Tints.Clear();
             GlowMats.Clear();
+            foreach (Material m in new[] { _tracerMat, _flashMat, _fireMat })
+                if (m != null) Destroy(m);
             _tracerMat = _flashMat = _fireMat = null;
+            if (_sparks != null) Destroy(_sparks.gameObject);
             _sparks = null;
+        }
+
+        // ------------------------------------------------------------------ pool
+
+        private const int MaxPooled = 4000;
+        private static readonly Stack<Pooled> MeshPool = new Stack<Pooled>();
+        private static readonly Stack<Pooled> LinePool = new Stack<Pooled>();
+#if DEV
+        public static int DevAlive => _instance != null ? _instance._items.Count : 0;
+        public static int DevPooled => MeshPool.Count + LinePool.Count;
+#endif
+
+        private static Pooled NewPooled(string name, bool line)
+        {
+            var go = new GameObject(name);
+            DontDestroyOnLoad(go);
+            var p = new Pooled { Go = go, T = go.transform };
+            if (line)
+            {
+                p.Line = go.AddComponent<LineRenderer>();
+                p.Line.useWorldSpace = true;
+                p.Line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                p.Line.receiveShadows = false;
+            }
+            else
+            {
+                p.Filter = go.AddComponent<MeshFilter>();
+                p.Renderer = go.AddComponent<MeshRenderer>();
+                p.Renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            p.Light = go.AddComponent<Light>();
+            p.Light.type = LightType.Point;
+            p.Light.shadows = LightShadows.None;
+            p.Light.enabled = false;
+            return p;
+        }
+
+        private static Pooled Take(Stack<Pooled> pool, string name, bool line)
+        {
+            while (pool.Count > 0)
+            {
+                Pooled p = pool.Pop();
+                if (p.Go == null) continue; // went down with something it was stuck to
+                p.Go.name = name;
+                p.Go.SetActive(true);
+                return p;
+            }
+            return NewPooled(name, line);
+        }
+
+        private static void Release(Pooled p)
+        {
+            if (p == null || p.Go == null) return;
+            Stack<Pooled> pool = p.Line != null ? LinePool : MeshPool;
+            if (pool.Count >= MaxPooled)
+            {
+                Destroy(p.Go);
+                return;
+            }
+            p.Go.SetActive(false);
+            if (p.Parented)
+            {
+                p.T.SetParent(null, false);
+                DontDestroyOnLoad(p.Go);
+                p.Parented = false;
+            }
+            p.Light.enabled = false;
+            if (p.Renderer != null)
+            {
+                p.Renderer.enabled = true;
+                p.Renderer.SetPropertyBlock(null);
+            }
+            pool.Push(p);
+        }
+
+        /// <summary>A pooled mesh object, placed and drawn with <paramref name="mesh"/> and <paramref name="mat"/>.</summary>
+        private static Pooled MeshObject(string name, Mesh mesh, Material mat, Vector3 pos, Quaternion rot, Vector3 scale)
+        {
+            Pooled p = Take(MeshPool, name, false);
+            p.T.SetPositionAndRotation(pos, rot);
+            p.T.localScale = scale;
+            p.Filter.sharedMesh = mesh;
+            p.Renderer.sharedMaterial = mat;
+            return p;
+        }
+
+        /// <summary>A pooled two-point line.</summary>
+        private static Pooled LineObject(string name, Material mat, int points, float startWidth, float endWidth, int caps)
+        {
+            Pooled p = Take(LinePool, name, true);
+            p.T.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            LineRenderer lr = p.Line;
+            lr.sharedMaterial = mat;
+            lr.positionCount = points;
+            lr.startWidth = startWidth;
+            lr.endWidth = endWidth;
+            lr.numCapVertices = caps;
+            return p;
+        }
+
+        private static Light LightOn(Pooled p, Color color, float range, float intensity)
+        {
+            Light l = p.Light;
+            l.color = color;
+            l.range = range;
+            l.intensity = intensity;
+            l.enabled = true;
+            return l;
         }
 
         // ------------------------------------------------------------------ shared resources
@@ -151,11 +289,16 @@ namespace Arsenal.Visual
 
         private static Mesh StarMesh => _star != null ? _star : (_star = BuildStar());
 
+        /// <summary>
+        /// A flat colour. Keyed on the 8-bit colour (what reaches the screen anyway), so colours jittered per puff
+        /// share a few materials instead of each making its own.
+        /// </summary>
         public static Material Tint(Color c)
         {
-            c.a = 1f;
-            if (!Tints.TryGetValue(c, out Material m) || m == null)
-                Tints[c] = m = Assets.Tinted(c);
+            Color32 q = c;
+            int key = (q.r << 16) | (q.g << 8) | q.b;
+            if (!Tints.TryGetValue(key, out Material m) || m == null)
+                Tints[key] = m = Assets.Tinted(new Color32(q.r, q.g, q.b, 255));
             return m;
         }
 
@@ -218,50 +361,29 @@ namespace Arsenal.Visual
             return m;
         }
 
-        private static GameObject MeshObject(string name, Mesh mesh, Material mat, Vector3 pos, Quaternion rot, Vector3 scale)
-        {
-            var go = new GameObject(name);
-            go.transform.SetPositionAndRotation(pos, rot);
-            go.transform.localScale = scale;
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var r = go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = mat;
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            return go;
-        }
-
         // ------------------------------------------------------------------ effects
 
         public static void BulletTracer(Vector3 from, Vector3 to, float width = 0.025f, float speed = 320f)
         {
             if ((to - from).sqrMagnitude < 0.25f) return;
-            var go = new GameObject("Arsenal.Tracer");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = TracerMat;
-            lr.positionCount = 2;
-            lr.useWorldSpace = true;
             // discreet: thin, short and dim, a hint of the bullet's path rather than a laser
-            lr.startWidth = width * 0.7f;
-            lr.endWidth = width * 0.3f;
-            lr.numCapVertices = 1;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lr.SetPosition(0, from);
-            lr.SetPosition(1, from);
-            Instance._items.Add(new Tracer { Line = lr, From = from, To = to, Speed = speed * 1.2f, Length = Mathf.Min(4.5f, speed * 0.012f), Life = 3f });
+            Pooled p = LineObject("Arsenal.Tracer", TracerMat, 2, width * 0.7f, width * 0.3f, 1);
+            p.Line.SetPosition(0, from);
+            p.Line.SetPosition(1, from);
+            Instance._items.Add(new Tracer { P = p, Line = p.Line, From = from, To = to, Speed = speed * 1.2f, Length = Mathf.Min(4.5f, speed * 0.012f), Life = 3f });
         }
 
         public static void MuzzleFlash(Vector3 pos, Vector3 dir, float size, Transform follow = null)
         {
             Quaternion rot = Quaternion.LookRotation(dir) * Quaternion.Euler(0, 0, Random.Range(0f, 90f));
-            GameObject go = MeshObject("Arsenal.Flash", StarMesh, FlashMat, pos, rot, Vector3.one * size);
-            if (follow != null) go.transform.SetParent(follow, true);
-            Light l = go.AddComponent<Light>();
-            l.type = LightType.Point;
-            l.color = new Color(1f, 0.7f, 0.4f);
-            l.range = 4f * Mathf.Max(1f, size * 4f);
-            l.intensity = 3f;
-            l.shadows = LightShadows.None;
-            Instance._items.Add(new Body { T = go.transform, Life = 0.05f, BaseScale = go.transform.localScale, Light = l, LightIntensity = 3f });
+            Pooled p = MeshObject("Arsenal.Flash", StarMesh, FlashMat, pos, rot, Vector3.one * size);
+            if (follow != null)
+            {
+                p.T.SetParent(follow, true);
+                p.Parented = true;
+            }
+            Light l = LightOn(p, new Color(1f, 0.7f, 0.4f), 4f * Mathf.Max(1f, size * 4f), 3f);
+            Instance._items.Add(new Body { P = p, T = p.T, Life = 0.05f, BaseScale = p.T.localScale, Light = l, LightIntensity = 3f });
         }
 
         public static void Impact(Vector3 pos, Vector3 normal, ImpactKind kind, Color tint, float scale = 1f)
@@ -327,10 +449,11 @@ namespace Arsenal.Visual
             for (int i = 0; i < count; i++)
             {
                 Vector3 s = new Vector3(Random.Range(0.6f, 1.4f), Random.Range(0.3f, 0.8f), Random.Range(0.6f, 1.4f)) * size;
-                GameObject go = MeshObject("Arsenal.Chip", CubeMesh, m, pos, Random.rotation, s);
+                Pooled p = MeshObject("Arsenal.Chip", CubeMesh, m, pos, Random.rotation, s);
                 Instance._items.Add(new Body
                 {
-                    T = go.transform,
+                    P = p,
+                    T = p.T,
                     Velocity = (normal + Random.insideUnitSphere * 0.8f).normalized * speed * Random.Range(0.4f, 1.2f),
                     Spin = Random.insideUnitSphere * 720f,
                     Gravity = 9.81f,
@@ -348,11 +471,12 @@ namespace Arsenal.Visual
             for (int i = 0; i < count; i++)
             {
                 float r = radius * Random.Range(0.7f, 1.3f);
-                Vector3 p = pos + Random.insideUnitSphere * radius * 0.6f;
-                GameObject go = MeshObject("Arsenal.Puff", IcoMesh, m, p, Random.rotation, Vector3.one * 0.01f);
+                Vector3 at = pos + Random.insideUnitSphere * radius * 0.6f;
+                Pooled p = MeshObject("Arsenal.Puff", IcoMesh, m, at, Random.rotation, Vector3.one * 0.01f);
                 Instance._items.Add(new Body
                 {
-                    T = go.transform,
+                    P = p,
+                    T = p.T,
                     Velocity = drift + Random.insideUnitSphere * radius * 0.8f + Up * radius * 0.4f,
                     Spin = Random.insideUnitSphere * 40f,
                     Drag = 1.5f,
@@ -377,13 +501,10 @@ namespace Arsenal.Visual
 
             // flash and the light that cools down with the fireball
             GlowFlash(pos, new Color(1f, 0.93f, 0.75f), s * 1.6f, 0.12f, 0f, 0f, 22f);
-            var lightGo = new GameObject("Arsenal.BlastLight");
-            lightGo.transform.position = pos + up * radius * 0.3f;
-            Light l = lightGo.AddComponent<Light>();
-            l.type = LightType.Point;
-            l.range = radius * 12f;
-            l.shadows = LightShadows.None;
-            Instance._items.Add(new LightPulse { L = l, Life = 1.1f, Peak = 22f });
+            Pooled lp = MeshObject("Arsenal.BlastLight", IcoMesh, FireMat, pos + up * radius * 0.3f, Quaternion.identity, Vector3.one);
+            lp.Renderer.enabled = false;
+            Light l = LightOn(lp, new Color(1f, 0.92f, 0.8f), radius * 12f, 22f);
+            Instance._items.Add(new LightPulse { P = lp, L = l, Life = 1.1f, Peak = 22f });
 
             // fireball: blobs thrown out (mostly upwards), cooling as they go
             int blobs = Mathf.Clamp((int)(10 + radius * 3f), 10, 24);
@@ -399,13 +520,14 @@ namespace Arsenal.Visual
             for (int i = 0; i < trails; i++)
             {
                 Vector3 dir = (Random.onUnitSphere + up * 1.1f).normalized;
-                GameObject ember = MeshObject("Arsenal.Brand", IcoMesh, GlowMat(new Color(1f, 0.55f, 0.15f), 10f), pos, Random.rotation, Vector3.one * s * 0.12f);
+                Pooled ember = MeshObject("Arsenal.Brand", IcoMesh, GlowMat(new Color(1f, 0.55f, 0.15f), 10f), pos, Random.rotation, Vector3.one * s * 0.12f);
                 Instance._items.Add(new Trail
                 {
-                    T = ember.transform,
+                    P = ember,
+                    T = ember.T,
                     Velocity = dir * s * Random.Range(5f, 9f),
                     Life = Random.Range(0.9f, 1.6f),
-                    BaseScale = ember.transform.localScale,
+                    BaseScale = ember.T.localScale,
                     Size = s * 0.14f,
                 });
             }
@@ -437,12 +559,13 @@ namespace Arsenal.Visual
         private static void Blob(Material mat, Vector3 pos, Vector3 velocity, Vector3 lift, float size, float life, float delay, float drag, bool fire,
             Color from = default, Color to = default)
         {
-            GameObject go = MeshObject(fire ? "Arsenal.Fireball" : "Arsenal.Smoke", IcoMesh, mat, pos, Random.rotation, Vector3.one * 0.001f);
-            go.SetActive(delay <= 0f);
+            Pooled p = MeshObject(fire ? "Arsenal.Fireball" : "Arsenal.Smoke", IcoMesh, mat, pos, Random.rotation, Vector3.one * 0.001f);
+            if (delay > 0f) p.Go.SetActive(false);
             Instance._items.Add(new BlobItem
             {
-                T = go.transform,
-                R = go.GetComponent<MeshRenderer>(),
+                P = p,
+                T = p.T,
+                R = p.Renderer,
                 Velocity = velocity,
                 Lift = lift,
                 Drag = drag,
@@ -464,7 +587,7 @@ namespace Arsenal.Visual
             public float Drag, Size, Delay;
             public bool Fire;
             public Color From, To;
-            private MaterialPropertyBlock _block;
+            private static readonly MaterialPropertyBlock Block = new MaterialPropertyBlock();
 
             // white-hot core -> yellow -> orange -> deep red -> soot
             private static readonly Color[] Heat =
@@ -493,26 +616,23 @@ namespace Arsenal.Visual
                 float grow = Fire ? 1f - Mathf.Pow(1f - Mathf.Clamp01(k / 0.25f), 3f) : Mathf.Lerp(0.35f, 1f, 1f - Mathf.Pow(1f - k, 2.5f));
                 float shrink = Fire ? Mathf.Clamp01((1f - k) / 0.35f) : Mathf.Clamp01((1f - k) / 0.2f);
                 T.localScale = Vector3.one * (Size * 2f * grow * Mathf.Sqrt(shrink) + 0.001f);
-                if (_block == null) _block = new MaterialPropertyBlock();
-                R.GetPropertyBlock(_block);
+                Block.Clear();
                 if (Fire)
                 {
-                    _block.SetColor("_EmissionColor", Ramp(Heat, k));
+                    Block.SetColor(EmissionId, Ramp(Heat, k));
                     Color b = Color.Lerp(new Color(1f, 0.85f, 0.6f), new Color(0.12f, 0.1f, 0.09f), Mathf.Clamp01(k * 1.3f));
-                    _block.SetColor("_BaseColor", b);
-                    _block.SetColor("_Color", b);
+                    Block.SetColor(BaseColorId, b);
+                    Block.SetColor(ColorId, b);
                 }
                 else
                 {
                     Color c = Color.Lerp(From, To, Mathf.Clamp01(k * 1.4f));
-                    _block.SetColor("_Color", c);
-                    _block.SetColor("_BaseColor", c);
+                    Block.SetColor(ColorId, c);
+                    Block.SetColor(BaseColorId, c);
                 }
-                R.SetPropertyBlock(_block);
+                R.SetPropertyBlock(Block);
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(T.gameObject);
         }
 
         /// <summary>The blast's light: a hard white peak that cools to orange and dies.</summary>
@@ -529,8 +649,6 @@ namespace Arsenal.Visual
                 L.color = Color.Lerp(new Color(1f, 0.92f, 0.8f), new Color(1f, 0.42f, 0.12f), Mathf.Clamp01(k * 2.5f));
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(L.gameObject);
         }
 
         /// <summary>A burning chunk on a ballistic arc that leaves small smoke puffs behind it.</summary>
@@ -557,8 +675,6 @@ namespace Arsenal.Visual
                 }
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(T.gameObject);
         }
 
         // ------------------------------------------------------------------ camera shake
@@ -608,34 +724,19 @@ namespace Arsenal.Visual
         public static void ColoredTracer(Vector3 from, Vector3 to, float width, Color color, float speed, float length, float intensity = 6f)
         {
             if ((to - from).sqrMagnitude < 0.04f) return;
-            var go = new GameObject("Arsenal.Bolt");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = GlowMat(color, intensity);
-            lr.positionCount = 2;
-            lr.useWorldSpace = true;
-            lr.startWidth = width;
-            lr.endWidth = width;
-            lr.numCapVertices = 3;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lr.SetPosition(0, from);
-            lr.SetPosition(1, from);
-            Instance._items.Add(new Tracer { Line = lr, From = from, To = to, Speed = speed, Length = length, Life = 3f });
+            Pooled p = LineObject("Arsenal.Bolt", GlowMat(color, intensity), 2, width, width, 3);
+            p.Line.SetPosition(0, from);
+            p.Line.SetPosition(1, from);
+            Instance._items.Add(new Tracer { P = p, Line = p.Line, From = from, To = to, Speed = speed, Length = length, Life = 3f });
         }
 
         /// <summary>Straight line that fades out in place (rail shots).</summary>
         public static void Streak(Vector3 from, Vector3 to, float width, Color color, float life)
         {
-            var go = new GameObject("Arsenal.Streak");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = GlowMat(color, 8f);
-            lr.positionCount = 2;
-            lr.useWorldSpace = true;
-            lr.startWidth = width;
-            lr.endWidth = width;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lr.SetPosition(0, from);
-            lr.SetPosition(1, to);
-            Instance._items.Add(new Fade { Line = lr, Life = life, Width = width });
+            Pooled p = LineObject("Arsenal.Streak", GlowMat(color, 8f), 2, width, width, 0);
+            p.Line.SetPosition(0, from);
+            p.Line.SetPosition(1, to);
+            Instance._items.Add(new Fade { P = p, Line = p.Line, Life = life, Width = width });
         }
 
         private sealed class Fade : Item
@@ -650,30 +751,16 @@ namespace Arsenal.Visual
                 Line.startWidth = Line.endWidth = Width * k;
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(Line.gameObject);
         }
 
         /// <summary>A jagged electric arc between two points, re-jagged every frame while it lives.</summary>
         public static void ElectricArc(Vector3 from, Vector3 to, Color color, float life, float width = 0.03f)
         {
-            var go = new GameObject("Arsenal.Arc");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = GlowMat(color, 9f);
-            lr.positionCount = 10;
-            lr.useWorldSpace = true;
-            lr.startWidth = width;
-            lr.endWidth = width * 0.6f;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            var arc = new Arc { Line = lr, From = from, To = to, Life = life, Width = width };
+            Pooled p = LineObject("Arsenal.Arc", GlowMat(color, 9f), 10, width, width * 0.6f, 0);
+            var arc = new Arc { P = p, Line = p.Line, From = from, To = to, Life = life, Width = width };
             arc.Jag();
-            Light l = go.AddComponent<Light>();
-            l.type = LightType.Point;
-            l.color = color;
-            l.range = 3f;
-            l.intensity = 2f;
-            l.shadows = LightShadows.None;
-            go.transform.position = (from + to) * 0.5f;
+            p.T.position = (from + to) * 0.5f;
+            LightOn(p, color, 3f, 2f);
             Instance._items.Add(arc);
         }
 
@@ -703,18 +790,17 @@ namespace Arsenal.Visual
                 Line.startWidth = Width * (1f - Age / Life);
                 return Age < Life;
             }
-
-            public override void Kill() => Destroy(Line.gameObject);
         }
 
         /// <summary>A licking flame: a glowing blob that swells, rises and fades.</summary>
         public static void Flame(Vector3 pos, Vector3 drift, float size)
         {
             Material m = GlowMat(Random.value < 0.5f ? new Color(1f, 0.45f, 0.1f) : new Color(1f, 0.7f, 0.25f), 9f);
-            GameObject go = MeshObject("Arsenal.Flame", IcoMesh, m, pos, Random.rotation, Vector3.one * 0.01f);
+            Pooled p = MeshObject("Arsenal.Flame", IcoMesh, m, pos, Random.rotation, Vector3.one * 0.01f);
             Instance._items.Add(new Body
             {
-                T = go.transform,
+                P = p,
+                T = p.T,
                 Velocity = drift + Up * size * 2f + Random.insideUnitSphere * size,
                 Spin = Random.insideUnitSphere * 200f,
                 Drag = 2f,
@@ -724,10 +810,18 @@ namespace Arsenal.Visual
             });
         }
 
-        /// <summary>A glowing ball that follows a transform-less path (plasma, ion bolts) — the projectile code moves it.</summary>
+        /// <summary>
+        /// A glowing ball that follows a transform-less path (plasma, ion bolts, flares) — the caller moves it and
+        /// destroys it (with the components it adds), so it is not pooled.
+        /// </summary>
         public static GameObject Orb(Color color, float radius)
         {
-            GameObject go = MeshObject("Arsenal.Orb", IcoMesh, GlowMat(color, 10f), Vector3.zero, Quaternion.identity, Vector3.one * radius * 2f);
+            var go = new GameObject("Arsenal.Orb");
+            go.transform.localScale = Vector3.one * radius * 2f;
+            go.AddComponent<MeshFilter>().sharedMesh = IcoMesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = GlowMat(color, 10f);
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Light l = go.AddComponent<Light>();
             l.type = LightType.Point;
             l.color = color;
@@ -740,18 +834,9 @@ namespace Arsenal.Visual
         /// <summary>A glowing ball that swells and dies at once, with a light pulse (blaster muzzles and hits).</summary>
         public static void GlowFlash(Vector3 pos, Color color, float size, float life, float lightRange = 0f, float lightIntensity = 0f, float glow = 10f)
         {
-            GameObject go = MeshObject("Arsenal.GlowFlash", IcoMesh, GlowMat(color, glow), pos, Random.rotation, Vector3.one * 0.01f);
-            Light l = null;
-            if (lightRange > 0f)
-            {
-                l = go.AddComponent<Light>();
-                l.type = LightType.Point;
-                l.color = color;
-                l.range = lightRange;
-                l.intensity = lightIntensity;
-                l.shadows = LightShadows.None;
-            }
-            Instance._items.Add(new Body { T = go.transform, Life = life, BaseScale = Vector3.one * size, Puff = true, Spin = Random.insideUnitSphere * 300f, Light = l, LightIntensity = lightIntensity });
+            Pooled p = MeshObject("Arsenal.GlowFlash", IcoMesh, GlowMat(color, glow), pos, Random.rotation, Vector3.one * 0.01f);
+            Light l = lightRange > 0f ? LightOn(p, color, lightRange, lightIntensity) : null;
+            Instance._items.Add(new Body { P = p, T = p.T, Life = life, BaseScale = Vector3.one * size, Puff = true, Spin = Random.insideUnitSphere * 300f, Light = l, LightIntensity = lightIntensity });
         }
 
         /// <summary>Molten droplets: glowing chips thrown off a surface that fall and fade.</summary>
@@ -761,10 +846,11 @@ namespace Arsenal.Visual
             for (int i = 0; i < count; i++)
             {
                 Vector3 s = Vector3.one * size * Random.Range(0.6f, 1.4f);
-                GameObject go = MeshObject("Arsenal.Ember", CubeMesh, m, pos, Random.rotation, s);
+                Pooled p = MeshObject("Arsenal.Ember", CubeMesh, m, pos, Random.rotation, s);
                 Instance._items.Add(new Body
                 {
-                    T = go.transform,
+                    P = p,
+                    T = p.T,
                     Velocity = (normal + Random.insideUnitSphere * 0.9f).normalized * speed * Random.Range(0.4f, 1.2f),
                     Spin = Random.insideUnitSphere * 500f,
                     Gravity = 9.81f,
@@ -778,17 +864,10 @@ namespace Arsenal.Visual
         /// <summary>A continuous beam segment that lives one frame (the laser cannon redraws it every frame).</summary>
         public static void Beam(Vector3 from, Vector3 to, float width, Material mat, float life = 0.001f)
         {
-            var go = new GameObject("Arsenal.Beam");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = mat;
-            lr.positionCount = 2;
-            lr.useWorldSpace = true;
-            lr.startWidth = width;
-            lr.endWidth = width;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lr.SetPosition(0, from);
-            lr.SetPosition(1, to);
-            Instance._items.Add(new Body { T = go.transform, Life = life, BaseScale = Vector3.one });
+            Pooled p = LineObject("Arsenal.Beam", mat, 2, width, width, 0);
+            p.Line.SetPosition(0, from);
+            p.Line.SetPosition(1, to);
+            Instance._items.Add(new Body { P = p, T = p.T, Life = life, BaseScale = Vector3.one });
         }
     }
 }

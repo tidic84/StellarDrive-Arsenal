@@ -31,17 +31,27 @@ namespace Arsenal.Ui
         private static readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>();
         private static TMP_FontAsset _title, _body;
 
+        private static readonly Dictionary<string, float> Missing = new Dictionary<string, float>(); // name -> when to look again
+
         public static void ClearCache()
         {
             Sprites.Clear();
+            Missing.Clear();
             _title = _body = null;
         }
 
         public static Sprite Sprite(string name)
         {
             if (Sprites.TryGetValue(name, out Sprite s) && s != null) return s;
+            // a sprite the game does not have (yet): scanning every sprite again on each call is costly, so wait a bit
+            if (Missing.TryGetValue(name, out float retry) && Time.unscaledTime < retry) return null;
             s = Resources.FindObjectsOfTypeAll<Sprite>().FirstOrDefault(x => x != null && x.name == name);
-            Sprites[name] = s;
+            if (s != null)
+            {
+                Sprites[name] = s;
+                Missing.Remove(name);
+            }
+            else Missing[name] = Time.unscaledTime + 2f;
             return s;
         }
 

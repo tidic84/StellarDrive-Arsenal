@@ -209,6 +209,16 @@ namespace Arsenal.Weapons
             GUI.matrix = m;
         }
 
+        private static GUIStyle _jamStyle, _killStyle;
+
+        /// <summary>A bold centred label, made once and resized with the screen.</summary>
+        private static GUIStyle Label(ref GUIStyle style, int size)
+        {
+            if (style == null) style = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            style.fontSize = size;
+            return style;
+        }
+
         private void OnGUI()
         {
             if (!ArsenalMod.InGame || Event.current.type != EventType.Repaint) return;
@@ -236,7 +246,7 @@ namespace Arsenal.Weapons
                     GUI.DrawTexture(new Rect(0, y, Screen.width, Random.Range(1f, 4f) * s), Px);
                 }
                 GUI.color = new Color(0.55f, 0.75f, 1f, 0.9f);
-                var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(16 * s), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                GUIStyle style = Label(ref _jamStyle, Mathf.RoundToInt(16 * s));
                 GUI.Label(new Rect(c.x - 200 * s, c.y + 60 * s, 400 * s, 30 * s), Loc.T($"ÉQUIPEMENT BROUILLÉ  {Effects.LocalJamLeft:0.0}s", $"GEAR JAMMED  {Effects.LocalJamLeft:0.0}s"), style);
             }
 
@@ -290,7 +300,7 @@ namespace Arsenal.Weapons
             {
                 float a = Mathf.Clamp01(1.6f - killAge);
                 GUI.color = new Color(1f, 0.35f, 0.25f, a);
-                var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(15 * s), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                GUIStyle style = Label(ref _killStyle, Mathf.RoundToInt(15 * s));
                 GUI.Label(new Rect(c.x - 250 * s, c.y + 34 * s, 500 * s, 26 * s), Loc.T("ÉLIMINÉ : ", "ELIMINATED: ") + _killName, style);
             }
             GUI.color = Color.white;

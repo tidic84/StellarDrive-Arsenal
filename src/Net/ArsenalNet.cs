@@ -25,7 +25,7 @@ namespace Arsenal.Net
         PlayerHit = 3,
         FxRelay = 4,
         ExplosionRequest = 5,
-        GunnerInput = 6,
+        // 6 was the gunner seat's fire buttons
         GiveItem = 7,
         PlaceCharge = 8,
         DetonateCharges = 9,
@@ -64,6 +64,7 @@ namespace Arsenal.Net
         LockWarn = 79,
         FlareSpawn = 80,
         Decoy = 81,
+        PanelStates = 82,
     }
 
     /// <summary>Registers the broadcast with whichever NetworkManager is running and routes packets by opcode.</summary>

@@ -243,7 +243,9 @@ namespace Arsenal.Visual
                 {
                     sound = Create(core, synth(), loop);
                     Cache[key] = sound;
+                    _created = true;
                 }
+                if (_prewarming) return default;
                 ResolveGroup(core);
                 core.playSound(sound, _group, true, out FMOD.Channel ch);
                 var p = new FMOD.VECTOR { x = pos.x, y = pos.y, z = pos.z };
@@ -298,6 +300,63 @@ namespace Arsenal.Visual
         {
             _groupResolved = false;
             _group = default;
+        }
+
+        private static bool _prewarming, _created, _prewarmed;
+
+        /// <summary>
+        /// Synthesises every sound ahead of time, one per frame, so the first shot or the first blast of a session
+        /// does not stall the game while its sound is computed. Nothing is played.
+        /// </summary>
+        public static System.Collections.IEnumerator Prewarm()
+        {
+            if (_prewarmed) yield break;
+            _prewarmed = true;
+            Vector3 p = Vector3.zero;
+            var steps = new List<Action>();
+            foreach (SoundStyle s in Enum.GetValues(typeof(SoundStyle)))
+            {
+                steps.Add(() => Shot(s, p));
+                steps.Add(() => Loop(s, p));
+            }
+            // the sounds that come in several takes: enough rolls to meet every take
+            for (int i = 0; i < 12; i++)
+            {
+                steps.Add(() => Shot(SoundStyle.Laser, p));
+                steps.Add(() => Blaster(p));
+                steps.Add(() => HandBlaster(p));
+                steps.Add(() => BlasterHit(p));
+            }
+            steps.Add(() => HitTick(true, false));
+            steps.Add(() => HitTick(false, false));
+            steps.Add(Hurt);
+            steps.Add(() => Zapped(p));
+            steps.Add(() => Explosion(p, 4f));
+            steps.Add(() => DryFire(p));
+            steps.Add(() => Reload(p));
+            steps.Add(() => Throw(p));
+            steps.Add(() => Bounce(p));
+            steps.Add(() => Beep(p));
+            steps.Add(() => LockTone(p, true));
+            steps.Add(() => LockTone(p, false));
+            foreach (WarningTone t in Enum.GetValues(typeof(WarningTone)))
+            {
+                steps.Add(() => Warning(t, false));
+                steps.Add(() => Warning(t, true));
+            }
+            steps.Add(() => FlarePop(p));
+            steps.Add(() => MissileLaunch(p));
+            steps.Add(() => ShieldHit(p));
+            steps.Add(() => LaserLoop(p));
+            foreach (Action step in steps)
+            {
+                _prewarming = true;
+                _created = false;
+                try { step(); }
+                catch (Exception ex) { ArsenalMod.Log.Warning($"Sound prewarm failed: {ex.Message}"); }
+                finally { _prewarming = false; }
+                if (_created) yield return null; // spread the synthesis over frames
+            }
         }
 
         private static FMOD.Sound Create(FMOD.System core, float[] samples, bool loop)

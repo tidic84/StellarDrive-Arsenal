@@ -25,20 +25,20 @@ namespace Arsenal.Content
 {
     /// <summary>
     /// The ship parts of the mod. Each one is a copy of a native part (so sockets, cables, interactions,
-    /// saving and network sync all come from the game), with our model and a few extra sockets:
-    /// - gunner seat = advanced pilot seat + 3 fire outputs (sockets 6, 7, 8)
+    /// saving and network sync all come from the game), with our model:
     /// - weapons = signal display (one signal input, its value synced to everyone) with a weapon model
     /// - armory = storage chest that comes stocked with the hand weapons
     /// </summary>
     internal static class ShipContent
     {
-        public const ushort GunnerSeatId = 9201, MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
+        public const ushort MachineGunId = 9210, MissilePodId = 9211, LaserCannonId = 9212, ArmoryId = 9220;
+        /// <summary>The gunner seat of older versions: saves holding one get the game's advanced pilot seat instead.</summary>
+        public const ushort LegacyGunnerSeatId = 9201, AdvancedPilotSeatId = 29;
         public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217, RocketPodId = 9218, SamBatteryId = 9219;
         public const ushort FlareDispenserId = 9221, HyperLauncherId = 9222, LaserGreenId = 9223, LaserBlueId = 9224;
         public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId, LaserGreenId, LaserBlueId };
         public static bool IsLaser(ushort settingsId) => settingsId == LaserCannonId || settingsId == LaserGreenId || settingsId == LaserBlueId;
         public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
-        public static readonly byte[] FireSockets = { 6, 7, 8 };
         private const float SocketZ = -0.37f; // weapons' signal input, at the back of the base
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
@@ -75,11 +75,10 @@ namespace Arsenal.Content
             try
             {
                 var all = Resources.FindObjectsOfTypeAll<PartSettings>().Where(p => p.id < 9000).GroupBy(p => p.id).ToDictionary(g => g.Key, g => g.First());
-                if (!all.TryGetValue(29, out PartSettings seat) || !all.TryGetValue(82, out PartSettings display) || !all.TryGetValue(30, out PartSettings chest))
+                if (!all.TryGetValue(82, out PartSettings display) || !all.TryGetValue(30, out PartSettings chest))
                     return;
                 ItemSettings[] items = ItemList();
                 Parts.Clear();
-                Parts[GunnerSeatId] = BuildGunnerSeat(seat, items);
                 foreach (ushort w in WeaponIds) Parts[w] = BuildWeapon(display, w, items);
                 Parts[ArmoryId] = BuildArmory(chest, items);
                 ArsenalMod.Log.Msg($"Registered {Parts.Count} ship parts.");
@@ -125,32 +124,6 @@ namespace Arsenal.Content
             GameObject go = Object.Instantiate(source, Assets.TemplateRoot);
             go.name = name;
             return go;
-        }
-
-        // ------------------------------------------------------------------ gunner seat
-
-        private static PartSettings BuildGunnerSeat(PartSettings seat, ItemSettings[] items)
-        {
-            PartSettings p = Clone(seat, GunnerSeatId, "Poste de tir", "Gunner seat",
-                "Siège de pilotage avancé avec trois sorties de tir : clic gauche (Tir 1), clic droit (Tir 2), clic molette (Tir 3). Reliez-les aux armes avec des câbles de signal.",
-                "Advanced pilot seat with three fire outputs: left click (Fire 1), right click (Fire 2), middle click (Fire 3). Wire them to weapons with signal cables.",
-                28f, items, (101, 10), (112, 4));
-            GameObject prefab = ClonePrefab(seat.part, "GunnerSeat");
-            Transform template = prefab.GetComponentsInChildren<SocketObject>(true).OrderBy(s => s.Id).Last().transform;
-            float[] zs = { -0.25f, 0f, 0.25f };
-            for (int i = 0; i < FireSockets.Length; i++)
-            {
-                Transform s = Object.Instantiate(template.gameObject, prefab.transform).transform;
-                s.name = "FireSocket" + (i + 1);
-                s.localPosition = new Vector3(-0.5f, 0.45f, zs[i]);
-                s.localEulerAngles = new Vector3(0, 90f, 0);
-                Traverse.Create(s.GetComponent<SocketObject>()).Field("id").SetValue(FireSockets[i]);
-            }
-            Transform visuals = prefab.transform.Find("Visuals") ?? prefab.transform;
-            GameObject console = PartModels.GunnerConsole();
-            console.transform.SetParent(visuals, false);
-            p.part = prefab;
-            return p;
         }
 
         // ------------------------------------------------------------------ weapons
@@ -338,7 +311,7 @@ namespace Arsenal.Content
                 icon = tabs.Last().icon,
                 rows = new[]
                 {
-                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[GunnerSeatId], Parts[ArmoryId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[ArmoryId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[MachineGunId], Parts[MissilePodId], Parts[LaserCannonId], Parts[PdcId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId], Parts[FlareDispenserId], Parts[HyperLauncherId] } },
@@ -358,7 +331,7 @@ namespace Arsenal.Content
                 ResearchSettings controls = list.GetResearchSettingById(12) ?? list.list.First();
                 ItemSettings[] items = ItemList();
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
-                    new[] { Parts[GunnerSeatId], Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
+                    new[] { Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
                     new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[LaserGreenId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId] }, items, (101, 30), (112, 15), (103, 2));
                 ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },

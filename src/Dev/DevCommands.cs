@@ -207,6 +207,26 @@ namespace Arsenal
                     Weapons.Explosives.RequestExplosion(bp, a.Length > 4 ? (Weapons.WeaponKind)byte.Parse(a[4]) : Weapons.WeaponKind.Grenade);
                     break;
                 }
+                case "shipparts":
+                    // shipparts <shipId>: its parts as the server has them, and the cables plugged into it
+                    if (Svc.ShipsServer.TryGetTrackedShip(uint.Parse(a[1]), out TrackedShipServer sps))
+                        foreach (var sp in sps.StatefulParts)
+                            LoggerInstance.Msg($"[DEV] ship {a[1]} part {sp.Id} settings {sp.Settings?.id} {sp.Settings?.name}");
+                    foreach (var c in Svc.Get<Ships.Cables.CablesServerTracker>().Cables)
+                        LoggerInstance.Msg($"[DEV] cable {c.Id}: {c.State.PlugA} -> {c.State.PlugB}");
+                    break;
+                case "fps":
+                    // fps <seconds>: average and worst frame over that time, and how many effects are alive
+                    MelonLoader.MelonCoroutines.Start(MeasureFps(float.Parse(a[1], CultureInfo.InvariantCulture)));
+                    break;
+                case "rmship":
+                {
+                    // rmship: removes the test wall ship (its damage must go with it)
+                    if (Svc.ShipsServer.TryGetTrackedShip(_testShipId, out TrackedShipServer rs)) Svc.ShipsServer.RemoveShip(rs.State);
+                    int left = Damage.HullDamage.ServerStates.Keys.Count(k => k.ShipId == _testShipId);
+                    LoggerInstance.Msg($"[DEV] removed ship {_testShipId}: {left} damaged panels left for it");
+                    break;
+                }
                 case "noknock":
                     Damage.ShipKnockback.DevNoKnock = !Damage.ShipKnockback.DevNoKnock;
                     break;
@@ -506,9 +526,6 @@ namespace Arsenal
                     SpawnWallAt(ph.SpaceId, ph.Position + ph.Rotation * new Vector3(0f, -0.3f, dist), ph.Rotation);
                     break;
                 }
-                case "gun":
-                    Vehicles.GunnerSeat.DevSetButtons(new PartContext(_gunshipId, 1), byte.Parse(a[1]));
-                    break;
                 case "parts":
                     foreach (var mnt in Vehicles.ShipWeapons.Mounts)
                         LoggerInstance.Msg($"[DEV] mount {mnt.Ctx} kind {mnt.Kind} heat {mnt.Heat:F2} missiles {mnt.Missiles} lock {mnt.LockedTarget} visual {(mnt.Visual != null)}");
@@ -663,7 +680,7 @@ namespace Arsenal
                     hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
             var parts = heavy ? new[]
             {
-                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
+                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.AdvancedPilotSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
                 new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.PlasmaCannonId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
                 new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.RailgunId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 3.2f), PartOrientation.Forward)),
                 new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.TorpedoId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
@@ -675,7 +692,7 @@ namespace Arsenal
                 new StatefulPart(10, settings.GetPartSettingById(Content.ShipContent.HyperLauncherId), new FloatingPartPlacement(new Vector3(0f, -0.46f, -1.6f), PartOrientation.Forward)),
             } : new[]
             {
-                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.GunnerSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
+                new StatefulPart(1, settings.GetPartSettingById(Content.ShipContent.AdvancedPilotSeatId), new FloatingPartPlacement(new Vector3(0, -0.46f, 0), PartOrientation.Forward)),
                 new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.MachineGunId), new FloatingPartPlacement(new Vector3(-1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
                 new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.MissilePodId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 3.2f), PartOrientation.Forward)),
                 new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.LaserCannonId), new FloatingPartPlacement(new Vector3(1.5f, -0.46f, 2.5f), PartOrientation.Forward)),
@@ -704,16 +721,22 @@ namespace Arsenal
             };
             Svc.ShipsServer.LoadShip(snap);
             _gunshipId = id;
-            var cables = Svc.Get<Ships.Cables.CablesServerTracker>();
-            (ushort part, byte seatSocket)[] wires = { (2, 6), (3, 7), (4, 8) };
-            foreach (var (part, seatSocket) in wires)
-                cables.AddCable(new CableState
-                {
-                    Type = CableType.Signal,
-                    PlugA = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, 1, seatSocket) },
-                    PlugB = new CablePlugSocket { EntityPartSocket = new EntityPartSocket(id, part, 0) },
-                });
             LoggerInstance.Msg($"[DEV] gunship {id}");
+        }
+
+        private System.Collections.IEnumerator MeasureFps(float secs)
+        {
+            float start = Time.realtimeSinceStartup, worst = 0f;
+            int frames = 0, maxFx = 0;
+            while (Time.realtimeSinceStartup - start < secs)
+            {
+                yield return null;
+                frames++;
+                worst = Mathf.Max(worst, Time.unscaledDeltaTime);
+                maxFx = Mathf.Max(maxFx, Visual.Fx.DevAlive);
+            }
+            float avg = (Time.realtimeSinceStartup - start) / Mathf.Max(1, frames);
+            LoggerInstance.Msg($"[DEV] fps avg {1f / avg:0} ({avg * 1000f:0.0} ms), worst frame {worst * 1000f:0.0} ms, effects alive max {maxFx}, pooled {Visual.Fx.DevPooled}, GC {System.GC.CollectionCount(0)}");
         }
 
         private System.Collections.IEnumerator LogShipVel(float secs)

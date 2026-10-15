@@ -46,6 +46,7 @@ namespace Arsenal.Damage
             foreach (Mesh m in MeshCache.Values)
                 if (m != null) Object.Destroy(m);
             MeshCache.Clear();
+            LastUsed.Clear();
         }
 
         private static void ChunkPrefix(ShipHullVisualChunk __instance)
@@ -119,19 +120,52 @@ namespace Arsenal.Damage
 
         public static Mesh GetMesh(HoleMask holes, HullMeshSegmentType type)
         {
-            if (MeshCache.TryGetValue((type, holes), out Mesh m) && m != null) return m;
-            if (MeshCache.Count > 512) ClearMeshCacheOnly();
+            var key = (type, holes);
+            if (MeshCache.TryGetValue(key, out Mesh m) && m != null)
+            {
+                LastUsed[key] = Time.frameCount;
+                return m;
+            }
+            if (MeshCache.Count >= MaxCached) Evict();
             m = BuildMesh(holes, SegmentShapes.Get(type));
-            MeshCache[(type, holes)] = m;
+            MeshCache[key] = m;
+            LastUsed[key] = Time.frameCount;
             return m;
         }
 
-        private static void ClearMeshCacheOnly()
+        private const int MaxCached = 512;
+        private static readonly Dictionary<(HullMeshSegmentType, HoleMask), int> LastUsed = new Dictionary<(HullMeshSegmentType, HoleMask), int>();
+        private static readonly List<(HullMeshSegmentType, HoleMask)> EvictBuffer = new List<(HullMeshSegmentType, HoleMask)>();
+
+        /// <summary>
+        /// Makes room in the cache: first the meshes of hole sets no panel shows any more (a panel goes through many
+        /// states while it is shot at), then the least recently used, so a full cache never forces every panel to rebuild.
+        /// </summary>
+        private static void Evict()
         {
-            foreach (Mesh old in MeshCache.Values)
-                if (old != null) Object.Destroy(old);
-            MeshCache.Clear();
+            var live = new HashSet<HoleMask>(HullDamage.ClientMasks);
+            EvictBuffer.Clear();
+            foreach (var key in MeshCache.Keys)
+                if (!live.Contains(key.Item2)) EvictBuffer.Add(key);
+            if (MeshCache.Count - EvictBuffer.Count >= MaxCached * 3 / 4)
+            {
+                var rest = new List<(HullMeshSegmentType, HoleMask)>();
+                foreach (var key in MeshCache.Keys)
+                    if (live.Contains(key.Item2)) rest.Add(key);
+                rest.Sort((a, b) => Used(a).CompareTo(Used(b)));
+                int drop = MeshCache.Count - EvictBuffer.Count - MaxCached / 2;
+                for (int i = 0; i < drop && i < rest.Count; i++) EvictBuffer.Add(rest[i]);
+            }
+            foreach (var key in EvictBuffer)
+            {
+                if (MeshCache.TryGetValue(key, out Mesh old) && old != null) Object.Destroy(old);
+                MeshCache.Remove(key);
+                LastUsed.Remove(key);
+            }
+            EvictBuffer.Clear();
         }
+
+        private static int Used((HullMeshSegmentType, HoleMask) key) => LastUsed.TryGetValue(key, out int f) ? f : 0;
 
         /// <summary>
         /// A hull piece with round holes, any shape: marching squares over the signed distance to "solid"
@@ -151,15 +185,38 @@ namespace Arsenal.Damage
             float zf = shape.ZCenter + shape.HalfThickness, zb = shape.ZCenter - shape.HalfThickness;
             float Solid(Vector2 p) => Mathf.Min(shape.Inside(p), holes.Distance(p.x, p.y));
 
+            // The field is the outline's distance, lowered by each hole only around that hole: further out a hole
+            // cannot change the sign of a grid point nor a crossing between two of them, so the result is the same
+            // as testing every point against every hole, for a fraction of the work.
             var f = new float[nx + 1, ny + 1];
             for (int j = 0; j <= ny; j++)
                 for (int i = 0; i <= nx; i++)
+                    f[i, j] = shape.Inside(new Vector2(b.xMin + i * csx, b.yMin + j * csy));
+            float margin = 3f * Mathf.Max(csx, csy);
+            for (int h = 0; h < holes.Count; h++)
+            {
+                (float hx, float hy, float hr) = holes[h];
+                float reach = hr + margin;
+                int i0 = Mathf.Max(0, Mathf.FloorToInt((hx - reach - b.xMin) / csx)), i1 = Mathf.Min(nx, Mathf.CeilToInt((hx + reach - b.xMin) / csx));
+                int j0 = Mathf.Max(0, Mathf.FloorToInt((hy - reach - b.yMin) / csy)), j1 = Mathf.Min(ny, Mathf.CeilToInt((hy + reach - b.yMin) / csy));
+                for (int j = j0; j <= j1; j++)
                 {
-                    float d = Solid(new Vector2(b.xMin + i * csx, b.yMin + j * csy));
-                    f[i, j] = Mathf.Abs(d) < 0.00001f ? -0.00001f : d; // exactly on an edge counts as outside
+                    float dy = b.yMin + j * csy - hy;
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        float dx = b.xMin + i * csx - hx;
+                        float d = Mathf.Sqrt(dx * dx + dy * dy) - hr;
+                        if (d < f[i, j]) f[i, j] = d;
+                    }
                 }
+            }
+            for (int j = 0; j <= ny; j++)
+                for (int i = 0; i <= nx; i++)
+                    if (Mathf.Abs(f[i, j]) < 0.00001f) f[i, j] = -0.00001f; // exactly on an edge counts as outside
 
             var poly = new List<(Vector2 p, bool edge)>(8);
+            var corner = new Vector2[4];
+            var val = new float[4];
             for (int j = 0; j < ny; j++)
             {
                 int runStart = -1;
@@ -182,8 +239,8 @@ namespace Arsenal.Damage
                     float a = f[i, j], bb = f[i + 1, j], c = f[i + 1, j + 1], dd = f[i, j + 1];
                     if (a <= 0f && bb <= 0f && c <= 0f && dd <= 0f) continue;
                     Vector2 p0 = new Vector2(b.xMin + i * csx, b.yMin + j * csy);
-                    Vector2[] corner = { p0, p0 + new Vector2(csx, 0), p0 + new Vector2(csx, csy), p0 + new Vector2(0, csy) };
-                    float[] val = { a, bb, c, dd };
+                    corner[0] = p0; corner[1] = p0 + new Vector2(csx, 0); corner[2] = p0 + new Vector2(csx, csy); corner[3] = p0 + new Vector2(0, csy);
+                    val[0] = a; val[1] = bb; val[2] = c; val[3] = dd;
                     poly.Clear();
                     for (int k = 0; k < 4; k++)
                     {

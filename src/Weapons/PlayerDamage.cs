@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using Arsenal.Core;
 using Arsenal.Net;
 using FishNet.Connection;
@@ -67,12 +68,37 @@ namespace Arsenal.Weapons
             return null;
         }
 
-        public static float Health(TrackedPlayerServer p) => Traverse.Create(p).Property("NetworkState").Property("Health").GetValue<float>();
+        // the game keeps these private: looked up once, then read directly (burns and flames hit several times a second)
+        private static PropertyInfo _netState, _health, _name, _owner;
+        private static FieldInfo _updater;
+        private static MethodInfo _collisionDamage;
 
-        public static string Name(TrackedPlayerServer p) => Traverse.Create(p).Property("NetworkState").Property("PlayerName").GetValue<string>() ?? "?";
+        private static T StateValue<T>(TrackedPlayerServer p, ref PropertyInfo prop, string name)
+        {
+            if (_netState == null) _netState = AccessTools.Property(typeof(TrackedPlayerServer), "NetworkState");
+            object st = _netState?.GetValue(p);
+            if (st == null) return default;
+            if (prop == null) prop = AccessTools.Property(st.GetType(), name);
+            return prop != null && prop.GetValue(st) is T v ? v : default;
+        }
 
-        public static NetworkConnection Connection(TrackedPlayerServer p) =>
-            Traverse.Create(p).Property("NetworkState").Property("Owner").GetValue<NetworkConnection>();
+        public static float Health(TrackedPlayerServer p) => StateValue<float>(p, ref _health, "Health");
+
+        public static string Name(TrackedPlayerServer p) => StateValue<string>(p, ref _name, "PlayerName") ?? "?";
+
+        public static NetworkConnection Connection(TrackedPlayerServer p) => StateValue<NetworkConnection>(p, ref _owner, "Owner");
+
+        /// <summary>Hurts the player through the game's own collision damage (regeneration and death stay native).</summary>
+        private static bool CollisionDamage(TrackedPlayerServer p, float damage)
+        {
+            if (_updater == null) _updater = AccessTools.Field(typeof(TrackedPlayerServer), "_statusUpdater");
+            object updater = _updater?.GetValue(p);
+            if (updater == null) return false;
+            if (_collisionDamage == null) _collisionDamage = AccessTools.Method(updater.GetType(), "OnCollisionDamage", new[] { typeof(float) });
+            if (_collisionDamage == null) return false;
+            _collisionDamage.Invoke(updater, new object[] { damage });
+            return true;
+        }
 
         public static TrackedPlayerServer FromConnection(NetworkConnection conn) =>
             conn == null ? null : Svc.PlayersServer?.GetTrackedPlayerFromConnectionId(conn.ClientId);
@@ -87,9 +113,7 @@ namespace Arsenal.Weapons
             if (p == null || p.IsCheatFlying || damage <= 0f) return;
             float before = Health(p);
             if (before <= 0f) return;
-            object updater = Traverse.Create(p).Field("_statusUpdater").GetValue();
-            if (updater == null) return;
-            Traverse.Create(updater).Method("OnCollisionDamage", damage).GetValue();
+            if (!CollisionDamage(p, damage)) return;
             float after = Health(p);
 
             NetworkConnection victim = Connection(p);

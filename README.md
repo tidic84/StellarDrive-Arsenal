@@ -97,9 +97,10 @@ Weapons hurt other players (headshots × 1.6). Hits are tested against the playe
 
 ## Ship weapons
 
-New tab **Arsenal** in the build menu, unlocked by three new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*), **Heavy weaponry** and **Advanced weaponry**.
+New tab **Arsenal** in the build menu, unlocked by three new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*), **Heavy weaponry** and **Advanced weaponry**. Every ship weapon has one signal input: wire it with a signal cable to any of the game's signal sources, as with its other signals.
 
-- **Gunner seat**: an advanced pilot seat with three more signal outputs that follow the pilot's buttons: *Fire 1* (left click), *Fire 2* (right click), *Fire 3* (middle click). Wire them with signal cables to the weapons — or to any logic, as with the game's other signals.
+Worlds saved with an older version that had the gunner seat load with the game's advanced pilot seat in its place (the cables that were plugged into its fire outputs are removed).
+
 - **Heavy machine gun**: twin barrels, fires while its input signal is on, armour-piercing rounds.
 - **Air-to-air missile pod**: locks the nearest ship in front of it, fires a homing missile on each signal pulse, 4 missiles that reload by themselves, proximity fuse.
 - **Laser cannons**: fire thin starfighter-style blaster bolts (white-hot core, coloured glow, lighting up whatever they pass) with the films' "pew" sound. Each bolt melts into the hull, damages the machinery near where it lands, pushes the ship it hits and burns players; they overheat after a long burst. Three colours:
@@ -123,7 +124,7 @@ While you pilot, the HUD shows one reticle where your fixed weapons converge, ho
 
 ![Ship weapons](docs/models_parts.jpg)
 ![Gunship](docs/gunship.jpg)
-![Gunner seat HUD with a missile lock](docs/gunner_seat_hud.jpg)
+![Pilot HUD with a missile lock](docs/gunner_seat_hud.jpg)
 ![Missile hit](docs/missile_hit.jpg)
 ![Laser cannon](docs/laser.jpg)
 ![Build menu](docs/build_menu.jpg)
@@ -148,9 +149,6 @@ Targeting computers are cleared when the beacon they aim at is destroyed or its 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `SoundVolume` | `1` | Weapon sound volume (0 = silent) |
-| `GunnerFire1` | `<Mouse>/leftButton` | Input path for *Fire 1* in the gunner seat |
-| `GunnerFire2` | `<Mouse>/rightButton` | Input path for *Fire 2* |
-| `GunnerFire3` | `<Mouse>/middleButton` | Input path for *Fire 3* |
 
 ## Building
 
@@ -175,7 +173,7 @@ Mods/Arsenal.dll
 ## Publishing to Stellar Mod Manager
 
 1. Push this folder to a GitHub repo named `StellarDrive-Arsenal` (branch `main`), keeping `Mods/mod.json` and `Mods/Thumbnail.png`.
-2. Create a release tagged `v1.10.3` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
+2. Create a release tagged `v1.11.0` (must match `version` in `mod.json`) and attach `StellarDrive-Arsenal.zip`.
 3. Open a PR on [jollyname/StellarModRepository](https://github.com/jollyname/StellarModRepository) adding to `mods.json`:
 
 ```json

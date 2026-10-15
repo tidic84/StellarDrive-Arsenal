@@ -22,7 +22,7 @@ namespace Arsenal.Vehicles
         private const float SeekerCone = 55f;  // degrees either side of the missile's nose
 
         public static readonly List<FlareSim> Active = new List<FlareSim>();
-        private static readonly Dictionary<uint, FlareSim> ByKey = new Dictionary<uint, FlareSim>();
+        private static readonly Dictionary<ulong, FlareSim> ByKey = new Dictionary<ulong, FlareSim>();
         private static uint _nextId = 1;
 
         public static void Init()
@@ -120,12 +120,12 @@ namespace Arsenal.Vehicles
         /// Seeker check, run by the missile's owner every frame: each hot flare in view gets one roll.
         /// Returns the flare that pulled the missile off, or null.
         /// </summary>
-        public static FlareSim Seduce(Vector3 pos, Vector3 fwd, float chance, HashSet<uint> seen)
+        public static FlareSim Seduce(Vector3 pos, Vector3 fwd, float chance, HashSet<ulong> seen)
         {
             foreach (FlareSim f in Active)
             {
                 if (f == null || f.Age > HotTime) continue;
-                uint key = Projectiles.Key(f.OwnerClient, f.Id);
+                ulong key = Projectiles.Key(f.OwnerClient, f.Id);
                 if (seen.Contains(key)) continue;
                 Vector3 to = f.transform.position - pos;
                 float d = to.magnitude;

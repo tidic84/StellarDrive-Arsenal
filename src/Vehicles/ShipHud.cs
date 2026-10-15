@@ -49,7 +49,7 @@ namespace Arsenal.Vehicles
         private void OnGUI()
         {
             if (!ArsenalMod.InGame || Event.current.type != EventType.Repaint) return;
-            if (!GunnerSeat.TryGetPilotedRoot(out uint root)) return;
+            if (!Pilot.TryGetPilotedRoot(out uint root)) return;
             Camera cam = Camera.main;
             if (cam == null) return;
             if (_label == null)

@@ -30,7 +30,10 @@ namespace Arsenal.Vehicles
         internal sealed class Mount
         {
             public PartContext Ctx;
+            public uint ShipId;
             public ushort Kind;
+            public float NextScan;        // next target search (missile pod, torpedo, hyper launcher, SAM aim)
+            public uint Aim;              // SAM battery: aircraft the launcher turns to while nothing is being locked
             public float NextShot;
             public int Barrel;
             public int Missiles = 4;
@@ -80,6 +83,7 @@ namespace Arsenal.Vehicles
         private readonly Dictionary<PartContext, Mount> _mounts = new Dictionary<PartContext, Mount>();
         private readonly List<ImpactFx> _impacts = new List<ImpactFx>();
         private static Material _beamMat;
+        private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
 
         public static IEnumerable<Mount> Mounts => _instance != null ? _instance._mounts.Values : Enumerable.Empty<Mount>();
 
@@ -102,21 +106,61 @@ namespace Arsenal.Vehicles
             _beamMat = null;
         }
 
+        /// <summary>Ids of the weapon parts of a ship, re-read from all its parts every half second.</summary>
+        private sealed class WeaponList
+        {
+            public readonly List<ushort> Ids = new List<ushort>();
+            public float RescanAt;
+            public int SeenFrame;
+        }
+
+        private const float WeaponRescan = 0.5f;
+        private const float TargetScanEvery = 0.15f;
+
+        private readonly List<TrackedShipClient> _ships = new List<TrackedShipClient>();
+        private readonly Dictionary<uint, WeaponList> _weaponParts = new Dictionary<uint, WeaponList>();
+        private readonly HashSet<uint> _outOfReach = new HashSet<uint>();
+        private readonly List<PartContext> _gone = new List<PartContext>();
+        private readonly List<uint> _goneShips = new List<uint>();
+
+        private List<ushort> WeaponParts(TrackedShipClient ship, int frame)
+        {
+            if (!_weaponParts.TryGetValue(ship.Id, out WeaponList w)) _weaponParts[ship.Id] = w = new WeaponList();
+            w.SeenFrame = frame;
+            if (Time.time >= w.RescanAt)
+            {
+                w.RescanAt = Time.time + WeaponRescan;
+                w.Ids.Clear();
+                foreach (StatefulPart part in ship.StatefulParts)
+                    if (part.Settings != null && ShipContent.IsWeapon(part.Settings.id)) w.Ids.Add(part.Id);
+            }
+            return w.Ids;
+        }
+
         private void Update()
         {
             if (!ArsenalMod.InGame || Svc.ShipsClient == null) return;
-            GunnerSeat.ClientUpdate();
             int frame = Time.frameCount;
-            foreach (TrackedShipClient ship in Svc.ShipsClient.Ships.ToList())
+            _ships.Clear();
+            _ships.AddRange(Svc.ShipsClient.Ships);
+            _outOfReach.Clear();
+            foreach (TrackedShipClient ship in _ships)
             {
-                if (!ship.IsRigidbodyLoaded) continue;
-                bool? owner = null;
-                foreach (StatefulPart part in ship.StatefulParts)
+                if (!ship.IsRigidbodyLoaded)
                 {
-                    if (part.Settings == null || !ShipContent.IsWeapon(part.Settings.id)) continue;
+                    _outOfReach.Add(ship.Id);
+                    continue;
+                }
+                bool? owner = null;
+                foreach (ushort partId in WeaponParts(ship, frame))
+                {
+                    if (!ship.TryGetStatefulPart(partId, out StatefulPart part) || part.Settings == null || !ShipContent.IsWeapon(part.Settings.id)) continue;
                     var ctx = new PartContext(ship.Id, part.Id);
-                    if (!_mounts.TryGetValue(ctx, out Mount m))
-                        _mounts[ctx] = m = new Mount { Ctx = ctx, Kind = part.Settings.id };
+                    if (!_mounts.TryGetValue(ctx, out Mount m) || m.Kind != part.Settings.id)
+                    {
+                        if (m != null) StopBeam(m); // another weapon took that part id
+                        _mounts[ctx] = m = new Mount { Ctx = ctx, ShipId = ship.Id, Kind = part.Settings.id };
+                    }
                     m.SeenFrame = frame;
                     double signal = part.State is SignalDisplayState s ? s.SignalValue : 0.0;
                     bool on = (signal > 0.5 || DevForced(part.Id)) && !Effects.IsShipEmp(ship.Id);
@@ -149,12 +193,36 @@ namespace Arsenal.Vehicles
                     m.LastSignal = on;
                 }
             }
-            foreach (PartContext gone in _mounts.Where(kv => kv.Value.SeenFrame != frame).Select(kv => kv.Key).ToList())
+            // weapons of a ship gone out of reach (far away, its body unloaded) keep their ammo and reload state for
+            // when it comes back, only falling silent; the others are gone for good
+            _gone.Clear();
+            foreach (KeyValuePair<PartContext, Mount> kv in _mounts)
             {
-                StopBeam(_mounts[gone]);
-                _mounts.Remove(gone);
+                if (kv.Value.SeenFrame == frame) continue;
+                StopBeam(kv.Value);
+                if (!_outOfReach.Contains(kv.Value.ShipId)) _gone.Add(kv.Key);
+            }
+            foreach (PartContext gone in _gone) _mounts.Remove(gone);
+            _goneShips.Clear();
+            foreach (KeyValuePair<uint, WeaponList> kv in _weaponParts)
+                if (kv.Value.SeenFrame != frame && !_outOfReach.Contains(kv.Key)) _goneShips.Add(kv.Key);
+            foreach (KeyValuePair<uint, SyncedPose> kv in LastSynced)
+                if (!Svc.ShipsClient.TryGetTrackedShip(kv.Key, out _)) _goneShips.Add(kv.Key);
+            foreach (uint id in _goneShips)
+            {
+                _weaponParts.Remove(id);
+                LastSynced.Remove(id);
+            }
+            if (Claimed.Count > 0)
+            {
+                _spentThreats.Clear();
+                foreach (KeyValuePair<IThreat, float> kv in Claimed)
+                    if (Time.time >= kv.Value || (kv.Key is Object o && o == null)) _spentThreats.Add(kv.Key);
+                foreach (IThreat t in _spentThreats) Claimed.Remove(t);
             }
         }
+
+        private readonly List<IThreat> _spentThreats = new List<IThreat>();
 
         // ------------------------------------------------------------------ helpers
 
@@ -165,7 +233,7 @@ namespace Arsenal.Vehicles
         public static bool IsOwner(TrackedShipClient ship)
         {
             uint root = RootOf(ship.Id);
-            if (GunnerSeat.TryGetPilotedRoot(out uint mine) && mine == root) return true;
+            if (Pilot.TryGetPilotedRoot(out uint mine) && mine == root) return true;
             foreach (TrackedPlayerOtherClient other in Svc.PlayersClient.OtherPlayers)
             {
                 PlayerState st = other.State;
@@ -175,7 +243,7 @@ namespace Arsenal.Vehicles
         }
 
         /// <summary>The local player is at the controls of this ship.</summary>
-        public static bool PilotedByMe(TrackedShipClient ship) => GunnerSeat.TryGetPilotedRoot(out uint r) && r == RootOf(ship.Id);
+        public static bool PilotedByMe(TrackedShipClient ship) => Pilot.TryGetPilotedRoot(out uint r) && r == RootOf(ship.Id);
 
         /// <summary>Physics-space pose of a point of the part (from the ship rigidbody, same space as the raycasts).</summary>
         public static Vector3 PartPoint(TrackedShipClient ship, StatefulPart part, Vector3 local) =>
@@ -294,7 +362,8 @@ namespace Arsenal.Vehicles
 
             Vector3 fwd = PartForward(ship, part);
             Vector3 center = PartPoint(ship, part, new Vector3(0, 0.33f, 0.4f));
-            m.LockedTarget = owner ? FindTarget(ship, center, fwd) : 0;
+            if (!owner) m.LockedTarget = 0;
+            else if (Scan(m)) m.LockedTarget = FindTarget(ship, center, fwd);
             if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, center);
             if (!owner || !on || m.LastSignal) return; // fires on the rising edge of the signal
             if (m.Missiles <= 0 || Time.time < m.NextShot) return;
@@ -305,6 +374,17 @@ namespace Arsenal.Vehicles
             Rigidbody body = RootBody(ship);
             Vector3 vel = (body != null ? body.velocity : Vector3.zero) + fwd * 30f;
             Missiles.Launch(from, vel, m.LockedTarget, RootOf(ship.Id), true, 0);
+        }
+
+        /// <summary>
+        /// Time for this mount to look for a target again? The search casts sight lines at every ship in its cone, so
+        /// it runs a few times a second rather than every frame; the target found is kept in between.
+        /// </summary>
+        private static bool Scan(Mount m)
+        {
+            if (Time.time < m.NextScan) return false;
+            m.NextScan = Time.time + TargetScanEvery;
+            return true;
         }
 
         /// <summary>Nearest visible ship inside a cone in front of the launcher (missile pod: 25 degrees, 1.5 km).</summary>
@@ -432,17 +512,18 @@ namespace Arsenal.Vehicles
             if (!on || !ValidThreat(m.Tracking, root, basePos, up)) m.Tracking = null;
             if (on && m.Tracking == null)
             {
-                float best = float.MaxValue;
+                // nearest first, and the sight line only for those: a salvo of rockets is many threats at once
+                PdcCandidates.Clear();
                 foreach (IThreat t in Projectiles.Threats)
-                {
-                    if (!ValidThreat(t, root, basePos, up)) continue;
-                    float d = (t.Position - basePos).sqrMagnitude;
-                    if (d < best)
+                    if (InReach(t, root, basePos, up, out float d)) PdcCandidates.Add((d, t));
+                PdcCandidates.Sort(ByDistance);
+                foreach ((float _, IThreat t) in PdcCandidates)
+                    if (ClearLine(basePos, t.Position, root, 0))
                     {
-                        best = d;
                         m.Tracking = t;
+                        break;
                     }
-                }
+                PdcCandidates.Clear();
             }
 
             Vector3 aimDir = PartForward(ship, part);
@@ -479,8 +560,16 @@ namespace Arsenal.Vehicles
             }
         }
 
-        private static bool ValidThreat(IThreat t, uint myRoot, Vector3 basePos, Vector3 up)
+        private static readonly List<(float dist, IThreat threat)> PdcCandidates = new List<(float, IThreat)>();
+        private static readonly System.Comparison<(float dist, IThreat threat)> ByDistance = (a, b) => a.dist.CompareTo(b.dist);
+
+        private static bool ValidThreat(IThreat t, uint myRoot, Vector3 basePos, Vector3 up) =>
+            InReach(t, myRoot, basePos, up, out _) && ClearLine(basePos, t.Position, myRoot, 0);
+
+        /// <summary>Everything but the sight line: alive, not ours, not already shot down, in range above the mount.</summary>
+        private static bool InReach(IThreat t, uint myRoot, Vector3 basePos, Vector3 up, out float d)
         {
+            d = 0f;
             if (t == null || (t is Object o && o == null)) return false;
             if (t.ShooterRoot == myRoot && !DevPdcSelf) return false;
             if (Claimed.TryGetValue(t, out float until))
@@ -489,9 +578,8 @@ namespace Arsenal.Vehicles
                 Claimed.Remove(t);
             }
             Vector3 to = t.Position - basePos;
-            float d = to.magnitude;
-            return d > (DevPdcSelf ? 25f : 2f) && d < PdcRange && Vector3.Dot(to / d, up) > -0.2f // the hull is in the way below the mount
-                   && ClearLine(basePos, t.Position, myRoot, 0);
+            d = to.magnitude;
+            return d > (DevPdcSelf ? 25f : 2f) && d < PdcRange && Vector3.Dot(to / d, up) > -0.2f; // the hull is in the way below the mount
         }
 
         /// <summary>Turns the turret head and gun towards a world direction. True once the gun points there.</summary>
@@ -521,7 +609,7 @@ namespace Arsenal.Vehicles
             if (m.Lens != null)
             {
                 Color c = kind == ProjectileKind.Plasma ? new Color(1f, 0.5f, 0.15f) : new Color(0.4f, 0.65f, 1f);
-                m.Lens.material.SetColor("_EmissionColor", c * (owner ? 1f + ready * 5f : 3f));
+                m.Lens.material.SetColor(EmissionId, c * (owner ? 1f + ready * 5f : 3f));
             }
             if (!owner || !on || Time.time < m.NextShot) return;
             m.NextShot = Time.time + interval;
@@ -545,7 +633,7 @@ namespace Arsenal.Vehicles
             if (m.Lens != null)
             {
                 float reload = Time.time < m.NextShot ? 0.15f : 1f;
-                m.Lens.material.SetColor("_EmissionColor", new Color(0.5f, 0.85f, 1f) * (1f + m.Charge * 10f) * reload);
+                m.Lens.material.SetColor(EmissionId, new Color(0.5f, 0.85f, 1f) * (1f + m.Charge * 10f) * reload);
             }
             Vector3 origin = PartPoint(ship, part, new Vector3(0, 0.27f, 0.8f));
             if (charging && !m.ChargeLoop.hasHandle()) m.ChargeLoop = Sounds.Loop(SoundStyle.Charge, origin);
@@ -590,7 +678,8 @@ namespace Arsenal.Vehicles
 
             Vector3 fwd = PartForward(ship, part);
             Vector3 from = PartPoint(ship, part, new Vector3(0, 0.38f, 0.9f));
-            m.LockedTarget = owner ? FindTarget(ship, from, fwd) : 0;
+            if (!owner) m.LockedTarget = 0;
+            else if (Scan(m)) m.LockedTarget = FindTarget(ship, from, fwd);
             if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, from);
             if (!owner || !on || m.LastSignal || m.Missiles <= 0) return;
             m.Missiles = 0;
@@ -621,11 +710,12 @@ namespace Arsenal.Vehicles
                 for (int i = 0; i < m.Points.Length; i++)
                     if (m.Points[i] != null) m.Points[i].gameObject.SetActive(!owner || i < m.Missiles);
             if (m.Lens != null)
-                m.Lens.material.SetColor("_EmissionColor", new Color(0.4f, 0.75f, 1f) * (m.LockedTarget != 0 ? 3f + Mathf.PingPong(Time.time * 16f, 6f) : 1.5f));
+                m.Lens.material.SetColor(EmissionId, new Color(0.4f, 0.75f, 1f) * (m.LockedTarget != 0 ? 3f + Mathf.PingPong(Time.time * 16f, 6f) : 1.5f));
 
             Vector3 fwd = PartForward(ship, part);
             Vector3 center = PartPoint(ship, part, new Vector3(0, 0.345f, 0.7f));
-            m.LockedTarget = owner ? FindFarTarget(ship, center, fwd, 30f, 8000f) : 0;
+            if (!owner) m.LockedTarget = 0;
+            else if (Scan(m)) m.LockedTarget = FindFarTarget(ship, center, fwd, 30f, 8000f);
             if (owner && (on || PilotedByMe(ship))) ThreatWarning.ReportLock(m.LockedTarget, true, center);
             if (!owner || !on || m.LastSignal || m.Missiles <= 0 || Time.time < m.NextShot) return; // rising edge of the signal
             m.NextShot = Time.time + 0.4f;
@@ -718,7 +808,9 @@ namespace Arsenal.Vehicles
             Vector3 basePos = PartPoint(ship, part, new Vector3(0, 0.32f, 0));
             Vector3 up = ship.ShipRigidBody.transform.TransformDirection(part.LocalRotation * Vector3.up);
             Vector3 aimDir = PartForward(ship, part);
-            uint target = powered ? (m.Lock.Candidate != 0 ? m.Lock.Candidate : NearestAircraft(root, basePos, up)) : 0;
+            if (!powered) m.Aim = 0;
+            else if (m.Lock.Candidate == 0 && Scan(m)) m.Aim = NearestAircraft(root, basePos, up);
+            uint target = powered ? (m.Lock.Candidate != 0 ? m.Lock.Candidate : m.Aim) : 0;
             if (target != 0 && Svc.ShipsClient.TryGetTrackedShip(target, out TrackedShipClient t) && t.IsRigidbodyLoaded)
             {
                 Vector3 to = TargetPoint(t) - basePos;
@@ -727,9 +819,9 @@ namespace Arsenal.Vehicles
             AimHead(m, aimDir, dt * 0.6f);
             Vector3 gunFwd = m.Pitch != null ? m.Pitch.forward : aimDir;
 
-            if (powered && owner) m.Lock.Update(basePos, gunFwd, root, dt, GunnerSeat.TryGetPilotedRoot(out uint piloted) && piloted == root);
+            if (powered && owner) m.Lock.Update(basePos, gunFwd, root, dt, Pilot.TryGetPilotedRoot(out uint piloted) && piloted == root);
             else m.Lock.Clear();
-            if (owner && GunnerSeat.TryGetPilotedRoot(out uint me) && me == root) LockHud.Show(m.Lock);
+            if (owner && Pilot.TryGetPilotedRoot(out uint me) && me == root) LockHud.Show(m.Lock);
 
             if (!owner || !on || m.Lock.Locked == 0 || m.Missiles <= 0 || Time.time < m.NextShot) return;
             int tube = Mathf.Clamp(4 - m.Missiles, 0, 3);
@@ -775,7 +867,7 @@ namespace Arsenal.Vehicles
                 }
             }
             if (m.Lens != null)
-                m.Lens.material.SetColor("_EmissionColor", new Color(1f, 0.55f, 0.2f) * (m.FlaresLeft > 0 ? 9f : m.Missiles > 0 ? 2.5f : 0.4f));
+                m.Lens.material.SetColor(EmissionId, new Color(1f, 0.55f, 0.2f) * (m.FlaresLeft > 0 ? 9f : m.Missiles > 0 ? 2.5f : 0.4f));
             if (!owner) return;
 
             // a salvo goes out in pairs, one from each bank
@@ -811,12 +903,13 @@ namespace Arsenal.Vehicles
         {
             Vector3 p = TargetPoint(s);
             Vector3 down = -Fx.Up;
-            var hits = new RaycastHit[8];
-            int n = ClientScene.PhysicsScene.Raycast(p, down, hits, 5f, Ballistics.Mask, QueryTriggerInteraction.Ignore);
+            int n = ClientScene.PhysicsScene.Raycast(p, down, AirHits, 5f, Ballistics.Mask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
-                if (!IsOwnShip(hits[i], s.Id)) return false; // ground, or something it rests on
+                if (!IsOwnShip(AirHits[i], s.Id)) return false; // ground, or something it rests on
             return true;
         }
+
+        private static readonly RaycastHit[] AirHits = new RaycastHit[8];
 
         /// <summary>Closest other ship assembly above the mount, within SAM range.</summary>
         private static uint NearestAircraft(uint myRoot, Vector3 from, Vector3 up)
@@ -849,7 +942,7 @@ namespace Arsenal.Vehicles
             // the lens flares at each shot and settles back
             m.Charge = Mathf.Max(0f, m.Charge - dt * 8f);
             if (m.Lens != null)
-                m.Lens.material.SetColor("_EmissionColor", Color.Lerp(s.Lens, new Color(1f, 0.55f, 0.2f), m.Heat) * (2f + m.Charge * 14f));
+                m.Lens.material.SetColor(EmissionId, Color.Lerp(s.Lens, new Color(1f, 0.55f, 0.2f), m.Heat) * (2f + m.Charge * 14f));
 
             if (!firing || Time.time < m.NextShot) return;
             m.NextShot = Mathf.Max(m.NextShot + s.Interval, Time.time - 0.05f);

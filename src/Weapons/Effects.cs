@@ -36,6 +36,7 @@ namespace Arsenal.Weapons
         private static readonly Dictionary<uint, float> ClientBurning = new Dictionary<uint, float>();
         private static float _localJamUntil;
         private static float _nextVisual;
+        private static readonly List<Ships.Interface.Model.Parts.StatefulPart> PartsBuffer = new List<Ships.Interface.Model.Parts.StatefulPart>();
 
         private const float BurnDamagePerSecond = 9f;
 
@@ -91,11 +92,28 @@ namespace Arsenal.Weapons
             if (conn != null) ArsenalNet.SendTo(conn, Op.EffectState, w => WriteState(w, EffectType.Jammed, playerId, seconds));
         }
 
+        private static readonly List<uint> Expired = new List<uint>();
+        private static readonly List<KeyValuePair<uint, Burn>> Ticking = new List<KeyValuePair<uint, Burn>>();
+
+        /// <summary>Drops the entries whose time is up, so the "nothing going on" shortcuts work again.</summary>
+        private static void Purge(Dictionary<uint, float> until)
+        {
+            if (until.Count == 0) return;
+            Expired.Clear();
+            foreach (KeyValuePair<uint, float> kv in until)
+                if (Time.time >= kv.Value) Expired.Add(kv.Key);
+            foreach (uint id in Expired) until.Remove(id);
+        }
+
         /// <summary>Server tick: burning players take their damage.</summary>
         public static void ServerUpdate()
         {
-            if (!ArsenalNet.IsServer || Burns.Count == 0) return;
-            foreach (KeyValuePair<uint, Burn> kv in Burns.ToList())
+            if (!ArsenalNet.IsServer) return;
+            Purge(ShipEmp);
+            if (Burns.Count == 0) return;
+            Ticking.Clear();
+            Ticking.AddRange(Burns); // damage can reach back into Burns (a death clears effects)
+            foreach (KeyValuePair<uint, Burn> kv in Ticking)
             {
                 if (Time.time >= kv.Value.Until)
                 {
@@ -175,14 +193,16 @@ namespace Arsenal.Weapons
         {
             if (Time.time < _nextVisual) return;
             _nextVisual = Time.time + 0.12f;
+            Purge(ClientShipEmp);
+            Purge(ClientBurning);
             if (Svc.ShipsClient != null)
                 foreach (KeyValuePair<uint, float> kv in ClientShipEmp)
                 {
-                    if (Time.time >= kv.Value) continue;
                     if (!Svc.ShipsClient.TryGetTrackedShip(kv.Key, out TrackedShipClient ship) || !ship.IsRigidbodyLoaded) continue;
-                    var parts = ship.StatefulParts.ToList();
-                    if (parts.Count == 0) continue;
-                    var part = parts[Random.Range(0, parts.Count)];
+                    PartsBuffer.Clear();
+                    PartsBuffer.AddRange(ship.StatefulParts);
+                    if (PartsBuffer.Count == 0) continue;
+                    var part = PartsBuffer[Random.Range(0, PartsBuffer.Count)];
                     Vector3 p = ship.ShipRigidBody.transform.TransformPoint(part.LocalPosition + Random.insideUnitSphere * 0.4f);
                     Fx.ElectricArc(p, p + Random.onUnitSphere * Random.Range(0.4f, 1.2f), new Color(0.4f, 0.65f, 1f), 0.15f);
                     Fx.EmitSparks(p, Random.onUnitSphere, 4);

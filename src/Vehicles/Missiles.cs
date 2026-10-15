@@ -22,7 +22,7 @@ namespace Arsenal.Vehicles
             Kind = WeaponKind.ShipMissile, Radius = 4.5f, Power = 1300f, PlayerDamage = 130f,
         };
 
-        private static readonly Dictionary<uint, MissileSim> Flying = new Dictionary<uint, MissileSim>();
+        private static readonly Dictionary<ulong, MissileSim> Flying = new Dictionary<ulong, MissileSim>();
         private static uint _nextId = 1;
         private static Mesh _mesh;
 
@@ -45,7 +45,7 @@ namespace Arsenal.Vehicles
             {
                 int owner = r.ReadInt32();
                 uint id = r.ReadUInt32();
-                uint key = Key(owner, id);
+                ulong key = Key(owner, id);
                 if (Flying.TryGetValue(key, out MissileSim sim) && sim != null) Object.Destroy(sim.gameObject);
                 Flying.Remove(key);
             });
@@ -58,7 +58,7 @@ namespace Arsenal.Vehicles
             Flying.Clear();
         }
 
-        private static uint Key(int owner, uint id) => (uint)(owner * 100000) + id;
+        private static ulong Key(int owner, uint id) => Projectiles.Key(owner, id);
 
         public static void Launch(Vector3 from, Vector3 velocity, uint target, uint shooterRoot, bool owner, uint remoteId, int remoteOwner = -1)
         {
@@ -146,7 +146,7 @@ namespace Arsenal.Vehicles
         private const float DecoyChance = 0.35f;
 
         public FlareSim Decoy;
-        private readonly HashSet<uint> _seenFlares = new HashSet<uint>();
+        private readonly HashSet<ulong> _seenFlares = new HashSet<ulong>();
 
         public void SetDecoy(FlareSim flare)
         {

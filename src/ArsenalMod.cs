@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.10.3", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.11.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 10;
+        internal const int ProtocolVersion = 11;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -37,7 +37,7 @@ namespace Arsenal
 
             HoleVisuals.Patch(HarmonyInstance);
             ShipContent.Patch(HarmonyInstance);
-            GunnerSeat.Patch(HarmonyInstance);
+            LegacyParts.Patch(HarmonyInstance);
             ShipKnockback.Patch(HarmonyInstance);
             HarmonyInstance.Patch(AccessTools.Method(typeof(ShipState), nameof(ShipState.RemoveHullPart)),
                 postfix: new HarmonyMethod(typeof(ArsenalMod), nameof(OnHullPartRemoved)));
@@ -53,7 +53,6 @@ namespace Arsenal
             Effects.Init(HarmonyInstance);
             CombatHud.Init();
             Armory.Armory.Init();
-            GunnerSeat.Init(prefs);
             DamageSaves.Init(HarmonyInstance);
             TargetCleanup.Patch(HarmonyInstance);
             Compat.ForceFields.Init();
@@ -80,7 +79,6 @@ namespace Arsenal
             Flares.Reset();
             ThreatWarning.Reset();
             Effects.Reset();
-            GunnerSeat.Reset();
             Compat.ForceFields.Reset();
             ShipWeapons.ResetAll();
             CombatHud.Reset();
@@ -96,6 +94,7 @@ namespace Arsenal
                 LockHud.Ensure();
                 ThreatWarning.Ensure();
                 Armory.ArmoryUi.Ensure();
+                MelonCoroutines.Start(Sounds.Prewarm());
                 _ = Compat.ForceFields.Present; // logs whether the TF Advanced force fields are there
             }
 #if DEV
@@ -124,6 +123,11 @@ namespace Arsenal
 #if DEV
             DevUpdate();
 #endif
+        }
+
+        public override void OnLateUpdate()
+        {
+            if (ArsenalNet.IsServer) HullDamage.FlushServer();
         }
 
         private static void OnHullPartRemoved(ShipState __instance, HullPartPosition hullPartPos)

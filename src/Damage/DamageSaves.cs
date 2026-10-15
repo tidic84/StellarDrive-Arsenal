@@ -59,27 +59,39 @@ namespace Arsenal.Damage
                 string dir = string.IsNullOrEmpty(world) ? null : Path.GetDirectoryName(world);
                 string path = dir == null ? null : Path.Combine(dir, FileName);
                 var states = new List<KeyValuePair<PanelKey, PanelState>>();
+                int bad = 0;
                 if (path != null && File.Exists(path))
                 {
                     foreach (string line in File.ReadAllLines(path))
                     {
                         if (line.StartsWith("#") || string.IsNullOrWhiteSpace(line)) continue;
-                        string[] p = line.Split(' ');
-                        if (p.Length < 7) continue;
-                        var key = new PanelKey(uint.Parse(p[0]), new HullPartPosition(new Vector3Int(int.Parse(p[1]), int.Parse(p[2]), int.Parse(p[3])), (VoxelPartType)int.Parse(p[4])));
-                        var st = new PanelState
+                        // one damaged line costs that panel only, not the damage of the whole world
+                        try
                         {
-                            Health = float.Parse(p[5], CultureInfo.InvariantCulture),
-                            // v1 lines hold four 64-bit cell masks, v2 lines one list of round holes
-                            Holes = p.Length >= 10
-                                ? HoleMask.FromLegacyCells(ulong.Parse(p[6]), ulong.Parse(p[7]), ulong.Parse(p[8]), ulong.Parse(p[9]))
-                                : HoleMask.FromSaveString(p[6]),
-                        };
-                        states.Add(new KeyValuePair<PanelKey, PanelState>(key, st));
+                            string[] p = line.Split(' ');
+                            if (p.Length < 7) { bad++; continue; }
+                            var key = new PanelKey(uint.Parse(p[0], CultureInfo.InvariantCulture),
+                                new HullPartPosition(new Vector3Int(int.Parse(p[1], CultureInfo.InvariantCulture), int.Parse(p[2], CultureInfo.InvariantCulture), int.Parse(p[3], CultureInfo.InvariantCulture)),
+                                    (VoxelPartType)int.Parse(p[4], CultureInfo.InvariantCulture)));
+                            var st = new PanelState
+                            {
+                                Health = float.Parse(p[5], CultureInfo.InvariantCulture),
+                                // v1 lines hold four 64-bit cell masks, v2 lines one list of round holes
+                                Holes = p.Length >= 10
+                                    ? HoleMask.FromLegacyCells(ulong.Parse(p[6], CultureInfo.InvariantCulture), ulong.Parse(p[7], CultureInfo.InvariantCulture), ulong.Parse(p[8], CultureInfo.InvariantCulture), ulong.Parse(p[9], CultureInfo.InvariantCulture))
+                                    : HoleMask.FromSaveString(p[6]),
+                            };
+                            states.Add(new KeyValuePair<PanelKey, PanelState>(key, st));
+                        }
+                        catch (Exception)
+                        {
+                            bad++;
+                        }
                     }
                 }
                 HullDamage.LoadServerStates(states);
                 if (states.Count > 0) ArsenalMod.Log.Msg($"Loaded damage of {states.Count} hull panels.");
+                if (bad > 0) ArsenalMod.Log.Warning($"Skipped {bad} unreadable line(s) in {FileName}.");
             }
             catch (Exception ex)
             {

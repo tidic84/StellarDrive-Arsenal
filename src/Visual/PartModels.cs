@@ -504,21 +504,6 @@ namespace Arsenal.Visual
             return k.Build("Arsenal.SamDome");
         }
 
-        /// <summary>Fire-control console bolted to the right of the advanced pilot seat, with three coloured triggers.</summary>
-        public static GameObject GunnerConsole()
-        {
-            var k = new MeshKit();
-            k.Bevel(new Vector3(-0.43f, 0.35f, 0.0f), new Vector3(0.14f, 0.7f, 0.5f), 0.03f, Shade.HatchDark, Shade.Dark);
-            k.Box(new Vector3(-0.43f, 0.71f, 0.0f), new Vector3(0.16f, 0.03f, 0.52f), Shade.Light);
-            k.Box(new Vector3(-0.43f, 0.735f, -0.15f), new Vector3(0.05f, 0.02f, 0.05f), Shade.Red);
-            k.Box(new Vector3(-0.43f, 0.735f, 0.0f), new Vector3(0.05f, 0.02f, 0.05f), Shade.Yellow);
-            k.Box(new Vector3(-0.43f, 0.735f, 0.15f), new Vector3(0.05f, 0.02f, 0.05f), Shade.Blue);
-            k.Box(new Vector3(-0.501f, 0.45f, 0.0f), new Vector3(0.004f, 0.08f, 0.4f), Shade.Orange);
-            var root = new GameObject("GunnerConsoleModel");
-            WeaponModels.MeshChild(root.transform, "Body", k.Build("Arsenal.GunnerConsole"), Assets.ToolAtlas);
-            return root;
-        }
-
         /// <summary>Weapon rack shown on top of the armory chest.</summary>
         public static GameObject ArmoryRack()
         {
