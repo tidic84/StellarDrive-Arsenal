@@ -193,7 +193,7 @@ namespace Arsenal.Content
                     p = Clone(display, id, "Tube lance-torpilles « Leviathan »", "\"Leviathan\" torpedo tube",
                         "Verrouille un vaisseau et lance une torpille lente à tête lourde qui le poursuit. Énorme explosion. Une torpille, rechargement en 15 s.",
                         "Locks a ship and launches a slow heavy torpedo that chases it. Huge blast. One torpedo, reloads in 15 s.",
-                        140f, items, (101, 30), (112, 12), (103, 4), (100, 4));
+                        140f, items, (101, 30), (112, 12), (103, 4), (110, 6));
                     model = PartModels.TorpedoTube();
                     boundsCenter = new Vector3(0, 0.3f, 0.05f);
                     boundsSize = new Vector3(0.6f, 0.6f, 1.0f);
@@ -202,7 +202,7 @@ namespace Arsenal.Content
                     p = Clone(display, id, "Lance-roquettes « Grêle »", "\"Hail\" rocket pod",
                         "Tire une salve de 9 roquettes non guidées tant que le signal est actif. Grosse explosion à l'impact, qui repousse les vaisseaux touchés. Rechargement complet en 12 s.",
                         "Fires a salvo of 9 unguided rockets while the signal is on. Big blast on impact that knocks ships off course. Full reload in 12 s.",
-                        95f, items, (101, 22), (112, 8), (100, 4));
+                        95f, items, (101, 22), (112, 8), (110, 6));
                     model = PartModels.RocketPod();
                     boundsCenter = new Vector3(0, 0.28f, 0.03f);
                     boundsSize = new Vector3(0.6f, 0.56f, 0.8f);
@@ -229,7 +229,7 @@ namespace Arsenal.Content
                     p = Clone(display, id, "Lance-leurres « Nuée »", "\"Swarm\" flare dispenser",
                         "Éjecte une salve de 6 leurres thermiques à chaque impulsion de signal (une salve toutes les 1,5 s si le signal reste actif). Les missiles guidés qui les voient peuvent se détourner du vaisseau. 4 salves, rechargement automatique.",
                         "Throws a salvo of 6 heat flares on each signal pulse (one salvo every 1.5 s while the signal stays on). Guided missiles that see them may turn away from the ship. 4 salvos, reloads by itself.",
-                        45f, items, (101, 10), (112, 6), (100, 3));
+                        45f, items, (101, 10), (112, 6), (110, 4));
                     model = PartModels.FlareDispenser();
                     boundsCenter = new Vector3(0, 0.18f, 0f);
                     boundsSize = new Vector3(0.56f, 0.38f, 0.5f);
