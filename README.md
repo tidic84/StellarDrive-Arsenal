@@ -97,7 +97,7 @@ Weapons hurt other players (headshots × 1.6). Hits are tested against the playe
 
 ## Ship weapons
 
-New tab **Arsenal** in the build menu, unlocked by three new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*), **Heavy weaponry** and **Advanced weaponry**. Every ship weapon has one signal input: wire it with a signal cable to any of the game's signal sources, as with its other signals.
+New tab **Arsenal** in the build menu, unlocked by four new technologies in the research tree: **Weaponry** (after *Powered Ship Controls*), **Heavy weaponry**, **Advanced weaponry** and **Capital ship batteries** (the big turrets, see below). Every ship weapon has one signal input: wire it with a signal cable to any of the game's signal sources, as with its other signals.
 
 Worlds saved with an older version that had the gunner seat load with the game's advanced pilot seat in its place (the cables that were plugged into its fire outputs are removed).
 
@@ -131,6 +131,36 @@ While you pilot, the HUD shows one reticle where your fixed weapons converge, ho
 ![Plasma, railgun, torpedo and ion cannon](docs/heavy_ship.jpg)
 ![Ship railgun](docs/ship_railgun.jpg)
 ![Point defence shooting a torpedo](docs/point_defence.jpg)
+
+## Rotating turrets and the fire-control station
+
+Big capital-ship guns in the films' spirit. Each one has a fixed armoured base, a head that turns all the way round and a cradle that raises the guns; the barrels kick back when they fire. Their bolts are heavier, longer and carry much further than the fixed cannons', fired with a cannon's report: the turbolaser "tchoww" over a crack, a sub-bass kick and a rumble rolling away, bigger the bigger the gun, and heavy bolts land with a deep blast.
+
+| Turret | Bolts | Rate | Range | Traverse | Research |
+| --- | --- | --- | --- | --- | --- |
+| **"Corsair" quad laser** | 4 red barrels firing in diagonal pairs | fast | 900 m | quick | Heavy weaponry |
+| **"Imperator" twin turbolaser** | big green bolts, the two barrels take turns; breach the hull and wreck machinery | 1 every 0.55 s | 1.6 km | slow | Capital ship batteries |
+| **"Tempest" ion turret** | twin blue ion bolts together: little damage, but the ship hit loses its controls for 6 s | 1 every 1.3 s | 1.2 km | medium | Capital ship batteries |
+| **"Colossus" heavy turbolaser** | one huge red bolt that **explodes** on impact and shoves the ship | 1 every 2.6 s | 2.2 km | very slow | Capital ship batteries |
+| **"Annihilator" triple battery** (5 m × 5 m) | three giant barrels fire a staggered salvo of colossal green bolts that **explode** on impact | 1 salvo every 4.5 s | 3.2 km | extremely slow | Capital ship batteries |
+
+Turrets overheat after a long burst and cool down by themselves.
+
+**On their own**, while their signal input is on, turrets pick the nearest ship they can see in reach (above their mount, within their elevation), **lead** it and fire once their guns are on it.
+
+**Manned**, they answer a **fire-control station** (Heavy weaponry), a seat you can put anywhere on the ship — behind a wall, deep in the hull. Sit in it and the view moves to the turret:
+
+- the **mouse** turns it; every turret the station controls aims at the point under your crosshair, so several guns converge on it;
+- **left click** fires them all; **Q / E** switch the view to the previous / next turret; the **wheel** zooms (×2.5, ×6);
+- the sight shows where each turret's guns really point (they lag behind your view while they traverse), brackets and the range on the ship nearest your crosshair, and a **lead pip** where to shoot to meet it; plus the selected turret's heat;
+- **which turrets a station controls**: wire one of the station's outputs to a turret's input (straight, or through a splitter to reach several) and that turret answers that station only — several stations, several independent gunners, each on their own guns. Turrets wired to no station answer the nearest manned station that has none wired to it, so with no cable at all one station controls every turret of the ship. The sight says which;
+- the view stays clear: when a wall, a deck or the ground comes between the turret and the eye, the view moves in closer to the turret, and backs out again once the way is clear;
+- the station does **not** fly the ship (it sends no flight controls and does not steady the ship like a pilot seat), so a pilot and gunners can crew the same ship;
+- its two signal outputs carry your triggers — **fire** (left click) and **fire 2** (right click) — to wire fixed cannons, missile pods or anything else to the gunner.
+
+The radar warnings (lock, incoming missile) reach the gunners too. In multiplayer, the gunner's client shoots and everyone sees the turrets turn.
+
+![Twin turbolaser, ion turret, quad laser and a fire-control station](docs/turrets.jpg)
 
 ## Force fields (TF Advanced)
 

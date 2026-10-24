@@ -154,7 +154,7 @@ namespace Arsenal.Vehicles
             LockedSources.Clear();
             MissilePositions.Clear();
             _missileDist = float.MaxValue;
-            if (!Pilot.TryGetPilotedRoot(out uint me))
+            if (!Pilot.TryGetCrewRoot(out uint me))
             {
 #if DEV
                 if (DevWatch == 0) return;

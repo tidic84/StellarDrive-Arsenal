@@ -2,8 +2,8 @@
     "id": "arsenal",
     "name": "Arsenal",
     "author": "tidic84",
-    "version": "1.11.1",
-    "description": "Firearms, explosives and ship weapons in the game's style. Bullets drill round holes through hull panels with penetration levels per weapon and different resistance per material (glass, wood, iron, ricochets); every hull piece (slopes and corners too) can be holed and broken; explosions wreck thrusters, tanks and other machinery. 20 hand weapons (blasters, gauss, plasma, railgun, laser minigun, flamethrower, Tesla arc, disintegrator, launchers, legendary hypersonic launcher...) made at an armory terminal, PvP with hit markers and kill feed. SAM launcher with auto lock-on. Machine gun, homing missiles, hypersonic missile launcher, thin red, green and blue blaster cannons that hole ships, push them and burn players, with Star Wars-style sounds, point defence, plasma, ion, railgun, torpedo, rocket pod, self-aiming SAM battery and flare dispenser. Radar warning beeps when you are locked or a missile is inbound; turrets need line of sight. Blasts push ships off course. Compatible with TF Advanced force fields: shots, bolts, missiles and grenades stop on a raised field and drain it instead of holing the hull. Multiplayer: every player needs the mod.",
+    "version": "1.12.0",
+    "description": "Firearms, explosives and ship weapons in the game's style. Bullets drill round holes through hull panels with penetration levels per weapon and different resistance per material (glass, wood, iron, ricochets); every hull piece (slopes and corners too) can be holed and broken; explosions wreck thrusters, tanks and other machinery. 20 hand weapons (blasters, gauss, plasma, railgun, laser minigun, flamethrower, Tesla arc, disintegrator, launchers, legendary hypersonic launcher...) made at an armory terminal, PvP with hit markers and kill feed. SAM launcher with auto lock-on. Machine gun, homing missiles, hypersonic missile launcher, thin red, green and blue blaster cannons that hole ships, push them and burn players, with Star Wars-style sounds, point defence, plasma, ion, railgun, torpedo, rocket pod, self-aiming SAM battery and flare dispenser. Five big rotating turrets in the Star Wars spirit (quad laser, twin turbolaser, ion turret, heavy turbolaser and a 5x5 m triple battery) that track ships on their own or are manned from a fire-control station anywhere on the ship, even behind a wall, each station wired to its own turrets. Radar warning beeps when you are locked or a missile is inbound; turrets need line of sight. Blasts push ships off course. Compatible with TF Advanced force fields: shots, bolts, missiles and grenades stop on a raised field and drain it instead of holing the hull. Multiplayer: every player needs the mod.",
     "thumbnail": "Thumbnail.png",
     "images": [
         "gallery/01_holes.jpg",
@@ -13,7 +13,8 @@
         "gallery/05_parts.jpg",
         "gallery/06_heavy.jpg",
         "gallery/07_sam.jpg",
-        "gallery/08_blast.jpg"
+        "gallery/08_blast.jpg",
+        "gallery/09_turrets.jpg"
     ],
     "ai": "vibecoded",
     "development": "active",

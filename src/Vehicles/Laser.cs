@@ -32,6 +32,11 @@ namespace Arsenal.Vehicles
         public float PartPower, Impulse;
         public float Pitch = 1f;              // of the blaster sound
         public bool Hand;                     // a hand blaster's bolt (its own sound and kill-feed weapon)
+        public bool Heavy;                    // a turret's turbolaser: the deep, rolling capital-ship report
+        public float SoundWeight = 1f;        // how big the cannon blast under that report is (0..2)
+        public float Range = Laser.Range;     // how far the bolt flies before it fades
+        public float EmpSeconds;              // ion bolt: knocks the ship it hits out for that long
+        public Weapons.WeaponKind Blast;      // explosive bolt: blows up where it lands (0 = it only melts)
         public Weapons.WeaponKind Kind = Weapons.WeaponKind.ShipLaser;
         public Material HaloMat, BloomMat;
     }
@@ -107,7 +112,51 @@ namespace Arsenal.Vehicles
                 Speed = 105f, PanelDamage = 22f, PlayerDamage = 24f, ObjectDamage = 1.2f, HoleRadius = 0.045f, PartPower = 90f, Impulse = 70f,
                 Pitch = 0.75f, Hand = true, Kind = Weapons.WeaponKind.HeavyBlaster,
             },
+            // 7-10: the turrets' bolts — heavier, longer and flying further than the fixed cannons'
+            new LaserStyle
+            {
+                // "Corsair" quad laser: freighter-gunner red, fired in pairs
+                Halo = new Color(1f, 0.03f, 0.01f), Core = new Color(1f, 0.88f, 0.84f), Lens = new Color(1f, 0.15f, 0.08f), Ember = new Color(1f, 0.45f, 0.15f),
+                HaloGlow = 1.9f, BloomGlow = 0.75f, Width = 1.15f, Length = 6.5f, Range = 900f,
+                Speed = 230f, PanelDamage = 26f, PlayerDamage = 20f, ObjectDamage = 1.5f, HoleRadius = 0.06f, PartPower = 150f, Impulse = 550f,
+                Pitch = 1.1f, Heavy = true, SoundWeight = 0.5f, Kind = Weapons.WeaponKind.QuadLaser,
+            },
+            new LaserStyle
+            {
+                // "Imperator" twin turbolaser: the green of the capital ships' broadsides
+                Halo = new Color(0.06f, 1f, 0.05f), Core = new Color(0.88f, 1f, 0.85f), Lens = new Color(0.15f, 1f, 0.1f), Ember = new Color(0.6f, 1f, 0.3f),
+                HaloGlow = 1.5f, BloomGlow = 0.65f, Width = 2.6f, Length = 15f, Range = 1600f,
+                Speed = 300f, PanelDamage = 120f, PlayerDamage = 80f, ObjectDamage = 6f, HoleRadius = 0.17f, PartPower = 700f, Impulse = 4000f,
+                Heavy = true, SoundWeight = 0.9f, Kind = Weapons.WeaponKind.Turbolaser,
+            },
+            new LaserStyle
+            {
+                // "Tempest" ion turret: pale blue-white bolts that knock the ship they hit out
+                Halo = new Color(0.3f, 0.6f, 1f), Core = new Color(0.92f, 0.96f, 1f), Lens = new Color(0.35f, 0.65f, 1f), Ember = new Color(0.6f, 0.8f, 1f),
+                HaloGlow = 2.4f, BloomGlow = 1.1f, Width = 2.1f, Length = 9f, Range = 1200f,
+                Speed = 240f, PanelDamage = 10f, PlayerDamage = 14f, ObjectDamage = 0.5f, HoleRadius = 0.035f, PartPower = 30f, Impulse = 250f,
+                Pitch = 1.3f, Heavy = true, SoundWeight = 0.6f, EmpSeconds = 6f, Kind = Weapons.WeaponKind.IonTurret,
+            },
+            new LaserStyle
+            {
+                // "Colossus" heavy turbolaser: one huge red bolt that blows up where it lands
+                Halo = new Color(1f, 0.08f, 0.02f), Core = new Color(1f, 0.9f, 0.8f), Lens = new Color(1f, 0.25f, 0.08f), Ember = new Color(1f, 0.5f, 0.15f),
+                HaloGlow = 2.1f, BloomGlow = 0.9f, Width = 4f, Length = 24f, Range = 2200f,
+                Speed = 340f, PanelDamage = 160f, PlayerDamage = 120f, ObjectDamage = 12f, HoleRadius = 0.2f,
+                Pitch = 0.72f, Heavy = true, SoundWeight = 1.3f, Blast = Weapons.WeaponKind.HeavyTurbolaser, Kind = Weapons.WeaponKind.HeavyTurbolaser,
+            },
+            new LaserStyle
+            {
+                // "Annihilator" triple battery: a staggered salvo of colossal green bolts that blow up where they land
+                Halo = new Color(0.1f, 1f, 0.15f), Core = new Color(0.92f, 1f, 0.9f), Lens = new Color(0.2f, 1f, 0.25f), Ember = new Color(0.65f, 1f, 0.35f),
+                HaloGlow = 1.7f, BloomGlow = 0.8f, Width = 6.5f, Length = 36f, Range = 3200f,
+                Speed = 400f, PanelDamage = 260f, PlayerDamage = 200f, ObjectDamage = 20f, HoleRadius = 0.26f,
+                Pitch = 0.6f, Heavy = true, SoundWeight = 1.9f, Blast = Weapons.WeaponKind.Annihilator, Kind = Weapons.WeaponKind.Annihilator,
+            },
         };
+
+        /// <summary>Style indices of the turrets' bolts.</summary>
+        public const byte QuadBolt = 7, TurboBolt = 8, IonBolt = 9, ColossusBolt = 10, AnnihilatorBolt = 11;
 
         /// <summary>Style indices of the hand blasters' bolts.</summary>
         public const byte PistolBolt = 3, RifleBolt = 4, CarbineBolt = 5, HeavyBolt = 6;
@@ -142,6 +191,7 @@ namespace Arsenal.Vehicles
             Fx.GlowFlash(from + dir * 0.05f, s.Core, 0.1f * s.Width, 0.05f, glow: 10f);
             Fx.GlowFlash(from + dir * 0.12f, s.Halo, 0.28f * s.Width, 0.08f, 9f, 7f, s.HaloGlow * 1.4f);
             if (s.Hand) Sounds.HandBlaster(from, s.Pitch);
+            else if (s.Heavy) Sounds.Turbolaser(from, s.Pitch, s.SoundWeight);
             else Sounds.Blaster(from, s.Pitch);
         }
 
@@ -172,9 +222,26 @@ namespace Arsenal.Vehicles
                 if (minable != null)
                     try { minable.ReduceHealth(s.ObjectDamage); } catch { }
             }
-            if (owner) ReportImpact(hit, dir, s);
+            if (owner)
+            {
+                if (s.Blast != 0) Detonate(col, hit.point, dir, s);
+                else ReportImpact(hit, dir, s);
+            }
             Splash(hit.point, hit.normal, dir, s);
             return false;
+        }
+
+        /// <summary>An explosive bolt blows up where it lands, pinned to the ship it struck so the host lands it on that ship's own pose.</summary>
+        private static void Detonate(Collider col, Vector3 point, Vector3 dir, LaserStyle s)
+        {
+            Vector3 at = point - dir * 0.3f;
+            IShipPartHelper helper = col != null ? col.GetComponentInParent<IShipPartHelper>() : null;
+            if (helper != null && Svc.ShipsClient.TryGetTrackedShip(helper.ShipId, out TrackedShipClient ship) && ship.IsRigidbodyLoaded)
+            {
+                Transform t = ship.ShipRigidBody.transform;
+                Explosives.RequestExplosionOnShip(ship.Id, t.InverseTransformPoint(at), t.InverseTransformDirection(dir), at, s.Blast);
+            }
+            else Explosives.RequestExplosion(at, s.Blast);
         }
 
         /// <summary>A bolt stopped on a force field (TF Advanced): it splashes on the shell, which takes the hit.</summary>
@@ -224,6 +291,7 @@ namespace Arsenal.Vehicles
                 ForceFields.ServerAbsorb(ship.Id, s.PanelDamage * ForceFields.PanelPoints);
                 return;
             }
+            if (s.EmpSeconds > 0f) Effects.ServerEmpShip(ship.Id, s.EmpSeconds);
             if (s.PartPower > 0f) PartDamage.ApplyBlast(ship, local, 0.8f, s.PartPower);
             if (s.Impulse > 0f && HullDamage.TryGetServerWorldPose(ship, out Vector3 pos, out Quaternion rot, out _))
             {
@@ -239,12 +307,13 @@ namespace Arsenal.Vehicles
             {
                 bool head = Ballistics.IsHeadshot(playerId, point);
                 PlayerDamage.Report(playerId, s.PlayerDamage * (head ? 1.6f : 1f), s.Kind, head, s.Hand ? 0f : 1.5f);
+                if (s.Blast != 0) Explosives.RequestExplosion(point - dir * 0.3f, s.Blast);
             }
             Fx.GlowFlash(point, s.Core, 0.18f * s.Width, 0.07f, glow: 10f);
             Fx.GlowFlash(point, s.Halo, 0.45f * s.Width, 0.15f, 10f, 7f, s.HaloGlow * 1.4f);
             Fx.Embers(point, -dir, s.Ember, (int)(6 * s.Width) + 2, 0.03f, 4f);
             Fx.Puff(point, 0.1f, new Color(0.25f, 0.23f, 0.22f), 0.8f, 1, -dir * 0.5f);
-            Sounds.BlasterHit(point);
+            if (s.Heavy) Sounds.TurboHit(point, s.SoundWeight * 0.6f); else Sounds.BlasterHit(point);
         }
 
         /// <summary>The bolt splashes: a flash that lights the surface, sparks, molten droplets, a wisp of smoke.</summary>
@@ -256,7 +325,7 @@ namespace Arsenal.Vehicles
             Fx.EmitSparks(pos, Vector3.Reflect(dir, normal) * 0.5f + normal * 0.5f, (int)(18 * s.Width) + 3);
             Fx.Embers(pos, normal, s.Ember, (int)(5 * s.Width) + 1, 0.035f, 5f);
             Fx.Puff(pos + normal * 0.1f, 0.12f * s.Width, new Color(0.25f, 0.23f, 0.22f), 1f, 1, normal * 0.6f);
-            Sounds.BlasterHit(pos);
+            if (s.Heavy) Sounds.TurboHit(pos, s.SoundWeight); else Sounds.BlasterHit(pos);
         }
     }
 
@@ -425,7 +494,7 @@ namespace Arsenal.Vehicles
             }
             float shown = Mathf.Min(_s.Length, (_head - _start).magnitude);
             Draw(_head - dir * shown, _head);
-            if (!_stopped && (_travelled >= Laser.Range || _age > 5f))
+            if (!_stopped && (_travelled >= _s.Range || _age > _s.Range / Mathf.Max(1f, speed) + 1f))
             {
                 // fades out at the end of its range
                 _stopped = true;

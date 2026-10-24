@@ -66,6 +66,7 @@ namespace Arsenal.Weapons
                 GameObject prefab = ArsenalContent.BuildToolPrefab("Arsenal." + def.Kind, model, out _);
                 model.Root.transform.localPosition = new Vector3(-0.1f, 0.12f, -0.02f);
                 model.Root.transform.localEulerAngles = new Vector3(0f, 20f, 0f);
+                ArsenalContent.FitToArms(def.Kind.ToString(), model);
                 prefab.AddComponent<ExplosiveTool>().ItemId = def.ItemId;
 
                 var tool = ScriptableObject.CreateInstance<ToolSettings>();
@@ -78,6 +79,7 @@ namespace Arsenal.Weapons
                 item.mass = def.Mass;
                 item.maxStackSize = def.Stack;
                 item.toolSettings = tool;
+                item.itemObject = ArsenalContent.BuildDroppedVisual("Arsenal." + def.Kind, def.Kind == WeaponKind.Grenade ? WeaponModels.Grenade() : WeaponModels.Charge());
                 IconRenderer.RenderLater(item, model.Root, new Vector3(0, -120f, 0));
                 yield return item;
             }
@@ -226,6 +228,8 @@ namespace Arsenal.Weapons
                 case WeaponKind.Charge: return (Charge.Radius, Charge.Power, Charge.PlayerDamage);
                 case WeaponKind.ShipMissile: return (Arsenal.Vehicles.Missiles.Warhead.Radius, Arsenal.Vehicles.Missiles.Warhead.Power, Arsenal.Vehicles.Missiles.Warhead.PlayerDamage);
                 case WeaponKind.Grenade: return (Grenade.Radius, Grenade.Power, Grenade.PlayerDamage);
+                case WeaponKind.HeavyTurbolaser: return (4f, 2200f, 140f); // the "Colossus" turret's bolt
+                case WeaponKind.Annihilator: return (7f, 4200f, 220f);       // the "Annihilator" battery's bolts
             }
             foreach (ProjectileSpec s in Projectiles.Specs.Values)
                 if (s.Blast == kind && s.BlastRadius > 0f) return (s.BlastRadius, s.BlastPower, s.BlastPlayerDamage);

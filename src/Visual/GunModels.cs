@@ -236,7 +236,7 @@ namespace Arsenal.Visual
             k.ChamferBox(new Vector3(0, -0.02f, 0.2f), new Vector3(0.03f, 0.05f, 0.032f), 0.006f, Shade.Dark, Shade.Black); // front grip
             TriggerGroup(k, -0.05f, 0.0f, 0.055f);
             Grip(k, -0.08f, 0.0f, Shade.HatchDark, 16f, 0.092f, 0.032f);
-            return Finish("FlamethrowerModel", k, g, new Color(1f, 0.6f, 0.2f), new Vector3(0, 0.035f, 0.47f), new Vector3(0, 0.07f, 0.0f), new Vector3(0.012f, -0.05f, -0.1f), new Vector3(-0.025f, -0.04f, 0.2f));
+            return Finish("FlamethrowerModel", k, g, new Color(1f, 0.6f, 0.2f), new Vector3(0, 0.035f, 0.47f), new Vector3(0, 0.07f, 0.0f), new Vector3(0.012f, -0.05f, -0.1f), new Vector3(-0.025f, -0.04f, 0.16f));
         }
 
         // ------------------------------------------------------------------ explosives
@@ -267,7 +267,7 @@ namespace Arsenal.Visual
             TriggerGroup(k, 0.01f, -0.016f, 0.055f);
             Grip(k, -0.025f, -0.016f, Shade.HatchDark, 16f, 0.092f, 0.032f);
             SkeletonStock(k, -0.1f, 0.05f, 0.17f, 0.044f, Shade.HatchMid);
-            return Finish("GrenadeLauncherModel", k, null, Color.white, new Vector3(0, 0.035f, 0.365f), new Vector3(0, 0.121f, 0.0f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.05f, 0.24f));
+            return Finish("GrenadeLauncherModel", k, null, Color.white, new Vector3(0, 0.035f, 0.365f), new Vector3(0, 0.121f, 0.0f), new Vector3(0.012f, -0.05f, -0.085f), new Vector3(-0.03f, -0.05f, 0.17f));
         }
 
         /// <summary>Shoulder tube shared by the rocket launchers: flared bells at both ends, bands and rings.</summary>
@@ -578,7 +578,7 @@ namespace Arsenal.Visual
             k.Lathe(new Vector2(0, -0.015f), new[] { P(0.035f, 0.02f), P(0.035f, 0.1f) }, 16, Shade.HatchDark, Shade.Dark, Shade.Dark);
             TriggerGroup(k, -0.03f, 0.0f);
             Grip(k, -0.06f, 0.0f, Shade.HatchDark, 14f, 0.1f, 0.034f);
-            return Finish("HeavyBlasterModel", k, g, new Color(0.15f, 0.45f, 1f), new Vector3(0, 0.045f, 0.475f), new Vector3(0, 0.15f, -0.02f), new Vector3(0.014f, -0.05f, -0.09f), new Vector3(-0.035f, -0.05f, 0.2f));
+            return Finish("HeavyBlasterModel", k, g, new Color(0.15f, 0.45f, 1f), new Vector3(0, 0.045f, 0.475f), new Vector3(0, 0.15f, -0.02f), new Vector3(0.014f, -0.05f, -0.09f), new Vector3(-0.035f, -0.05f, 0.16f));
         }
     }
 }

@@ -148,6 +148,26 @@ namespace Arsenal.Visual
             Play("blaster" + v, () => Punch(Dispersion(0.62f, 4300f, 110f, 0.2f, 3, 0.5f, 0.6f, 0.75f, 0.35f, v), 55f, 0.7f, 0.55f, 1.5f), pos, 1f, pitch * Jitter(0.03f), 6f, 700f);
         }
 
+        /// <summary>
+        /// Turret turbolaser: the struck-wire chirp slowed into a long, deep "tchoww", fired by a cannon — a sharp
+        /// crack, a sub-bass kick you feel and a rumble rolling off over the land. <paramref name="weight"/> (0..2)
+        /// sizes the cannon blast under the chirp: a quad laser barks, a battleship turret booms. Heard far away.
+        /// </summary>
+        public static void Turbolaser(Vector3 pos, float pitch = 1f, float weight = 1f)
+        {
+            int v = Rng.Next(3);
+            int w = Mathf.Clamp(Mathf.RoundToInt(weight * 10f), 0, 20);
+            Play($"turbolaser{w}_{v}", () => TurboShot(v, w / 10f), pos, Mathf.Lerp(1.1f, 1.8f, w / 20f), pitch * Jitter(0.03f), 10f + w * 2f, 1200f + w * 150f);
+        }
+
+        /// <summary>A heavy bolt landing: the impact's sizzle over a short, deep blast.</summary>
+        public static void TurboHit(Vector3 pos, float weight = 1f)
+        {
+            int v = Rng.Next(2);
+            int w = Mathf.Clamp(Mathf.RoundToInt(weight * 10f), 0, 20);
+            Play($"turbohit{w}_{v}", () => TurboImpact(v, w / 10f), pos, Mathf.Lerp(0.9f, 1.6f, w / 20f), Jitter(0.08f), 6f + w, 600f + w * 60f);
+        }
+
         /// <summary>Hand blaster: a brighter, snappier struck-wire "pew"; heavy ones (pitch below 1) sound fuller.</summary>
         public static void HandBlaster(Vector3 pos, float pitch = 1f)
         {
@@ -324,6 +344,7 @@ namespace Arsenal.Visual
             {
                 steps.Add(() => Shot(SoundStyle.Laser, p));
                 steps.Add(() => Blaster(p));
+                foreach (float w in new[] { 0.5f, 0.9f, 0.6f, 1.3f, 1.9f }) { steps.Add(() => Turbolaser(p, 1f, w)); steps.Add(() => TurboHit(p, w)); }
                 steps.Add(() => HandBlaster(p));
                 steps.Add(() => BlasterHit(p));
             }
@@ -498,6 +519,63 @@ namespace Arsenal.Visual
             }
             if (room > 0f) Room(s, 0.17f + 0.12f * room, room, 0.6f + room, 0.3f); // little rolling noise: it would bury the weapon's own tone
             Saturate(s, drive);
+            return Normalise(s, 0.97f);
+        }
+
+        /// <summary>
+        /// A cannon's blast, <paramref name="length"/> long: a bright crack, a sub-bass kick that dives from ~110 Hz
+        /// to <paramref name="subHz"/>, and brown-noise rumble rolling away. Not normalised (mixed under other layers).
+        /// </summary>
+        private static float[] CannonBlast(float length, float subHz, float crack, float sub, float rumble, int seed)
+        {
+            var rng = new System.Random(seed);
+            float N() => (float)rng.NextDouble() * 2f - 1f;
+            int n = (int)(length * Rate);
+            var s = new float[n];
+            float brown = 0f, lp = 0f, hp = 0f, prev = 0f, phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float x = N();
+                hp = 0.75f * (hp + x - prev); prev = x;
+                lp += 0.12f * (x - lp);
+                brown = Mathf.Clamp(brown + N() * 0.05f, -1f, 1f);
+                phase += 2f * Mathf.PI * (subHz + 75f * Mathf.Exp(-t * 18f)) / Rate;
+                float c = (hp * 0.6f + lp) * Mathf.Exp(-t * 38f) * crack;
+                float k = Mathf.Sin(phase) * Mathf.Exp(-t * 4.5f) * sub;
+                float r = brown * Mathf.Exp(-t * 2.2f / Mathf.Max(0.4f, length)) * Mathf.Clamp01(t * 25f) * rumble;
+                s[i] = (c + k + r) * Mathf.Clamp01(i / 30f) * Mathf.Clamp01((n - i) / (0.15f * Rate));
+            }
+            return s;
+        }
+
+        /// <summary>Turret shot: the turbolaser chirp over a cannon blast as heavy as <paramref name="weight"/>.</summary>
+        private static float[] TurboShot(int variant, float weight)
+        {
+            float[] chirp = Dispersion(0.95f, 3200f, 70f, 0.3f, 4, 0.56f, 0.5f, 1.2f, 0.6f, variant + 20);
+            Normalise(chirp, 1f);
+            float[] blast = CannonBlast(0.9f + weight * 0.9f, 34f, 0.5f + weight * 0.5f, 0.6f + weight * 0.7f, 0.25f + weight * 0.45f, 700 + variant * 31 + (int)(weight * 10f));
+            Normalise(blast, 1f);
+            var s = new float[Mathf.Max(chirp.Length, blast.Length) + (int)(0.6f * Rate)];
+            float bg = Mathf.Lerp(0.35f, 1.1f, Mathf.Clamp01(weight / 1.6f));
+            for (int i = 0; i < chirp.Length; i++) s[i] += chirp[i] * 0.85f;
+            for (int i = 0; i < blast.Length; i++) s[i] += blast[i] * bg;
+            Room(s, 0.22f + 0.1f * weight, 0.7f + 0.3f * weight, 1f + weight, 0.6f);
+            Saturate(s, 2.2f + weight * 0.6f);
+            return Normalise(s, 0.98f);
+        }
+
+        /// <summary>A heavy bolt's impact: the bolt's sizzle and "tchew" over a short, deep blast.</summary>
+        private static float[] TurboImpact(int variant, float weight)
+        {
+            float[] hit = BoltImpact(variant);
+            Normalise(hit, 1f);
+            float[] blast = CannonBlast(0.6f + weight * 0.7f, 30f, 0.9f, 0.7f + weight * 0.5f, 0.4f + weight * 0.5f, 900 + variant * 17 + (int)(weight * 10f));
+            Normalise(blast, 1f);
+            var s = new float[Mathf.Max(hit.Length, blast.Length)];
+            for (int i = 0; i < hit.Length; i++) s[i] += hit[i] * 0.8f;
+            for (int i = 0; i < blast.Length; i++) s[i] += blast[i] * Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(weight / 1.6f));
+            Saturate(s, 2f);
             return Normalise(s, 0.97f);
         }
 

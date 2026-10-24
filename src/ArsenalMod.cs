@@ -12,7 +12,7 @@ using Ships.Interface.Model;
 using Ships.Interface.Model.Placement;
 using UnityEngine.SceneManagement;
 
-[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.11.1", "tidic84")]
+[assembly: MelonInfo(typeof(Arsenal.ArsenalMod), "Arsenal", "1.12.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace Arsenal
@@ -20,7 +20,7 @@ namespace Arsenal
     public partial class ArsenalMod : MelonMod
     {
         internal const string MainGameScene = "MainGame";
-        internal const int ProtocolVersion = 11;
+        internal const int ProtocolVersion = 12;
 
         internal static ArsenalMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -37,6 +37,7 @@ namespace Arsenal
 
             HoleVisuals.Patch(HarmonyInstance);
             ShipContent.Patch(HarmonyInstance);
+            GunnerStation.Patch(HarmonyInstance);
             LegacyParts.Patch(HarmonyInstance);
             ShipKnockback.Patch(HarmonyInstance);
             HarmonyInstance.Patch(AccessTools.Method(typeof(ShipState), nameof(ShipState.RemoveHullPart)),
@@ -57,6 +58,7 @@ namespace Arsenal
             TargetCleanup.Patch(HarmonyInstance);
             Compat.ForceFields.Init();
             Laser.Init();
+            TurretNet.Init();
 #if DEV
             DevInit();
 #endif

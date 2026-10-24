@@ -141,6 +141,19 @@ namespace Arsenal.Vehicles
                         break;
                     default:
                         fixedAim = false;
+                        if (Turrets.IsTurret(m.Kind))
+                        {
+                            // turrets turn by themselves or answer a gunner: a ring where their guns point, like the SAM's
+                            s = StatusFor(m.Manned ? "TOURELLES (ARTILLEUR)" : "TOURELLES", m.Manned ? "TURRETS (GUNNER)" : "TURRETS");
+                            if (m.Heat > s.Bar || m.Overheated)
+                            {
+                                s.Bar = Mathf.Max(s.Bar, m.Heat);
+                                s.BarColor = m.Overheated ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.75f, 0.3f);
+                            }
+                            if (m.Pitch == null) break;
+                            Vector3 tp = cam.WorldToScreenPoint(m.Pitch.position + m.Pitch.forward * 300f);
+                            if (tp.z > 0) Merge(_samMarks, new Vector2(tp.x, Screen.height - tp.y));
+                        }
                         break;
                 }
                 if (!fixedAim) continue;

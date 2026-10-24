@@ -25,7 +25,7 @@ namespace Arsenal.Vehicles
     /// the "owner" client (whoever pilots that ship, otherwise the host) does the shooting, reports damage
     /// to the server and relays the effects to the others.
     /// </summary>
-    internal sealed class ShipWeapons : MonoBehaviour
+    internal sealed partial class ShipWeapons : MonoBehaviour
     {
         internal sealed class Mount
         {
@@ -61,6 +61,16 @@ namespace Arsenal.Vehicles
             public int Rockets = -1;      // rocket pod (-1 = not loaded yet)
             public int FlaresLeft;        // flare dispenser: flares still to throw in the current salvo
             public float NextSalvo;
+            // rotating turrets: gun angles in the mount's frame (degrees), where they are going, and what the shooter sent
+            public float Yaw, Elevation, TargetYaw, TargetElevation;
+            public float RemoteYaw, RemoteElevation, RemoteAt = -100f;
+            public float SentYaw, SentElevation, SentAt = -100f;
+            public uint AutoTarget;
+            public bool Manned;           // a gunner is at the controls
+            public Transform[] Recoils;   // one per barrel (same order as Points)
+            public Vector3[] RecoilRest;
+            public float[] Kick;
+            public int SalvoLeft;         // staggered salvo: barrels still to fire
         }
 
         // muzzle offsets in part space (must match PartModels)
@@ -87,6 +97,12 @@ namespace Arsenal.Vehicles
 
         public static IEnumerable<Mount> Mounts => _instance != null ? _instance._mounts.Values : Enumerable.Empty<Mount>();
 
+        public static bool TryGetMount(PartContext ctx, out Mount m)
+        {
+            m = null;
+            return _instance != null && _instance._mounts.TryGetValue(ctx, out m);
+        }
+
         public static void Ensure()
         {
             if (_instance != null) return;
@@ -94,10 +110,12 @@ namespace Arsenal.Vehicles
             DontDestroyOnLoad(go);
             _instance = go.AddComponent<ShipWeapons>();
             go.AddComponent<ShipHud>();
+            go.AddComponent<GunnerHud>();
         }
 
         public static void ResetAll()
         {
+            GunnerStation.Reset();
             if (_instance == null) return;
             foreach (Mount m in _instance._mounts.Values) StopBeam(m);
             _instance._mounts.Clear();
@@ -140,6 +158,7 @@ namespace Arsenal.Vehicles
         private void Update()
         {
             if (!ArsenalMod.InGame || Svc.ShipsClient == null) return;
+            GunnerStation.Tick();
             int frame = Time.frameCount;
             _ships.Clear();
             _ships.AddRange(Svc.ShipsClient.Ships);
@@ -184,6 +203,9 @@ namespace Arsenal.Vehicles
                             case ShipContent.SamBatteryId: UpdateSamBattery(ship, part, m, on, owner.Value); break;
                             case ShipContent.FlareDispenserId: UpdateFlares(ship, part, m, on, owner.Value); break;
                             case ShipContent.HyperLauncherId: UpdateHyper(ship, part, m, on, owner.Value); break;
+                            default:
+                                if (Turrets.IsTurret(m.Kind)) UpdateTurret(ship, part, m, on, owner.Value);
+                                break;
                         }
                     }
                     catch (System.Exception ex)
@@ -237,7 +259,7 @@ namespace Arsenal.Vehicles
             foreach (TrackedPlayerOtherClient other in Svc.PlayersClient.OtherPlayers)
             {
                 PlayerState st = other.State;
-                if (st.Type == PlayerStateType.Piloting && RootOf(st.EntityId) == root) return false;
+                if (st.Type == PlayerStateType.Piloting && RootOf(st.EntityId) == root && !GunnerStation.IsStation(st)) return false;
             }
             return ArsenalNet.IsServer;
         }
@@ -313,6 +335,14 @@ namespace Arsenal.Vehicles
             m.Barrels = all.FirstOrDefault(t => t.name == "Barrels" && t.GetComponent<Renderer>() == null);
             if (m.Kind == ShipContent.TorpedoId) m.Tube = all.FirstOrDefault(t => t.name == "Tube");
             m.Radar = all.FirstOrDefault(t => t.name == "Radar");
+            if (Turrets.IsTurret(m.Kind))
+            {
+                m.Recoils = all.Where(t => t.name == "Recoil").ToArray();
+                m.RecoilRest = m.Recoils.Select(t => t.localPosition).ToArray();
+                m.Kick = new float[m.Recoils.Length];
+                // muzzles in barrel order (each barrel's own)
+                m.Points = m.Recoils.Select(r => r.Find("Muzzle")).ToArray();
+            }
         }
 
         private static Vector3 VisualPoint(Mount m, int index, Vector3 fallback)

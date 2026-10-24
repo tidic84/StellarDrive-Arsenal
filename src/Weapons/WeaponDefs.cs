@@ -44,6 +44,12 @@ namespace Arsenal.Weapons
         BlasterRifle = 35,
         BlasterCarbine = 36,
         HeavyBlaster = 37,
+        // rotating turrets
+        QuadLaser = 38,
+        Turbolaser = 39,
+        IonTurret = 40,
+        HeavyTurbolaser = 41,
+        Annihilator = 42,
     }
 
     internal enum FireMode : byte

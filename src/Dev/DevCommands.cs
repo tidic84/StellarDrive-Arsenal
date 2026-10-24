@@ -117,7 +117,7 @@ namespace Arsenal
                     break;
                 case "sit":
                     Svc.Get<Managers.Interface.Services.IShipInteractionNetworkService>().StartInteractWithPart(
-                        new Managers.Interface.Model.PartInteractNetworkRequest { ShipId = _gunshipId, PartId = a.Length > 1 ? ushort.Parse(a[1]) : (ushort)1 });
+                        new Managers.Interface.Model.PartInteractNetworkRequest { ShipId = a.Length > 2 ? uint.Parse(a[2]) : _gunshipId, PartId = a.Length > 1 ? ushort.Parse(a[1]) : (ushort)1 });
                     break;
                 case "click":
                     MelonLoader.MelonCoroutines.Start(Click(a[1], float.Parse(a[2], CultureInfo.InvariantCulture)));
@@ -396,6 +396,44 @@ namespace Arsenal
                     }
                     break;
                 }
+                case "levelview":
+                {
+                    // levelview <pitch>: looks horizontally, then that many degrees down
+                    var lc = Object.FindObjectsByType<PlayerLookControls>(FindObjectsSortMode.None).First();
+                    Vector3 up = Visual.Fx.Up;
+                    Vector3 fwd = Vector3.ProjectOnPlane(lc.Rotation * Vector3.forward, up).normalized;
+                    lc.Rotation = Quaternion.AngleAxis(float.Parse(a[1], CultureInfo.InvariantCulture), Vector3.Cross(up, fwd)) * Quaternion.LookRotation(fwd, up);
+                    break;
+                }
+                case "lookitem":
+                {
+                    // lookitem: aims at the nearest dropped Arsenal item
+                    var lc = Object.FindObjectsByType<PlayerLookControls>(FindObjectsSortMode.None).First();
+                    Vector3 eye = Camera.main.transform.position;
+                    Transform item = Object.FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(t => t.name.EndsWith(".Dropped(Clone)"))
+                        .OrderBy(t => Vector3.Distance(t.position, eye)).FirstOrDefault();
+                    if (item == null) { LoggerInstance.Msg("[DEV] no dropped item"); break; }
+                    lc.Rotation = Quaternion.LookRotation(item.position - eye, Visual.Fx.Up);
+                    LoggerInstance.Msg($"[DEV] looking at {item.name} {Vector3.Distance(item.position, eye):F2} m");
+                    break;
+                }
+                case "pickitem":
+                {
+                    // pickitem: picks up the nearest world object, as pressing the interact key on it does
+                    Vector3 eye = Camera.main.transform.position;
+                    var pick = Object.FindObjectsByType<WorldObjects.Physics.PickableWorldObject>(FindObjectsSortMode.None)
+                        .OrderBy(p => Vector3.Distance(p.transform.position, eye)).FirstOrDefault();
+                    if (pick == null) { LoggerInstance.Msg("[DEV] nothing to pick"); break; }
+                    LoggerInstance.Msg($"[DEV] picking {pick.name} at {Vector3.Distance(pick.transform.position, eye):F2} m");
+                    pick.EnableHover();
+                    pick.DisableHover();
+                    pick.Interact(Players.Interface.Model.InteractionType.Interact);
+                    break;
+                }
+                case "dropslot":
+                    // dropslot <n>: drops toolbar slot n in the world, like dragging it out of the inventory
+                    Svc.Get<Players.Interface.Services.IPlayerInventoryOperationService>()?.MoveItemInWorld(new ItemSlotId { Type = InventoryType.ToolBar, SlotId = byte.Parse(a[1]) });
+                    break;
                 case "inv":
                 {
                     var tb = Svc.Get<PlayerToolbarProvider>();
@@ -414,6 +452,151 @@ namespace Arsenal
                     LoggerInstance.Msg($"[DEV] model {model.name} at {model.localPosition} {model.localEulerAngles}; visuals fp={tool.Visuals.firstPersonPosition} rot={tool.Visuals.firstPersonRotation.eulerAngles}");
                     break;
                 }
+                case "holdpos":
+                {
+                    // holdpos x y z [ex ey ez]: moves the held weapon's hip pose (the one HandWeapon puts back every frame)
+                    var weapon = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool as Weapons.HandWeapon;
+                    if (weapon == null) break;
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    var tr = HarmonyLib.Traverse.Create(weapon);
+                    tr.Field("_holdPos").SetValue(new Vector3(F(1), F(2), F(3)));
+                    if (a.Length > 6) tr.Field("_holdRot").SetValue(Quaternion.Euler(F(4), F(5), F(6)));
+                    break;
+                }
+                case "ik":
+                {
+                    // ik: for the held tool (game or mod), each hand target vs its bone and shoulder, in the tool visuals' frame
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    if (tool == null) break;
+                    Transform vis = tool.Visuals.transform;
+                    Animator an = Object.FindObjectsByType<Animator>(FindObjectsSortMode.None)
+                        .Where(x => x.isHuman && x.GetBoneTransform(HumanBodyBones.RightHand) != null)
+                        .OrderBy(x => Vector3.Distance(x.GetBoneTransform(HumanBodyBones.RightHand).position, vis.position)).FirstOrDefault();
+                    if (an == null) break;
+                    void Report(string label, Transform target, HumanBodyBones hand, HumanBodyBones shoulder)
+                    {
+                        if (target == null) return;
+                        Transform h = an.GetBoneTransform(hand), s = an.GetBoneTransform(shoulder);
+                        Quaternion rel = Quaternion.Inverse(target.rotation) * h.rotation;
+                        LoggerInstance.Msg($"[DEV] {tool.Transform.name} {label}: target {vis.InverseTransformPoint(target.position):F3} (tool {target.parent.name} local {target.localPosition:F3} {target.localEulerAngles:F0}), bone off {Vector3.Distance(h.position, target.position):F3}, shoulder->target {Vector3.Distance(s.position, target.position):F3}, bone-in-target euler {rel.eulerAngles:F0}");
+                    }
+                    LoggerInstance.Msg($"[DEV] frame: L shoulder {vis.InverseTransformPoint(an.GetBoneTransform(HumanBodyBones.LeftUpperArm).position):F3} R shoulder {vis.InverseTransformPoint(an.GetBoneTransform(HumanBodyBones.RightUpperArm).position):F3} camera {vis.InverseTransformPoint(Camera.main.transform.position):F3} fwd {vis.InverseTransformDirection(Camera.main.transform.forward):F2}");
+                    Report("R", tool.Visuals.rightHandTargetTransform, HumanBodyBones.RightHand, HumanBodyBones.RightUpperArm);
+                    Report("L1", tool.Visuals.leftHandFirstPersonTargetTransform, HumanBodyBones.LeftHand, HumanBodyBones.LeftUpperArm);
+                    Report("L3", tool.Visuals.leftHandThirdPersonTargetTransform, HumanBodyBones.LeftHand, HumanBodyBones.LeftUpperArm);
+                    break;
+                }
+                case "arms":
+                {
+                    // arms: shoulders, elbows and reach of the local player's arms, in the held weapon's frame
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    Transform model = tool?.Transform.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.EndsWith("Model"));
+                    if (model == null) break;
+                    foreach (Animator an in Object.FindObjectsByType<Animator>(FindObjectsSortMode.None).Where(an => an.isHuman && an.GetBoneTransform(HumanBodyBones.LeftUpperArm) != null))
+                    {
+                        Transform ls = an.GetBoneTransform(HumanBodyBones.LeftUpperArm), le = an.GetBoneTransform(HumanBodyBones.LeftLowerArm), lh = an.GetBoneTransform(HumanBodyBones.LeftHand);
+                        Transform rs = an.GetBoneTransform(HumanBodyBones.RightUpperArm), re = an.GetBoneTransform(HumanBodyBones.RightLowerArm), rh = an.GetBoneTransform(HumanBodyBones.RightHand);
+                        if (Vector3.Distance(ls.position, model.position) > 1.5f) continue;
+                        LoggerInstance.Msg($"[DEV] {an.name}: L shoulder {model.InverseTransformPoint(ls.position):F3} hand {model.InverseTransformPoint(lh.position):F3} reach {Vector3.Distance(ls.position, le.position) + Vector3.Distance(le.position, lh.position):F3}; R shoulder {model.InverseTransformPoint(rs.position):F3} hand {model.InverseTransformPoint(rh.position):F3} reach {Vector3.Distance(rs.position, re.position) + Vector3.Distance(re.position, rh.position):F3}");
+                    }
+                    break;
+                }
+                case "hand":
+                {
+                    // hand <l|r> x y z ex ey ez: moves a hand target of the held weapon (left: both first and third person)
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    Transform model = tool?.Transform.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.EndsWith("Model"));
+                    if (model == null) break;
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    foreach (Transform t in model.GetComponentsInChildren<Transform>(true).Where(t => a[1] == "l" ? t.name.StartsWith("LeftHandPos") : t.name == "RightHandPos"))
+                    {
+                        t.localPosition = new Vector3(F(2), F(3), F(4));
+                        t.localEulerAngles = new Vector3(F(5), F(6), F(7));
+                    }
+                    break;
+                }
+                case "sun":
+                    // sun: points the directional lights along the view (to look at things at night); repeats each frame for 60 s
+                    MelonLoader.MelonCoroutines.Start(Sun());
+                    break;
+                case "viewcam":
+                    // viewcam <name> <yaw> <pitch> <dist>: renders the held weapon (with the arms) from around it, in its own frame
+                    MelonLoader.MelonCoroutines.Start(ViewCam(a[1], float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture), float.Parse(a[4], CultureInfo.InvariantCulture)));
+                    break;
+                case "handdir":
+                {
+                    // handdir <l|r> x y z fx fy fz ux uy uz: places a hand so the bone's x axis (fingers) points along f and its y axis along u (weapon frame)
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    Transform model = tool?.Transform.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.EndsWith("Model"));
+                    if (model == null) break;
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    Vector3 fx = new Vector3(F(5), F(6), F(7)).normalized, uy = new Vector3(F(8), F(9), F(10));
+                    uy = Vector3.ProjectOnPlane(uy, fx).normalized;
+                    Quaternion bone = Quaternion.LookRotation(Vector3.Cross(fx, uy), uy);
+                    Quaternion local = bone * Quaternion.Euler(-90f, 0f, 0f);
+                    foreach (Transform t in model.GetComponentsInChildren<Transform>(true).Where(t => a[1] == "l" ? t.name.StartsWith("LeftHandPos") : t.name == "RightHandPos"))
+                    {
+                        t.localPosition = new Vector3(F(2), F(3), F(4));
+                        t.localRotation = local;
+                    }
+                    LoggerInstance.Msg($"[DEV] hand {a[1]} euler {local.eulerAngles:F1}");
+                    break;
+                }
+                case "handaxes":
+                {
+                    // handaxes <l|r> x y z  ax ay az  bx by bz: puts the hand bone at x y z with its x axis along a and its y axis along b
+                    // (weapon frame), through the offset the IK keeps between the target and the bone (measured now)
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    if (tool == null) break;
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    bool left = a[1] == "l";
+                    Transform target = left ? tool.Visuals.leftHandFirstPersonTargetTransform : tool.Visuals.rightHandTargetTransform;
+                    Animator an = Object.FindObjectsByType<Animator>(FindObjectsSortMode.None).Where(x => x.isHuman && x.GetBoneTransform(HumanBodyBones.RightHand) != null)
+                        .OrderBy(x => Vector3.Distance(x.GetBoneTransform(HumanBodyBones.RightHand).position, target.position)).First();
+                    Transform bone = an.GetBoneTransform(left ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
+                    Quaternion offset = Quaternion.Inverse(target.rotation) * bone.rotation;
+                    Vector3 ax = new Vector3(F(5), F(6), F(7)).normalized, by = Vector3.ProjectOnPlane(new Vector3(F(8), F(9), F(10)), ax).normalized;
+                    Quaternion boneLocal = Quaternion.LookRotation(Vector3.Cross(ax, by), by);
+                    Quaternion local = boneLocal * Quaternion.Inverse(offset);
+                    foreach (Transform t in target.parent.GetComponentsInChildren<Transform>(true).Where(t => left ? t.name.StartsWith("LeftHandPos") : t.name == "RightHandPos"))
+                    {
+                        t.localPosition = new Vector3(F(2), F(3), F(4));
+                        t.localRotation = local;
+                    }
+                    LoggerInstance.Msg($"[DEV] handaxes {a[1]}: euler {local.eulerAngles:F1} (offset {offset.eulerAngles:F0})");
+                    break;
+                }
+                case "rigs":
+                {
+                    // rigs: every humanoid near the held tool, its left hand (weapon frame) and whether its skin is drawn
+                    var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+                    Transform model = tool?.Transform.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.EndsWith("Model"));
+                    if (model == null) break;
+                    foreach (Animator an in Object.FindObjectsByType<Animator>(FindObjectsSortMode.None).Where(x => x.isHuman))
+                    {
+                        Transform lh = an.GetBoneTransform(HumanBodyBones.LeftHand);
+                        if (lh == null || Vector3.Distance(lh.position, model.position) > 2f) continue;
+                        string skins = string.Join(",", an.GetComponentsInChildren<SkinnedMeshRenderer>(true).Select(s => $"{s.name}:{(s.enabled && s.gameObject.activeInHierarchy ? "on" : "off")}/{s.shadowCastingMode}/L{s.gameObject.layer}"));
+                        Transform mid = an.GetBoneTransform(HumanBodyBones.LeftMiddleDistal) ?? an.GetBoneTransform(HumanBodyBones.LeftMiddleProximal);
+                        Transform thumb = an.GetBoneTransform(HumanBodyBones.LeftThumbDistal) ?? an.GetBoneTransform(HumanBodyBones.LeftThumbProximal);
+                        if (mid != null) LoggerInstance.Msg($"[DEV] fingers {model.InverseTransformDirection(mid.position - lh.position).normalized:F2} thumb {(thumb != null ? model.InverseTransformDirection(thumb.position - lh.position).normalized.ToString("F2") : "-")} | bone x{model.InverseTransformDirection(lh.right):F2} y{model.InverseTransformDirection(lh.up):F2} z{model.InverseTransformDirection(lh.forward):F2}");
+                        LoggerInstance.Msg($"[DEV] rig {an.transform.parent?.name}/{an.name} L hand {model.InverseTransformPoint(lh.position):F3} y{model.InverseTransformDirection(lh.up):F2} z{model.InverseTransformDirection(lh.forward):F2} skins {skins}");
+                    }
+                    break;
+                }
+                case "handcheck":
+                    // handcheck: for every held weapon model in the scene, how far each hand bone is from its target
+                    foreach (Transform target in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(t => t.name == "RightHandPos" || t.name.StartsWith("LeftHandPos")))
+                    {
+                        HumanBodyBones which = target.name == "RightHandPos" ? HumanBodyBones.RightHand : HumanBodyBones.LeftHand;
+                        Transform bone = Object.FindObjectsByType<Animator>(FindObjectsSortMode.None).Where(an => an.isHuman && an.GetBoneTransform(which) != null)
+                            .Select(an => an.GetBoneTransform(which)).OrderBy(b => Vector3.Distance(b.position, target.position)).FirstOrDefault();
+                        Transform root = target.root;
+                        Transform model = target.parent;
+                        if (bone == null) continue;
+                        LoggerInstance.Msg($"[DEV] {root.name}/{model.name} {target.name}: bone {Vector3.Distance(bone.position, target.position):F3} m, local {model.InverseTransformPoint(bone.position):F3}, angle {Quaternion.Angle(bone.rotation, target.rotation):F0}, axes x{model.InverseTransformDirection(bone.right):F2} y{model.InverseTransformDirection(bone.up):F2} z{model.InverseTransformDirection(bone.forward):F2}");
+                    }
+                    break;
                 case "partlist":
                     foreach (PartSettings ps in Resources.FindObjectsOfTypeAll<PartSettings>().OrderBy(s => s.id))
                         if (a.Length < 2 || ps.name.IndexOf(a[1], System.StringComparison.OrdinalIgnoreCase) >= 0)
@@ -517,6 +700,58 @@ namespace Arsenal
                 case "gunship":
                     SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
                     break;
+                case "turretship":
+                    // turretship [side] [forward]: a big deck with the fire-control station (part 1) and the four turrets (parts 2-5)
+                    SpawnTurretShip(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 0f, a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 6f);
+                    break;
+                case "gunner":
+                {
+                    // gunner <yaw> <elevation> [fire] [select n]: steers the fire-control view as the mouse would (yaw/elevation in the selected turret's mount frame)
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    Vehicles.GunnerStation.DevView(F(1), F(2), a.Contains("fire"), a.Contains("select") ? int.Parse(a[System.Array.IndexOf(a, "select") + 1]) : -1);
+                    break;
+                }
+                case "partcam":
+                {
+                    // partcam <partId> <yaw> <pitch> <dist> <name> [height]: renders a part of the test gunship from around it (its own frame)
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    if (!Svc.ShipsClient.TryGetVisualPart(new PartContext(_gunshipId, ushort.Parse(a[1])), out Ships.Parts.Common.Model.Reactions.IShipPartVisual pv) || !(pv is Component pc)) { LoggerInstance.Msg("[DEV] no such part"); break; }
+                    Transform pt = pc.transform;
+                    Vector3 center = pt.TransformPoint(new Vector3(0f, a.Length > 6 ? F(6) : 0.4f, 0f));
+                    Quaternion dir = pt.rotation * Quaternion.Euler(F(3), F(2), 0f);
+                    MelonLoader.MelonCoroutines.Start(RenderFrom(a[5], center - dir * Vector3.forward * F(4), center, pt.up));
+                    break;
+                }
+                case "cable":
+                {
+                    // cable <partA> <socketA> <partB> <socketB>: a signal cable between two parts of the test gunship (host)
+                    EntityPartSocket S(int i) => new EntityPartSocket(_gunshipId, ushort.Parse(a[i]), byte.Parse(a[i + 1]));
+                    uint cid = Svc.Get<Ships.Cables.CablesServerTracker>().AddCable(new CableState { Type = CableType.Signal, PlugA = new CablePlugSocket { EntityPartSocket = S(1) }, PlugB = new CablePlugSocket { EntityPartSocket = S(3) } });
+                    LoggerInstance.Msg($"[DEV] cable {cid}; weapon socket id {Content.ShipContent.WeaponSocketId}");
+                    break;
+                }
+                case "turretseat":
+                    _turretSeat = ushort.Parse(a[1]);
+                    break;
+                case "unsit":
+                    Svc.Get<Managers.Interface.Services.IShipInteractionNetworkService>().StopInteract();
+                    break;
+                case "gunnership":
+                    // gunnership [fire]: points the fire-control view at the test ship
+                    if (Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient gt) && gt.IsRigidbodyLoaded)
+                        Vehicles.GunnerStation.DevAimAt(Vehicles.ShipWeapons.TargetPoint(gt), a.Contains("fire"));
+                    break;
+                case "gunnerzoom":
+                    Vehicles.GunnerStation.DevZoom(int.Parse(a[1]));
+                    break;
+                case "consolepos":
+                {
+                    // consolepos x y z: moves the console of every fire-control station in the scene (for fitting it to the seat)
+                    float F(int i) => float.Parse(a[i], CultureInfo.InvariantCulture);
+                    foreach (Transform t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(t => t.name.StartsWith("GunnerConsoleModel")))
+                        t.localPosition = new Vector3(F(1), F(2), F(3));
+                    break;
+                }
                 case "range":
                 {
                     SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
@@ -528,7 +763,7 @@ namespace Arsenal
                 }
                 case "parts":
                     foreach (var mnt in Vehicles.ShipWeapons.Mounts)
-                        LoggerInstance.Msg($"[DEV] mount {mnt.Ctx} kind {mnt.Kind} heat {mnt.Heat:F2} missiles {mnt.Missiles} lock {mnt.LockedTarget} visual {(mnt.Visual != null)}");
+                        LoggerInstance.Msg($"[DEV] mount {mnt.Ctx} kind {mnt.Kind} heat {mnt.Heat:F2} missiles {mnt.Missiles} lock {mnt.LockedTarget} auto {mnt.AutoTarget} yaw {mnt.Yaw:0} elev {mnt.Elevation:0} visual {(mnt.Visual != null)}");
                     if (Svc.ShipsClient.TryGetTrackedShip(_gunshipId, out TrackedShipClient gs))
                         foreach (var sp in gs.StatefulParts)
                             LoggerInstance.Msg($"[DEV] part {sp.Id} {sp.Settings?.id} {sp.State}");
@@ -552,6 +787,75 @@ namespace Arsenal
                 yield return null;
             }
             UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState());
+        }
+
+        private static System.Collections.IEnumerator ViewCam(string name, float yaw, float pitch, float dist)
+        {
+            yield return new WaitForEndOfFrame();
+            var tool = Svc.Get<Players.Services.LocalSelectedToolTracker>()?.SelectedTool;
+            Transform model = tool?.Transform.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.EndsWith("Model"));
+            Camera main = Camera.main;
+            if (model == null || main == null) yield break;
+            var go = new GameObject("Arsenal.ViewCam");
+            Camera cam = go.AddComponent<Camera>();
+            cam.CopyFrom(main);
+            cam.fieldOfView = 30f;
+            cam.nearClipPlane = 0.01f;
+            Vector3 center = model.TransformPoint(new Vector3(0f, -0.02f, 0.02f));
+            Quaternion dir = model.rotation * Quaternion.Euler(pitch, yaw, 0f);
+            go.transform.position = center - dir * Vector3.forward * dist;
+            go.transform.rotation = Quaternion.LookRotation(center - go.transform.position, model.up);
+            var rt = new RenderTexture(800, 600, 24);
+            cam.targetTexture = rt;
+            cam.Render();
+            RenderTexture.active = rt;
+            var tex = new Texture2D(800, 600, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, 800, 600), 0, 0);
+            tex.Apply();
+            RenderTexture.active = null;
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "view_" + name + ".png"), tex.EncodeToPNG());
+            cam.targetTexture = null;
+            Object.Destroy(go);
+            Object.Destroy(rt);
+        }
+
+        private static System.Collections.IEnumerator RenderFrom(string name, Vector3 from, Vector3 at, Vector3 up)
+        {
+            yield return new WaitForEndOfFrame();
+            Camera main = Camera.main;
+            if (main == null) yield break;
+            var go = new GameObject("Arsenal.PartCam");
+            Camera cam = go.AddComponent<Camera>();
+            cam.CopyFrom(main);
+            cam.fieldOfView = 40f;
+            cam.nearClipPlane = 0.02f;
+            go.transform.position = from;
+            go.transform.rotation = Quaternion.LookRotation(at - from, up);
+            var rt = new RenderTexture(960, 640, 24);
+            cam.targetTexture = rt;
+            cam.Render();
+            RenderTexture.active = rt;
+            var tex = new Texture2D(960, 640, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, 960, 640), 0, 0);
+            tex.Apply();
+            RenderTexture.active = null;
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "part_" + name + ".png"), tex.EncodeToPNG());
+            cam.targetTexture = null;
+            Object.Destroy(go);
+            Object.Destroy(rt);
+        }
+
+        private static System.Collections.IEnumerator Sun()
+        {
+            float end = Time.realtimeSinceStartup + 60f;
+            while (Time.realtimeSinceStartup < end)
+            {
+                Camera cam = Camera.main;
+                if (cam != null)
+                    foreach (Light l in Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Where(l => l.type == LightType.Directional))
+                        l.transform.rotation = cam.transform.rotation * Quaternion.Euler(25f, 20f, 0f);
+                yield return null;
+            }
         }
 
         private System.Collections.IEnumerator TapKey(UnityEngine.InputSystem.Key key)
@@ -722,6 +1026,49 @@ namespace Arsenal
             Svc.ShipsServer.LoadShip(snap);
             _gunshipId = id;
             LoggerInstance.Msg($"[DEV] gunship {id}");
+        }
+
+        private static ushort _turretSeat = Content.ShipContent.GunnerStationId;
+
+        private void SpawnTurretShip(float side, float forward)
+        {
+            TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
+            var settings = new PartSettingsProvider();
+            HullPartSettings floor = (HullPartSettings)settings.GetPartSettingById(1);
+            var hull = new System.Collections.Generic.List<HullPart>();
+            for (int x = -4; x <= 4; x++)
+                for (int z = -4; z <= 13; z++)
+                    hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+            var parts = new[]
+            {
+                new StatefulPart(1, settings.GetPartSettingById(_turretSeat), new FloatingPartPlacement(new Vector3(0, -0.46f, -3f), PartOrientation.Forward)),
+                new StatefulPart(2, settings.GetPartSettingById(Content.ShipContent.QuadTurretId), new FloatingPartPlacement(new Vector3(-2.5f, -0.46f, -1f), PartOrientation.Forward)),
+                new StatefulPart(3, settings.GetPartSettingById(Content.ShipContent.IonTurretId), new FloatingPartPlacement(new Vector3(2.5f, -0.46f, -1f), PartOrientation.Forward)),
+                new StatefulPart(4, settings.GetPartSettingById(Content.ShipContent.TurbolaserId), new FloatingPartPlacement(new Vector3(-2.2f, -0.46f, 3.5f), PartOrientation.Forward)),
+                new StatefulPart(5, settings.GetPartSettingById(Content.ShipContent.ColossusId), new FloatingPartPlacement(new Vector3(2.2f, -0.46f, 3.8f), PartOrientation.Forward)),
+                new StatefulPart(6, settings.GetPartSettingById(_turretSeat), new FloatingPartPlacement(new Vector3(2.5f, -0.46f, -3.2f), PartOrientation.Forward)),
+                new StatefulPart(7, settings.GetPartSettingById(Content.ShipContent.AnnihilatorId), new FloatingPartPlacement(new Vector3(0f, -0.46f, 9.5f), PartOrientation.Forward)),
+            };
+            var phys = p.PhysicsState;
+            Quaternion rot = phys.Rotation;
+            Vector3 up = rot * Vector3.up;
+            Vector3 fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, up).normalized;
+            Quaternion shipRot = Quaternion.LookRotation(fwd, up);
+            uint id = Svc.Get<IWorldObjectsIdsServerProvider>().CreateUniqueIdForObject();
+            Svc.ShipsServer.LoadShip(new ShipStateSnapshot
+            {
+                Id = id,
+                RelativeSpaceId = Svc.Get<WorldTracking.Interface.Services.ISpacesServerProvider>().GetOrCreateShipRelativeSpace(id),
+                SpaceId = phys.SpaceId,
+                Position = phys.Position + shipRot * new Vector3(side, 0.7f, forward),
+                Rotation = shipRot,
+                Velocity = Vector3.zero,
+                RoomGasState = new RoomGasState[0],
+                HullParts = hull.ToArray(),
+                StatefulParts = parts,
+            });
+            _gunshipId = id;
+            LoggerInstance.Msg($"[DEV] turret ship {id}");
         }
 
         private System.Collections.IEnumerator MeasureFps(float secs)

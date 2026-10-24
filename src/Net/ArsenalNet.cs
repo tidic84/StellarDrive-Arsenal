@@ -44,6 +44,7 @@ namespace Arsenal.Net
         ShipExplosionRequest = 22,
         ShieldHit = 23,
         BoltImpact = 24,
+        TurretAim = 25,
 
         // server -> client
         PanelState = 64,
@@ -65,6 +66,7 @@ namespace Arsenal.Net
         FlareSpawn = 80,
         Decoy = 81,
         PanelStates = 82,
+        TurretAims = 83,
     }
 
     /// <summary>Registers the broadcast with whichever NetworkManager is running and routes packets by opcode.</summary>

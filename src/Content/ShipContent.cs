@@ -36,15 +36,20 @@ namespace Arsenal.Content
         public const ushort LegacyGunnerSeatId = 9201, AdvancedPilotSeatId = 29;
         public const ushort PdcId = 9213, PlasmaCannonId = 9214, IonCannonId = 9215, RailgunId = 9216, TorpedoId = 9217, RocketPodId = 9218, SamBatteryId = 9219;
         public const ushort FlareDispenserId = 9221, HyperLauncherId = 9222, LaserGreenId = 9223, LaserBlueId = 9224;
-        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId, LaserGreenId, LaserBlueId };
+        /// <summary>The rotating turrets and the fire-control station that mans them (a basic pilot seat that does not fly).</summary>
+        public const ushort QuadTurretId = 9225, TurbolaserId = 9226, IonTurretId = 9227, ColossusId = 9228, GunnerStationId = 9229, AnnihilatorId = 9230;
+        /// <summary>Id of the weapons' signal input socket (read from the game's signal display they are copied from).</summary>
+        public static byte WeaponSocketId;
+        public static readonly ushort[] WeaponIds = { MachineGunId, MissilePodId, LaserCannonId, PdcId, PlasmaCannonId, IonCannonId, RailgunId, TorpedoId, RocketPodId, SamBatteryId, FlareDispenserId, HyperLauncherId, LaserGreenId, LaserBlueId,
+            QuadTurretId, TurbolaserId, IonTurretId, ColossusId, AnnihilatorId };
         public static bool IsLaser(ushort settingsId) => settingsId == LaserCannonId || settingsId == LaserGreenId || settingsId == LaserBlueId;
-        public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92;
+        public const ushort ResearchLightId = 90, ResearchHeavyId = 91, ResearchAdvancedId = 92, ResearchCapitalId = 93;
         private const float SocketZ = -0.37f; // weapons' signal input, at the back of the base
 
         private static readonly Dictionary<ushort, PartSettings> Parts = new Dictionary<ushort, PartSettings>();
         private static bool _building;
 
-        public static bool IsWeapon(ushort settingsId) => (settingsId >= MachineGunId && settingsId <= SamBatteryId) || (settingsId >= FlareDispenserId && settingsId <= LaserBlueId);
+        public static bool IsWeapon(ushort settingsId) => (settingsId >= MachineGunId && settingsId <= SamBatteryId) || (settingsId >= FlareDispenserId && settingsId <= ColossusId) || settingsId == AnnihilatorId;
 
         public static void Patch(HarmonyLib.Harmony h)
         {
@@ -81,6 +86,10 @@ namespace Arsenal.Content
                 Parts.Clear();
                 foreach (ushort w in WeaponIds) Parts[w] = BuildWeapon(display, w, items);
                 Parts[ArmoryId] = BuildArmory(chest, items);
+                // the basic pilot seat (the advanced one has its own state type)
+                PartSettings seat = all.Values.FirstOrDefault(p => p.internalStateClass != null && p.internalStateClass.EndsWith("PilotSeatState") && p.part != null);
+                if (seat != null) Parts[GunnerStationId] = BuildStation(seat, items);
+                else ArsenalMod.Log.Warning("No basic pilot seat found: the fire-control station is missing.");
                 ArsenalMod.Log.Msg($"Registered {Parts.Count} ship parts.");
             }
             catch (Exception ex)
@@ -133,6 +142,7 @@ namespace Arsenal.Content
             PartSettings p;
             GameObject model;
             Vector3 boundsCenter, boundsSize;
+            float socketZ = SocketZ;
             switch (id)
             {
                 case MachineGunId:
@@ -234,6 +244,41 @@ namespace Arsenal.Content
                     boundsCenter = new Vector3(0, 0.18f, 0f);
                     boundsSize = new Vector3(0.56f, 0.38f, 0.5f);
                     break;
+                case QuadTurretId:
+                    p = Turret(display, id, 150f, items, (101, 26), (112, 14), (102, 6), (103, 2));
+                    model = TurretModels.Quad();
+                    boundsCenter = new Vector3(0, 0.42f, 0f);
+                    boundsSize = new Vector3(1.1f, 0.84f, 1.0f);
+                    socketZ = -0.5f;
+                    break;
+                case TurbolaserId:
+                    p = Turret(display, id, 420f, items, (101, 60), (112, 30), (102, 14), (103, 6));
+                    model = TurretModels.Turbolaser();
+                    boundsCenter = new Vector3(0, 0.46f, 0f);
+                    boundsSize = new Vector3(1.7f, 0.92f, 1.7f);
+                    socketZ = -0.82f;
+                    break;
+                case IonTurretId:
+                    p = Turret(display, id, 300f, items, (101, 40), (112, 30), (102, 16), (103, 4));
+                    model = TurretModels.Ion();
+                    boundsCenter = new Vector3(0, 0.42f, 0f);
+                    boundsSize = new Vector3(1.24f, 0.84f, 1.24f);
+                    socketZ = -0.6f;
+                    break;
+                case ColossusId:
+                    p = Turret(display, id, 700f, items, (101, 90), (112, 40), (102, 20), (103, 10));
+                    model = TurretModels.Colossus();
+                    boundsCenter = new Vector3(0, 0.62f, 0f);
+                    boundsSize = new Vector3(2.2f, 1.24f, 2.2f);
+                    socketZ = -1.05f;
+                    break;
+                case AnnihilatorId:
+                    p = Turret(display, id, 2400f, items, (101, 180), (112, 80), (102, 40), (103, 20));
+                    model = TurretModels.Annihilator();
+                    boundsCenter = new Vector3(0, 1.3f, 0f);
+                    boundsSize = new Vector3(5f, 2.6f, 5f);
+                    socketZ = -2.48f;
+                    break;
                 default:
                 {
                     // laser cannons, one per bolt colour
@@ -249,7 +294,7 @@ namespace Arsenal.Content
             }
             p.size = Vector3.one;
             // the part's box stops in front of the cable socket, or it swallows the clicks meant for it
-            float front = boundsCenter.z + boundsSize.z / 2f, back = Mathf.Max(boundsCenter.z - boundsSize.z / 2f, SocketZ + 0.04f);
+            float front = boundsCenter.z + boundsSize.z / 2f, back = Mathf.Max(boundsCenter.z - boundsSize.z / 2f, socketZ + 0.04f);
             boundsCenter.z = (front + back) / 2f;
             boundsSize.z = front - back;
             GameObject prefab = ClonePrefab(display.part, "Arsenal.Weapon" + id);
@@ -273,15 +318,43 @@ namespace Arsenal.Content
                 box.size = boundsSize;
             }
             // signal input at the back of the base
-            Transform socket = prefab.GetComponentsInChildren<SocketObject>(true).FirstOrDefault()?.transform;
+            SocketObject socketObject = prefab.GetComponentsInChildren<SocketObject>(true).FirstOrDefault();
+            if (socketObject != null) WeaponSocketId = socketObject.Id;
+            Transform socket = socketObject?.transform;
             if (socket != null)
             {
-                socket.localPosition = new Vector3(0f, 0.07f, SocketZ);
+                socket.localPosition = new Vector3(0f, 0.07f, socketZ);
                 socket.localEulerAngles = Vector3.zero; // the game plugs cables in along the socket's forward: into the weapon
             }
             p.part = prefab;
             return p;
         }
+
+        private static PartSettings Turret(PartSettings display, ushort id, float mass, ItemSettings[] items, params (uint item, int qty)[] cost)
+        {
+            TurretDef d = Turrets.Get(id);
+            return Clone(display, id, d.NameFr, d.NameEn, d.DescFr, d.DescEn, mass, items, cost);
+        }
+
+        // ------------------------------------------------------------------ fire-control station
+
+        private static PartSettings BuildStation(PartSettings seat, ItemSettings[] items)
+        {
+            PartSettings p = Clone(seat, GunnerStationId, "Poste de tir", "Fire-control station",
+                "Siège de tourelles : assis ici, vous voyez depuis la tourelle et la pilotez à la souris, même derrière un mur ; ses tourelles visent le même point. Clic gauche pour tirer, Q / E pour changer de tourelle, molette pour zoomer. Reliez une de ses sorties à l'entrée d'une tourelle pour la lui attribuer (plusieurs postes = plusieurs artilleurs indépendants) ; sans câble, il commande les tourelles libres du vaisseau. Ne pilote pas le vaisseau. Sorties : tir (clic gauche) et tir 2 (clic droit).",
+                "Turret seat: seated here you see from the turret and aim it with the mouse, even from behind a wall; its turrets aim at the same point. Left click fires, Q / E switch turrets, the wheel zooms. Wire one of its outputs to a turret's input to give it that turret (several stations = several independent gunners); with no cable it controls the ship's free turrets. Does not fly the ship. Outputs: fire (left click) and fire 2 (right click).",
+                30f, items, (101, 12), (112, 8), (102, 4));
+            GameObject prefab = ClonePrefab(seat.part, "Arsenal.GunnerStation");
+            Transform visuals = prefab.transform.Find("Visuals") ?? prefab.transform;
+            GameObject console = TurretModels.Console();
+            console.transform.SetParent(visuals, false);
+            console.transform.localPosition = StationConsole;
+            p.part = prefab;
+            return p;
+        }
+
+        /// <summary>Where the fire-control console stands, in front of the seat.</summary>
+        internal static Vector3 StationConsole = new Vector3(0f, 0f, 0.55f);
 
         // ------------------------------------------------------------------ armory
 
@@ -316,6 +389,8 @@ namespace Arsenal.Content
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[RocketPodId], Parts[SamBatteryId], Parts[FlareDispenserId], Parts[HyperLauncherId] } },
                     new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[LaserGreenId], Parts[LaserBlueId] } },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Get(GunnerStationId), Parts[QuadTurretId], Parts[IonTurretId] }.Where(x => x != null).ToArray() },
+                    new BuildMenuTabConfig.BuildMenuRow { parts = new[] { Parts[TurbolaserId], Parts[ColossusId], Parts[AnnihilatorId] } },
                 },
             };
             Traverse.Create(__instance).Field("tabsConfig").SetValue(tabs.Concat(new[] { tab }).ToArray());
@@ -333,13 +408,17 @@ namespace Arsenal.Content
                 ResearchSettings light = MakeResearch(ResearchLightId, Loc.T("Armement", "Weaponry"), new Vector2Int(4, 3), new[] { controls },
                     new[] { Parts[ArmoryId], Parts[MachineGunId] }, items, (101, 25), (112, 10));
                 ResearchSettings heavy = MakeResearch(ResearchHeavyId, Loc.T("Armement lourd", "Heavy weaponry"), new Vector2Int(4, 4), new[] { light },
-                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[LaserGreenId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId] }, items, (101, 30), (112, 15), (103, 2));
+                    new[] { Parts[MissilePodId], Parts[LaserCannonId], Parts[LaserGreenId], Parts[PdcId], Parts[RocketPodId], Parts[FlareDispenserId], Parts[QuadTurretId], Get(GunnerStationId) }.Where(x => x != null).ToArray(),
+                    items, (101, 30), (112, 15), (103, 2));
                 ResearchSettings advanced = MakeResearch(ResearchAdvancedId, Loc.T("Armement avancé", "Advanced weaponry"), FreeSpot(list, heavy.positionInTechTree), new[] { heavy },
                     new[] { Parts[PlasmaCannonId], Parts[IonCannonId], Parts[RailgunId], Parts[TorpedoId], Parts[SamBatteryId], Parts[HyperLauncherId], Parts[LaserBlueId] }, items, (101, 40), (112, 25), (102, 10), (103, 4));
                 list.list.Add(light);
                 list.list.Add(heavy);
                 list.list.Add(advanced);
-                ArsenalMod.Log.Msg($"Research added: Weaponry, Heavy weaponry, Advanced weaponry at {advanced.positionInTechTree}.");
+                ResearchSettings capital = MakeResearch(ResearchCapitalId, Loc.T("Batteries de vaisseau capital", "Capital ship batteries"), FreeSpot(list, advanced.positionInTechTree), new[] { advanced },
+                    new[] { Parts[TurbolaserId], Parts[IonTurretId], Parts[ColossusId], Parts[AnnihilatorId] }, items, (101, 60), (112, 35), (102, 16), (103, 8));
+                list.list.Add(capital);
+                ArsenalMod.Log.Msg($"Research added: Weaponry, Heavy weaponry, Advanced weaponry at {advanced.positionInTechTree}, Capital ship batteries at {capital.positionInTechTree}.");
             }
         }
 

@@ -38,12 +38,34 @@ namespace Arsenal.Visual
             return go;
         }
 
-        internal static void Hands(Model m, Vector3 right, Vector3 left)
+        /// <summary>
+        /// A left hand well ahead of the grip carries the gun from below: <paramref name="left"/> is then where the palm
+        /// rests, and the IK target (the wrist) goes a little behind it and towards the centre line.
+        /// </summary>
+        internal static void Hands(Model m, Vector3 right, Vector3 left, Vector3? leftEuler = null)
         {
+            if (leftEuler == null && left.z > right.z + 0.1f)
+            {
+                leftEuler = UnderSupport;
+                left += new Vector3(0.02f, 0f, -0.04f);
+            }
             m.RightHand = Point(m.Root.transform, "RightHandPos", right, new Vector3(8.5f, 29.4f, 284.5f));
-            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", left, new Vector3(356.7f, 15.4f, 347f));
-            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", left, new Vector3(8.6f, 24.3f, 10.2f));
+            m.LeftHandFirstPerson = Point(m.Root.transform, "LeftHandPos_firstPerson", left, leftEuler ?? new Vector3(356.7f, 15.4f, 347f));
+            m.LeftHandThirdPerson = Point(m.Root.transform, "LeftHandPos_thirdPerson", left, leftEuler ?? new Vector3(8.6f, 24.3f, 10.2f));
         }
+
+        /// <summary>The turn the game's hand IK keeps between a left-hand target and the hand bone (measured in game, the same for every tool).</summary>
+        private static readonly Quaternion LeftBoneOffset = Quaternion.Euler(85f, 103f, 106f);
+
+        /// <summary>
+        /// Left-hand target angles (weapon frame) for a hand bone whose y axis (the fingers) points along <paramref name="fingers"/>
+        /// and whose z axis comes out of the palm along <paramref name="palm"/>. The fingers stay straight: the IK does not close them.
+        /// </summary>
+        internal static Vector3 LeftHand(Vector3 fingers, Vector3 palm) => (Quaternion.LookRotation(palm, fingers) * Quaternion.Inverse(LeftBoneOffset)).eulerAngles;
+
+        internal static readonly Vector3 PistolSupport = new Vector3(30.5f, 0f, 90f),   // palm on the left grip panel, fingers forward-down round the front
+            RevolverSupport = new Vector3(39.7f, 0f, 90f),                               // same, steeper for a raked grip
+            UnderSupport = LeftHand(new Vector3(0.4f, 0.1f, 0.9f), new Vector3(0f, 1f, -0.1f)); // palm up under the handguard, fingers forward along its left side
 
         // ------------------------------------------------------------------ sidearm
 
@@ -133,7 +155,7 @@ namespace Arsenal.Visual
             MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Rifle"), Assets.ToolAtlas);
             m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.55f), Vector3.zero);
             Point(m.Root.transform, "Sight", new Vector3(0, 0.066f + ReflexDot, 0.026f), Vector3.zero);
-            Hands(m, new Vector3(0.012f, -0.05f, -0.06f), new Vector3(-0.03f, 0.0f, 0.28f));
+            Hands(m, new Vector3(0.012f, -0.05f, -0.06f), new Vector3(-0.03f, -0.012f, 0.21f));
             m.Display = Point(m.Root.transform, "Display", new Vector3(0.0255f, 0.037f, 0.115f), new Vector3(0, -90f, 0));
             return m;
         }
@@ -188,7 +210,7 @@ namespace Arsenal.Visual
             MeshChild(m.Root.transform, "Body", k.Build("Arsenal.Marksman"), Assets.ToolAtlas);
             m.Muzzle = Point(m.Root.transform, "Muzzle", new Vector3(0, 0.03f, 0.82f), Vector3.zero);
             Point(m.Root.transform, "Sight", new Vector3(0, 0.108f, -0.13f), Vector3.zero);
-            Hands(m, new Vector3(0.012f, -0.05f, -0.08f), new Vector3(-0.03f, -0.02f, 0.28f));
+            Hands(m, new Vector3(0.012f, -0.05f, -0.08f), new Vector3(-0.03f, -0.02f, 0.2f));
             m.Display = Point(m.Root.transform, "Display", new Vector3(0.0315f, 0.035f, 0.13f), new Vector3(0, -90f, 0));
             return m;
         }
