@@ -14,5 +14,8 @@
         "gallery/06_heavy.jpg",
         "gallery/07_sam.jpg",
         "gallery/08_blast.jpg"
-    ]
+    ],
+    "ai": "vibecoded",
+    "development": "active",
+    "tags": ["weapons"]
 }
