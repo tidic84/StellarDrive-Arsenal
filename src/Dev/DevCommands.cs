@@ -247,6 +247,9 @@ namespace Arsenal
                 case "hover":
                     Damage.ShipKnockback.DevHover.Add(_testShipId);
                     break;
+                case "screen":
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, a[1] + ".png"));
+                    break;
                 case "wall":
                     SpawnTestWall(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 6f);
                     break;
@@ -701,6 +704,8 @@ namespace Arsenal
                     SpawnGunship(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 4f);
                     break;
                 case "turretship":
+                    DevRoof = a.Contains("roof");
+                    if (DevRoof) a = a.Where(s => s != "roof").ToArray();
                     // turretship [side] [forward]: a big deck with the fire-control station (part 1) and the four turrets (parts 2-5)
                     SpawnTurretShip(a.Length > 1 ? float.Parse(a[1], CultureInfo.InvariantCulture) : 0f, a.Length > 2 ? float.Parse(a[2], CultureInfo.InvariantCulture) : 6f);
                     break;
@@ -741,6 +746,15 @@ namespace Arsenal
                     if (Svc.ShipsClient.TryGetTrackedShip(_testShipId, out TrackedShipClient gt) && gt.IsRigidbodyLoaded)
                         Vehicles.GunnerStation.DevAimAt(Vehicles.ShipWeapons.TargetPoint(gt), a.Contains("fire"));
                     break;
+                case "tfthird":
+                {
+                    // tfthird on|off: turns TF Advanced's third-person pilot view on or off
+                    var tp = HarmonyLib.AccessTools.TypeByName("StellarDriveDemoTFAdvanced.TFItems.Devices.ThirdPerson");
+                    var prop = tp != null ? HarmonyLib.AccessTools.Property(tp, "Active") : null;
+                    prop?.SetValue(null, a.Length < 2 || a[1] != "off");
+                    LoggerInstance.Msg($"[DEV] TF third person: {(prop != null ? prop.GetValue(null) : "not loaded")}");
+                    break;
+                }
                 case "gunnerzoom":
                     Vehicles.GunnerStation.DevZoom(int.Parse(a[1]));
                     break;
@@ -1030,6 +1044,8 @@ namespace Arsenal
 
         private static ushort _turretSeat = Content.ShipContent.GunnerStationId;
 
+        private static bool DevRoof;
+
         private void SpawnTurretShip(float side, float forward)
         {
             TrackedPlayerServer p = Svc.PlayersServer.ActivePlayers.First();
@@ -1039,6 +1055,11 @@ namespace Arsenal
             for (int x = -4; x <= 4; x++)
                 for (int z = -4; z <= 13; z++)
                     hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 0, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
+            if (DevRoof)
+                // a low deck over the left front turret, for the gunner camera's pull-in
+                for (int x = -4; x <= -1; x++)
+                    for (int z = -4; z <= 1; z++)
+                        hull.Add(new HullPart(floor, new HullPartPlacement(new Vector3Int(x, 2, z), VoxelPartType.Floor, PartOrientation.Up, PartOrientation.Forward)));
             var parts = new[]
             {
                 new StatefulPart(1, settings.GetPartSettingById(_turretSeat), new FloatingPartPlacement(new Vector3(0, -0.46f, -3f), PartOrientation.Forward)),

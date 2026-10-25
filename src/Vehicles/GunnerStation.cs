@@ -174,6 +174,7 @@ namespace Arsenal.Vehicles
         private static PartContext _station;
 
         private static readonly float[] Zooms = { 1f, 2.5f, 6f };
+        private static float _zoom = 1f;           // the magnification shown, easing towards the chosen level
         private static float _yaw, _elevation;     // the view, in the selected turret's mount frame
         private static float _shake;
         private static float _camFrac = 1f;        // how far out the eye may go (1 = all the way, less when something is in the way)
@@ -199,7 +200,7 @@ namespace Arsenal.Vehicles
             _yaw = yaw;
             _elevation = elevation;
             _devFire = fire;
-            ArsenalMod.Log.Msg($"[DEV] gunner: {Controlled.Count} turrets, selected {(Selected != null ? Turrets.Get(Selected.Kind).HudName : "none")}, aim {AimPoint} at {AimDistance:0} m, eye out {_camFrac:F2}");
+            ArsenalMod.Log.Msg($"[DEV] gunner: {Controlled.Count} turrets, selected {(Selected != null ? Turrets.Get(Selected.Kind).HudName : "none")}, aim {AimPoint} at {AimDistance:0} m, eye out {_camFrac:F2}, camera {(Camera.main != null && Selected != null ? Vector3.Distance(Camera.main.transform.position, Selected.Pitch.position).ToString("0.0") + " m from the turret" : "?")}");
         }
 
         public static void DevAimAt(Vector3 point, bool fire)
@@ -275,7 +276,7 @@ namespace Arsenal.Vehicles
                 float wheel = mouse.scroll.ReadValue().y;
                 if (wheel > 0.1f) ZoomLevel = Mathf.Min(ZoomLevel + 1, Zooms.Length - 1);
                 else if (wheel < -0.1f) ZoomLevel = Mathf.Max(ZoomLevel - 1, 0);
-                Vector2 d = mouse.delta.ReadValue() * (0.15f * Sensitivity() / Zooms[ZoomLevel]);
+                Vector2 d = mouse.delta.ReadValue() * (0.15f * Sensitivity() / _zoom);
                 TurretDef def = Turrets.Get(Selected.Kind);
                 _yaw = Mathf.Repeat(_yaw + d.x + 180f, 360f) - 180f;
                 _elevation = Mathf.Clamp(_elevation + d.y, def.MinElevation, def.MaxElevation);
@@ -396,7 +397,10 @@ namespace Arsenal.Vehicles
 
         private static void ApplyFov()
         {
-            float z = Active ? Zooms[ZoomLevel] : 1f;
+            float goal = Active ? Zooms[ZoomLevel] : 1f;
+            _zoom = Active ? Mathf.Lerp(_zoom, goal, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 12f)) : 1f;
+            if (Mathf.Abs(_zoom - goal) < 0.01f) _zoom = goal;
+            float z = _zoom;
             if (_main != null) _main.fieldOfView = Fov(_mainFov, z);
             if (_distant != null) _distant.fieldOfView = Fov(_distantFov, z);
         }
@@ -448,8 +452,40 @@ namespace Arsenal.Vehicles
                 postfix: new HarmonyMethod(typeof(GunnerStation), nameof(StartInteractingPostfix)));
             h.Patch(AccessTools.Method(typeof(PlayerPilotControlsCapture), nameof(PlayerPilotControlsCapture.UpdatePilotInputs)),
                 prefix: new HarmonyMethod(typeof(GunnerStation), nameof(UpdatePilotInputsPrefix)));
-            h.Patch(AccessTools.Method(typeof(PlayerCamerasUpdater), "PlacePilotCamera"),
-                postfix: new HarmonyMethod(typeof(GunnerStation), nameof(PlacePilotCameraPostfix)));
+            // last of all, so a third-person view from another mod (TF Advanced) does not move the eye back over the seat
+            h.Patch(AccessTools.Method(typeof(PlayerCamerasUpdater), nameof(PlayerCamerasUpdater.UpdateCameras)),
+                postfix: new HarmonyMethod(typeof(GunnerStation), nameof(UpdateCamerasPostfix)) { priority = Priority.Last });
+            PatchThirdPerson(h);
+        }
+
+        /// <summary>
+        /// TF Advanced's third-person view turns while piloting, and its mouse wheel sets the view distance: both
+        /// are held off at a station (its wheel would zoom out its view while ours zooms in).
+        /// </summary>
+        private static void PatchThirdPerson(HarmonyLib.Harmony h)
+        {
+            System.Type tp = AccessTools.TypeByName("StellarDriveDemoTFAdvanced.TFItems.Devices.ThirdPerson");
+            if (tp == null) return;
+            try
+            {
+                System.Reflection.MethodInfo update = AccessTools.Method(tp, "Update");
+                if (update != null) h.Patch(update, prefix: new HarmonyMethod(typeof(GunnerStation), nameof(SkipAtStation)));
+                System.Reflection.MethodInfo place = AccessTools.Method(tp, "TryPlace");
+                if (place != null) h.Patch(place, prefix: new HarmonyMethod(typeof(GunnerStation), nameof(NoPlaceAtStation)));
+            }
+            catch (System.Exception e)
+            {
+                ArsenalMod.Log.Warning($"TF Advanced third-person view not held off at stations: {e.Message}");
+            }
+        }
+
+        private static bool SkipAtStation() => !Active;
+
+        private static bool NoPlaceAtStation(ref bool __result)
+        {
+            if (!Active) return true;
+            __result = false;
+            return false;
         }
 
         private static bool IsStationPart(TrackedShipServer ship, ushort partId) =>
@@ -497,9 +533,9 @@ namespace Arsenal.Vehicles
         private static readonly AccessTools.FieldRef<PlayerCamerasUpdater, PlayerCamera> CameraRef = AccessTools.FieldRefAccess<PlayerCamerasUpdater, PlayerCamera>("_camera");
         private static readonly AccessTools.FieldRef<PlayerCamerasUpdater, PlayerDistantCamera> DistantRef = AccessTools.FieldRefAccess<PlayerCamerasUpdater, PlayerDistantCamera>("_distantCamera");
 
-        private static void PlacePilotCameraPostfix(PlayerCamerasUpdater __instance)
+        private static void UpdateCamerasPostfix(PlayerCamerasUpdater __instance, PlayerState playerState)
         {
-            if (!Active || Selected == null || Selected.Head == null || Selected.Pitch == null) return;
+            if (!Active || playerState.Type != PlayerStateType.Piloting || Selected == null || Selected.Head == null || Selected.Pitch == null) return;
             ViewPose(out Vector3 pos, out Quaternion rot);
             CameraRef(__instance)?.UpdateCamera(pos, rot);
             DistantRef(__instance)?.UpdateCamera(pos, rot);
