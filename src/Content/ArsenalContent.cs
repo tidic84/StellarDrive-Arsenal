@@ -140,11 +140,13 @@ namespace Arsenal.Content
             {
                 visuals.firstPersonPosition = _laserVisuals.firstPersonPosition;
                 visuals.firstPersonRotation = _laserVisuals.firstPersonRotation;
-                visuals.maxLookAngles = _laserVisuals.maxLookAngles;
-                visuals.lookUpPosition = _laserVisuals.lookUpPosition;
-                visuals.lookForwardPosition = _laserVisuals.lookForwardPosition;
-                visuals.lookDownPosition = _laserVisuals.lookDownPosition;
-                visuals.lookDownRotationOffset = _laserVisuals.lookDownRotationOffset;
+                visuals.standingAnimationConfig = CopyAnimationConfig(_laserVisuals.standingAnimationConfig);
+                visuals.crouchingAnimationConfig = CopyAnimationConfig(_laserVisuals.crouchingAnimationConfig);
+            }
+            else
+            {
+                visuals.standingAnimationConfig = new ToolThirdPersonAnimationConfig();
+                visuals.crouchingAnimationConfig = new ToolThirdPersonAnimationConfig();
             }
             model.Root.transform.SetParent(vis.transform, false);
             // Put our grip where the mining laser's grip is, so the game's hand IK lands on it.
@@ -157,6 +159,17 @@ namespace Arsenal.Content
             hint.localEulerAngles = new Vector3(0, 60f, 0);
             return root;
         }
+
+        // The config is a reference type: give each tool its own copy instead of sharing the laser's instance.
+        private static ToolThirdPersonAnimationConfig CopyAnimationConfig(ToolThirdPersonAnimationConfig c) =>
+            c == null ? new ToolThirdPersonAnimationConfig() : new ToolThirdPersonAnimationConfig
+            {
+                maxLookAngles = c.maxLookAngles,
+                lookUpPosition = c.lookUpPosition,
+                lookForwardPosition = c.lookForwardPosition,
+                lookDownPosition = c.lookDownPosition,
+                lookDownRotationOffset = c.lookDownRotationOffset,
+            };
 
         private static void AddDisplay(Model model)
         {
